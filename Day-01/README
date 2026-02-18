@@ -1,1 +1,47 @@
+# Day 01 – DevOps Fundamentals
+
+## Key Questions Covered
+- What is DevOps?
+- Why DevOps?
+
+---
+
+## What is DevOps?
+DevOps is a **culture or practice** adopted by organizations to **improve their ability to deliver applications**.
+
+The **ultimate goal of any organization is delivery**, and DevOps helps reduce the time required to deliver new versions of applications from **days or weeks to hours or minutes**.
+
+DevOps is not only about delivery. It focuses on:
+- **Automation** – reducing manual work to improve delivery speed
+- **Quality** – ensuring customer expectations are met
+- **Monitoring** – tracking application health to maintain quality
+- **Testing** – validating automation and ensuring correct functionality
+
+### Revised Definition
+DevOps is a **process of improving application delivery** by ensuring:
+- Proper automation  
+- Maintained quality  
+- Continuous monitoring  
+- Continuous testing  
+
+The primary goal of a DevOps engineer is to **eliminate manual processes** and **speed up application delivery**.
+
+---
+
+## Why DevOps?
+Before DevOps, application delivery involved multiple teams and heavy manual effort.
+
+### Traditional Roles Involved
+- **Developer** – wrote application code  
+- **System Administrator** – created servers using platforms like VMware or OpenStack  
+- **Build & Release Engineer** – deployed applications after code check-in (SVN/CVS)  
+- **Tester** – tested the application on servers  
+- **Server Administrator** – set up application servers  
+
+This process was **slow, inefficient**, and could take **days to months**.
+
+DevOps emerged to **automate this entire workflow** and improve delivery speed and reliability.
+
+DevOps is a **culture** because it requires a **single team** to adapt new tools and processes together to improve efficiency.
+
 
