@@ -1,0 +1,84 @@
+# Day 05 – Virtual Machines (Part 2) and Automation
+
+## Objective
+To understand the evolution of virtual machines, the importance of automation in DevOps, different methods to automate VM creation, and the basic manual steps to create a virtual machine using cloud platforms.
+
+---
+
+## Evolution of Virtual Machines
+Over time, organizations moved away from maintaining large physical data centers due to cost and inefficiency.  
+Cloud platforms such as AWS and Azure became popular by offering virtual machines on demand using virtualization and automation.
+
+This shift significantly reduced infrastructure management overhead and improved scalability.
+
+---
+
+## Importance of Automation in DevOps
+DevOps engineers rarely create infrastructure manually.  
+Automation is critical to:
+- Create multiple virtual machines quickly
+- Reduce manual errors
+- Ensure consistency across environments
+- Support scalable and repeatable deployments
+
+---
+
+## Methods to Automate Virtual Machine Creation
+
+### AWS CLI
+- Command-line tool to manage cloud resources
+- Useful for scripting and quick automation
+
+### AWS API
+- Programmatic access using SDKs
+- Can be used with languages like Python (boto3)
+
+### AWS CloudFormation (CFT)
+- Infrastructure defined using templates
+- Resources are created in a declarative way
+
+### AWS CDK
+- Infrastructure defined using programming languages
+- Converts code into cloud templates
+
+### Terraform
+- Infrastructure as Code (IaC) tool
+- Supports multi-cloud and hybrid cloud environments
+- Widely used to automate infrastructure across providers
+
+Terraform is commonly preferred because it works consistently across different cloud platforms.
+
+---
+
+## Manual Virtual Machine Creation (UI Approach)
+
+### Steps to Create a VM on AWS
+1. Log in to the cloud console
+2. Navigate to the EC2 service
+3. Launch a new instance
+4. Provide an instance name
+5. Choose an Operating System (Ubuntu is recommended for beginners)
+6. Select a free-tier eligible instance type
+7. Create or select a key pair for SSH access
+8. Launch the instance
+
+Once launched, the virtual machine moves to a running state and is ready for access.
+
+---
+
+## VM Creation on Azure
+The process of creating a virtual machine on Azure is similar:
+- Login to the Azure portal
+- Create a new virtual machine
+- Select OS, size, authentication method
+- Launch the VM
+
+Free trial offerings may differ between cloud providers.
+
+---
+
+## Key Learnings
+- Virtual machines are the foundation of cloud platforms
+- Automation is a core responsibility of DevOps engineers
+- Multiple tools exist to automate VM creation
+- Manual VM creation helps understand the basics before automation
