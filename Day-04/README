@@ -1,0 +1,83 @@
+# Day 04 – Virtual Machines (Part 1)
+
+## Objective
+To understand what virtual machines are, why they are needed, how they differ from physical servers, and how virtualization improves efficiency in modern infrastructure.
+
+---
+
+## What is a Server?
+A server is a system where applications are deployed so that users can access them over a network. Traditionally, servers were physical machines dedicated to specific teams or applications.
+
+---
+
+## Problem with Physical Servers
+In a traditional setup:
+- Organizations purchased multiple physical servers for different teams
+- Most applications used only a small portion of server resources
+- Example: An application requiring 4GB RAM running on a server with 100GB RAM
+- This led to **resource wastage, high cost, and poor efficiency**
+
+---
+
+## Concept of Efficiency
+Efficiency means **maximum utilization of available resources**.  
+Wasting unused capacity is inefficient and increases operational cost.
+
+---
+
+## Virtualization
+Virtualization is a technique used to **divide a single physical server into multiple isolated environments**.
+
+- A software called a **hypervisor** is installed on the physical server
+- The hypervisor performs logical partitioning of resources
+- Each partition is called a **Virtual Machine (VM)**
+
+---
+
+## What is a Virtual Machine (VM)?
+- A VM is a **logical (not physical) machine**
+- Each VM has its own:
+  - CPU
+  - Memory
+  - Storage
+  - Operating system
+- Multiple VMs can run independently on the same physical server
+- Failure or usage in one VM does not affect others
+
+VMs are called “virtual” because they do not exist physically.
+
+---
+
+## Hypervisors
+A hypervisor is the software responsible for creating and managing virtual machines.Popular hypervisors include VMware and Xen
+
+## Virtual Machines in Cloud Platforms
+Cloud providers follow the same virtualization concept.
+
+- Data centers contain millions of physical servers
+- Hypervisors are installed on these servers
+- When a user requests a VM, it is created logically on a suitable physical server
+- Users get access through IP addresses, not physical hardware
+
+This model allows many users to efficiently share infrastructure.
+
+Example cloud platforms:
+- Amazon Web Services
+- Google Cloud
+- Microsoft Azure
+
+---
+
+## Local Virtual Machines
+Virtual machines can also be created on personal systems using tools like:
+- Oracle VirtualBox
+
+This is useful for learning and testing.
+
+---
+
+## Key Learnings
+- Physical servers are inefficient when underutilized
+- Virtualization solves resource wastage
+- Hypervisors enable multiple VMs on a single server
+- Virtual machines are the foundation of cloud computing
