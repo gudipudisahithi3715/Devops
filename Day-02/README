@@ -1,0 +1,83 @@
+# Day 02 – Improve SDLC with DevOps
+
+## Objective
+To understand the Software Development Life Cycle (SDLC), its phases, and how DevOps improves the efficiency of software delivery through automation.
+
+---
+
+## Importance of SDLC
+SDLC is a fundamental concept for everyone in the software and IT industry, including developers, testers, and DevOps engineers. It defines how organizations design, develop, test, and deliver software in a structured way.
+
+---
+
+## What is SDLC?
+SDLC is a **process or set of standards** followed by the software industry to design, develop, and test **high-quality products**.  
+All organizations, from startups to large enterprises, follow SDLC to ensure consistency and quality.
+
+---
+
+## Goal of SDLC
+The primary goal of SDLC is to **deliver a high-quality product** that meets customer expectations within the expected timeline. Skipping SDLC phases can negatively impact product quality.
+
+---
+
+## Phases of SDLC
+
+### 1. Planning
+- Gather requirements from customers and stakeholders
+- Analyze feasibility and business need
+- Decide whether to proceed or suspend the idea based on research
+
+### 2. Defining & Designing
+- Requirements are documented in **Software Requirement Specification (SRS)**
+- **High-Level Design (HLD):**
+  - Overall system architecture
+  - Scalability, availability, database selection
+- **Low-Level Design (LLD):**
+  - Detailed functions, modules, and code-level interactions
+
+### 3. Building (Development)
+- Developers write application code based on design documents
+- Code is pushed to a central repository such as Git
+- Peer reviews are performed before further stages
+
+### 4. Testing
+- Quality Assurance (QA) team tests the application
+- Ensures functionality, stability, and quality before release
+
+### 5. Deployment
+- Tested application is promoted to the production environment
+- Application becomes available to end users
+
+SDLC phases are **cyclical** and repeated for every new feature or update.
+
+---
+
+## How DevOps Improves SDLC
+DevOps focuses mainly on:
+- Build
+- Test
+- Deployment
+
+DevOps engineers automate these phases to:
+- Reduce manual effort
+- Increase delivery speed
+- Improve reliability and consistency
+
+DevOps is a **culture** that streamlines the entire development and delivery pipeline through automation.
+
+---
+
+## SDLC Models
+- Waterfall
+- Iterative
+- Agile
+
+Agile is widely used today, where work is done in short sprints with continuous improvement.
+
+---
+
+## Key Takeaways for DevOps Engineers
+- Strong understanding of SDLC is essential
+- DevOps improves SDLC efficiency through automation
+- Automation of build, test, and deployment is a core responsibility
