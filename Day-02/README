@@ -73,8 +73,14 @@ DevOps is a **culture** that streamlines the entire development and delivery pip
 - Iterative
 - Agile
 
-Agile is widely used today, where work is done in short sprints with continuous improvement.
+### Waterfall
+A linear and sequential model where each phase is completed before moving to the next. Changes are difficult once a phase is finished, making it suitable for projects with fixed requirements.
 
+### Iterative
+The project is developed in small parts (iterations). Each iteration goes through planning, development, and testing, allowing gradual improvement based on feedback.
+
+### Agile
+A flexible and widely used model where development is done in short cycles called sprints. It supports continuous feedback, frequent releases, and quick adaptation to changing requirements.
 ---
 
 ## Key Takeaways for DevOps Engineers
