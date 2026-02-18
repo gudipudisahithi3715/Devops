@@ -1,0 +1,107 @@
+# Day 03 – Absolute Prerequisites for Learning DevOps
+
+## Objective
+To understand how organizations work, how requirements flow through different roles, and how a DevOps engineer fits into the Software Development Life Cycle (SDLC) and day-to-day work.
+
+---
+
+## Why Understanding Organizational Roles Is Important
+DevOps engineers usually **do not interact directly with customers**.  
+Requirements come from multiple roles within the organization, and those requirements are broken down into tasks assigned to different teams.  
+Understanding this flow helps in real-world work and interviews.
+
+---
+
+## Key Roles in an Organization
+
+### Business Analyst (BA)
+- Interacts directly with customers
+- Gathers business requirements
+- Prepares **Business Requirement Document (BRD)**
+
+### Product Manager (PM)
+- Reviews requirements from Business Analysts
+- Prioritizes features based on business needs
+- Decides what should be built and when
+
+### Product Owner (PO)
+- Converts prioritized requirements into **technical work items**
+- Breaks requirements into **Epics**
+- Works closely with technical teams
+
+### Solution Architect
+- Designs the technical solution
+- Creates **High-Level Design (HLD)** and **Low-Level Design (LLD)**
+- Defines architecture and implementation approach
+
+### Development Team
+- Implements application features
+- Identifies infrastructure and tooling needs
+- Requests platforms like Kubernetes, Git repositories, CI/CD pipelines
+
+### DevOps Engineer
+- Does not receive requirements directly
+- Supports development needs through:
+  - Infrastructure setup
+  - Automation
+  - CI/CD pipelines
+  - Environment readiness
+
+### QA / QE Engineer
+- Tests application functionality and quality
+- Works closely with developers and DevOps engineers
+
+### SRE Engineer
+- Ensures reliability and availability
+- Handles monitoring, maintenance, and production stability
+
+### Technical Writer
+- Documents systems, processes, and features
+
+---
+
+## Scrum Team Collaboration
+A Scrum team typically includes:
+- Developers
+- DevOps engineers
+- QA/QE engineers
+- Database administrators
+
+All members work together to complete requirements within sprints.
+
+---
+
+## SDLC Phases and Role Mapping
+- **Planning** – Requirements are collected
+- **Analysis** – Requirements are analyzed
+- **Design** – HLD and LLD are created
+- **Implementation** – Developers, DevOps, QA work together
+- **Testing & Integration** – Quality validation
+- **Maintenance** – Reliability and support handled mainly by SREs
+
+---
+
+## DevOps Responsibilities Beyond Assigned Tasks
+DevOps engineers:
+- Identify gaps in the SDLC
+- Improve delivery speed
+- Automate processes across teams
+- Integrate CI/CD pipelines
+- Bring security into the pipeline
+- Reduce manual dependency between teams
+
+---
+
+## Jira and Requirement Tracking
+- Requirements are managed using project management tools like Jira
+- Product Owners create **Epics**
+- Developers break epics into **Stories**
+- DevOps engineers receive tasks during **Sprint Planning**
+- DevOps engineers must update task progress regularly in Jira comments
+
+---
+
+## Key Learnings
+- DevOps engineers work through requirements coming from multiple roles
+- Understanding SDLC and organizational structure is critical
+- Automation, collaboration, and visibility are core DevOps responsibilities
