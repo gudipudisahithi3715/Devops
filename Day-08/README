@@ -1,0 +1,97 @@
+# Day 08 – Linux Fundamentals & Shell Basics
+
+## Overview
+This focuses on understanding the Linux operating system and learning essential shell commands required for DevOps engineers. Linux is the backbone of most production environments, and shell access is the primary way to interact with servers.
+
+---
+
+## What is an Operating System?
+An Operating System (OS) acts as a bridge between hardware and software.
+
+**Responsibilities of an OS:**
+- Manages CPU, memory, storage, and I/O devices
+- Allows applications to communicate with hardware
+- Ensures efficient and secure resource usage
+
+Examples of applications interacting with the OS include CI/CD tools, databases, and web servers.
+
+---
+
+## Why Linux is Widely Used
+Linux is the most preferred operating system in DevOps and production environments due to:
+
+- Open-source and free
+- High security and stability
+- Faster performance with minimal overhead
+- No requirement for antivirus software
+- Multiple distributions available
+
+**Popular Linux Distributions:**
+- Ubuntu
+- CentOS
+- Amazon Linux
+
+---
+
+## Linux Architecture
+Linux follows a layered architecture:
+
+### Kernel
+- Core component of the OS
+- Handles process management, memory management, and device management
+- Communicates directly with hardware using system calls
+
+### System Libraries
+- Provide standard functions used by applications
+- Act as an interface between kernel and user programs
+
+### User Space
+- Includes user processes, compilers, shell, and system utilities
+- Where applications and scripts run
+
+---
+
+## Shell and Its Importance
+Shell is the command-line interface used to interact with Linux systems.
+
+**Why Shell is Important:**
+- Servers usually do not have GUI
+- Automation relies heavily on shell commands and scripts
+- Essential for managing servers, deployments, and troubleshooting
+
+---
+
+## Basic Linux Commands
+
+### File and Directory Management
+- `ls` – List files and directories
+- `pwd` – Show current working directory
+- `cd` – Change directory
+- `ls -ltr` – Detailed listing with permissions, ownership, size, and timestamps
+- `touch` – Create an empty file
+- `mkdir` – Create a directory
+- `rm` – Remove files
+- `rm -r` – Remove directories recursively
+
+---
+
+### File Content Handling
+- `vi` – Create and edit files
+- `cat` – Display file content
+
+---
+
+### System Resource Commands
+- `free` – Check memory usage
+- `nproc` – Display number of CPU cores
+- `df -h` – Show disk usage in human-readable format
+- `top` – Real-time system performance overview (CPU, memory, processes)
+
+---
+
+## Key Takeaways
+- Linux is the foundation of DevOps infrastructure
+- Shell access is mandatory for server management
+- Basic Linux commands are essential for daily operations
+- Shell scripting enables automation and efficiency
+- Strong Linux fundamentals are critical for real-world DevOps projects
