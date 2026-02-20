@@ -1,0 +1,190 @@
+# Day-09 Shell Scripting for DevOps 
+
+Shell scripting is a core skill for DevOps engineers. In real-world production environments, servers do not have graphical interfaces, and all operations are performed using command-line tools and scripts. Shell scripting enables automation, monitoring, and efficient system management.
+
+---
+
+## Purpose of Shell Scripting
+
+Shell scripting is used to:
+- Automate repetitive tasks
+- Maintain infrastructure
+- Manage files and directories
+- Monitor system resources
+- Support CI/CD pipelines
+- Improve operational efficiency
+
+Automation using shell scripts reduces manual effort and human error.
+
+---
+
+## What is an Operating System?
+
+An Operating System acts as a bridge between applications and hardware.  
+Applications cannot directly communicate with CPU, RAM, disk, or network.
+
+Application → Operating System → Hardware
+
+Linux is the most widely used operating system in DevOps environments.
+
+---
+
+## Why Linux is Used in DevOps
+
+- Free and open source
+- Secure and stable
+- Fast and lightweight
+- No antivirus required
+- Widely used in production servers
+
+Common Linux distributions:
+- Ubuntu
+- CentOS
+- RedHat
+- Amazon Linux
+
+---
+
+## Linux Architecture
+
+Hardware  
+↓  
+Kernel  
+↓  
+System Libraries  
+↓  
+Shell  
+↓  
+User Applications  
+
+The kernel handles:
+- Process management
+- Memory management
+- Device management
+- System calls
+
+---
+
+## What is a Shell?
+
+A shell is a command-line interface that allows users to interact with the Linux operating system. DevOps engineers rely on shells to manage servers and automate tasks.
+
+---
+
+## Types of Shells
+
+Linux supports multiple shells:
+
+- sh  – Original Unix shell
+- bash – Most commonly used shell
+- ksh – Korn shell
+- dash – Lightweight and fast shell
+
+Different shells exist to support performance, compatibility, and scripting needs.
+
+---
+
+## Shebang (#!)
+
+The shebang tells the system which shell should execute the script.
+
+Examples:
+#!/bin/bash  
+#!/bin/sh  
+
+It ensures the script runs using the correct interpreter.
+
+---
+
+## Basic Linux Commands
+
+### File and Directory Commands
+ls        – List files and folders  
+pwd       – Show present working directory  
+cd        – Change directory  
+touch     – Create an empty file  
+mkdir     – Create a directory  
+rm        – Remove a file  
+rm -r     – Remove a directory  
+
+### File Content Commands
+vi / vim  – Create or edit files  
+cat       – Display file content  
+
+### Permissions and Help
+chmod     – Change file permissions  
+history   – Show command history  
+man       – Manual for commands  
+
+---
+
+## Writing a Simple Shell Script
+
+Example script:
+
+#!/bin/bash  
+mkdir DevOps  
+cd DevOps  
+touch file1.txt file2.txt  
+echo "Directories and files created"
+
+This script creates a directory and files automatically.
+
+---
+
+## How to Execute a Shell Script
+
+1. Create the script file  
+   touch script.sh  
+
+2. Give execute permission  
+   chmod +x script.sh  
+
+3. Run the script  
+   ./script.sh  
+
+---
+
+## Monitoring System Resources
+
+Shell commands are widely used to monitor server health.
+
+### CPU Information
+nproc  
+
+### Memory Usage
+free  
+
+### Disk Usage
+df -h  
+
+### Real-Time Monitoring
+top  
+
+These commands help DevOps engineers track system performance.
+
+---
+
+## Shell Scripting in DevOps
+
+Shell scripting is used for:
+- Server health checks
+- Log cleanup
+- Backup automation
+- Infrastructure maintenance
+- Job scheduling
+- CI/CD automation
+
+Shell scripts are a foundation for advanced DevOps tools and workflows.
+
+---
+
+## Summary
+
+- Shell scripting is essential for DevOps
+- Linux is the backbone of production systems
+- Different shells support different needs
+- Automation improves efficiency
+- Monitoring ensures system reliability
+
+---
