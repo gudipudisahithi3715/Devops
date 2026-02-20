@@ -1,0 +1,348 @@
+# Day-10 Shell Scripting for DevOps  (Part 2)
+
+This covers advanced shell scripting concepts essential for DevOps engineers. It focuses on script best practices, debugging techniques, error handling, system monitoring, process management, log analysis, file operations, user management, and control flow structures.
+
+---
+
+# 1. Importance of Advanced Shell Scripting in DevOps
+
+Shell scripting is critical for:
+
+- Infrastructure automation
+- Monitoring system health
+- Log file analysis
+- Deployment automation
+- Maintenance scripts
+- Production-grade error handling
+
+A DevOps engineer must write reliable, readable, and failure-safe scripts.
+
+---
+
+# 2. Script Metadata and Structure
+
+Every professional script should contain:
+
+- Shebang
+- Description
+- Author
+- Date
+- Purpose
+
+Example:
+
+```bash
+#!/bin/bash
+# Script Name: node_health_check.sh
+# Description: Checks CPU, Memory, Disk and Running Processes
+# Author: DevOps Engineer
+# Date: YYYY-MM-DD
+```
+
+---
+
+# 3. Node Health Analysis Script
+
+Node health analysis is a common DevOps task to monitor server status.
+
+## Commands Used
+
+- `df -h` → Disk usage
+- `free -g` → Memory usage
+- `nproc` → Number of CPUs
+- `top` → Running processes
+
+## Example Script
+
+```bash
+#!/bin/bash
+
+echo "========== Node Health Check =========="
+
+echo "Disk Usage:"
+df -h
+
+echo ""
+
+echo "Memory Usage:"
+free -g
+
+echo ""
+
+echo "CPU Count:"
+nproc
+
+echo ""
+
+echo "Top Running Processes:"
+top -b -n 1 | head -10
+```
+
+---
+
+# 4. Improving Script Readability
+
+Good scripts should:
+
+- Use meaningful echo statements
+- Add spacing
+- Be well-structured
+
+Example:
+
+```bash
+echo "Starting disk usage check..."
+```
+
+Readable scripts are easier to debug and maintain.
+
+---
+
+# 5. Debugging in Shell Scripts
+
+## set -x
+
+Prints each command before execution.
+
+```bash
+set -x
+```
+
+Used to debug execution flow.
+
+---
+
+# 6. Process Management
+
+## ps -ef
+
+Lists all running processes with process IDs.
+
+```bash
+ps -ef
+```
+
+Used to:
+- Identify running services
+- Check process IDs
+- Debug performance issues
+
+Example:
+
+```bash
+ps -ef | grep nginx
+```
+
+---
+
+# 7. Filtering Output with grep and awk
+
+## grep
+
+Filters output based on pattern.
+
+```bash
+ps -ef | grep java
+```
+
+## awk
+
+Extracts specific columns.
+
+```bash
+ps -ef | awk '{print $2}'
+```
+
+---
+
+# 8. Pipes (|)
+
+Pipes connect commands.
+
+```
+Command1 | Command2
+```
+
+Example:
+
+```bash
+ps -ef | grep nginx | awk '{print $2}'
+```
+
+### Important Concept
+
+- Pipes use stdin and stdout.
+- Without proper handling, pipe failures may not stop script execution.
+
+---
+
+# 9. Error Handling in Shell Scripts
+
+Production scripts must fail safely.
+
+## set -e
+
+Stops execution if any command fails.
+
+```bash
+set -e
+```
+
+## set -o pipefail
+
+Fails script if any command in a pipe fails.
+
+```bash
+set -o pipefail
+```
+
+## Recommended Usage
+
+```bash
+set -e
+set -o pipefail
+```
+
+This ensures robust automation scripts.
+
+---
+
+# 10. Remote Log File Analysis
+
+DevOps engineers often search logs for errors.
+
+## wget
+
+Downloads files.
+
+```bash
+wget http://example.com/app.log
+```
+
+## curl
+
+Fetches data from URLs and APIs.
+
+```bash
+curl http://example.com/app.log
+```
+
+Example:
+
+```bash
+curl http://example.com/app.log | grep ERROR
+```
+
+Used for:
+- Remote troubleshooting
+- Production debugging
+
+---
+
+# 11. File Operations
+
+## find
+
+Searches files inside directories.
+
+```bash
+find /var/log -name "*.log"
+```
+
+Used for:
+- Locating logs
+- Cleanup scripts
+- Automation workflows
+
+---
+
+# 12. User and Permission Management
+
+## sudo
+
+Executes command as superuser.
+
+```bash
+sudo systemctl restart nginx
+```
+
+## su
+
+Switches user.
+
+```bash
+su - username
+```
+
+---
+
+# 13. Control Flow in Shell Scripting
+
+## If-Else
+
+```bash
+if [ $value -gt 10 ]
+then
+  echo "Greater than 10"
+else
+  echo "Less than or equal to 10"
+fi
+```
+
+## For Loop
+
+```bash
+for i in 1 2 3
+do
+  echo $i
+done
+```
+
+Control flow enables automation logic.
+
+---
+
+# 14. Trap Command
+
+The `trap` command catches signals like Ctrl+C.
+
+Example:
+
+```bash
+trap "echo Script interrupted; exit" SIGINT
+```
+
+Used to:
+- Handle interruptions
+- Prevent abrupt script termination
+- Perform cleanup actions
+
+---
+
+# 15. Why These Concepts Matter in DevOps
+
+- Production systems must not fail silently
+- Proper error handling prevents downtime
+- Monitoring helps maintain system health
+- Log analysis helps in root cause analysis
+- Robust scripting is essential for automation
+
+---
+
+# Conclusion
+
+Advanced shell scripting includes:
+
+- Metadata and structured scripts
+- Debugging with set -x
+- Error handling with set -e and pipefail
+- Process analysis with ps
+- Output filtering with grep and awk
+- Monitoring using df, free, nproc, top
+- Remote log analysis using curl and wget
+- File search using find
+- User management with sudo and su
+- Control flow (if-else, loops)
+- Signal handling using trap
+
+Mastering these concepts is essential for becoming a strong DevOps engineer.
