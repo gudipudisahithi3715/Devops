@@ -1,0 +1,82 @@
+# Day 07 – EC2 Access and Automation
+
+## Overview
+This covers how to access EC2 virtual machines and automate infrastructure creation using different approaches commonly used in DevOps.
+
+---
+
+## EC2 Access Methods
+
+### AWS Console
+EC2 instances can be accessed through the AWS Management Console.  
+This method is simple but not suitable for frequent or production usage due to repetitive manual steps.
+
+---
+
+### Command Line (SSH)
+Command-line access is the most preferred approach in DevOps.
+
+**Tools Used**
+- iTerm (Mac)
+- PuTTY / MobaXterm (Windows)
+- NoMachine
+
+**Steps**
+- Launch an EC2 instance
+- Use the public IP address
+- Set correct permissions for the key pair
+- Connect to the instance using SSH from the terminal
+
+This method is faster and more efficient for daily operations.
+
+---
+
+## Automation Approaches
+
+### AWS CLI
+AWS CLI allows managing AWS resources using commands.
+
+**Process**
+- Install AWS CLI
+- Configure credentials using access keys
+- Authenticate with AWS account
+
+**Usage**
+- List AWS resources (example: S3 buckets)
+- Create and manage EC2 instances
+- Execute AWS operations using documented commands
+
+---
+
+### AWS CloudFormation (CFT)
+CloudFormation enables infrastructure creation using templates.
+
+**Key Concepts**
+- Infrastructure as Code (IaC)
+- Templates written in YAML or JSON
+- Resources managed using stacks
+
+**Flow**
+- Create a stack
+- Upload the CloudFormation template
+- AWS provisions all resources automatically
+
+This ensures consistency, repeatability, and version control.
+
+---
+
+### AWS API (Boto3)
+Boto3 is the Python SDK used to interact with AWS services.
+
+**Highlights**
+- Programmatic access to AWS APIs
+- Automates EC2 and other services using scripts
+- Useful for advanced automation scenarios
+
+---
+
+## Key Takeaways
+- Console access is easy but not scalable
+- CLI access is efficient and widely used
+- Automation is critical for DevOps workflows
+- AWS CLI, CloudFormation, and Boto3 are essential automation tools
