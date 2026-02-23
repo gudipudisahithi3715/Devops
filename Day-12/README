@@ -1,0 +1,128 @@
+# Git and GitHub Complete Guide for DevOps
+
+## Overview
+This shows Git and GitHub fundamentals used in real-world DevOps and software development workflows. It covers version control concepts, Git architecture, common commands, branching strategies, and collaboration using GitHub.
+
+## Version Control System (VCS)
+A Version Control System helps track changes made to files over time. It enables collaboration, maintains history, and allows rollback to previous versions.
+
+## Types of Version Control Systems
+1. Local VCS
+2. Centralized VCS (CVCS)
+3. Distributed VCS (DVCS)
+
+Git is a Distributed Version Control System where each developer has a complete copy of the repository and its history.
+
+## Advantages of Git
+- Faster performance
+- Offline access
+- Better collaboration
+- Easy branching and merging
+- Full project history available locally
+
+## Git Architecture
+- Working Directory
+- Staging Area
+- Local Repository
+- Remote Repository
+
+## Installing Git
+sudo apt update
+sudo apt install git -y
+
+Verify installation:
+git --version
+
+## Git Configuration
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+
+Check configuration:
+git config --list
+
+## Initializing a Repository
+git init
+
+## Checking Repository Status
+git status
+
+## Adding Files to Staging Area
+git add filename
+git add .
+
+## Committing Changes
+git commit -m "commit message"
+
+## Viewing Commit History
+git log
+
+## Undoing Changes
+git reset --soft HEAD~1
+git reset --hard HEAD~1
+
+## Branching
+Create a branch:
+git branch branch-name
+
+Switch branch:
+git checkout branch-name
+
+Create and switch branch:
+git checkout -b branch-name
+
+## Merging Branches
+git merge branch-name
+
+## GitHub
+GitHub is a cloud-based platform used to host Git repositories and collaborate with teams.
+
+## Creating a GitHub Repository
+1. Create a repository on GitHub
+2. Copy the repository URL
+
+Connect local repo to GitHub:
+git remote add origin https://github.com/username/repository-name.git
+
+Push code to GitHub:
+git push -u origin main
+
+## Pulling Changes from Remote
+git pull origin main
+
+## Cloning a Repository
+git clone https://github.com/username/repository-name.git
+
+## Fork
+Fork creates a personal copy of another user's repository to work independently.
+
+## Pull Request
+Pull requests are used to submit changes for review before merging into the main branch.
+
+## Git Ignore
+Create .gitignore file to exclude files:
+*.log
+.env
+node_modules/
+
+## Common Git Commands
+git init
+git status
+git add .
+git commit -m "message"
+git log
+git branch
+git checkout
+git merge
+git push
+git pull
+git clone
+
+## Key Learnings
+- Version control concepts
+- Git command-line usage
+- Branching and merging
+- GitHub collaboration workflow
+- DevOps-ready source code management
+
+## Conclusion
+Git and GitHub are essential tools for DevOps engineers. Understanding these concepts ensures efficient collaboration, reliable code tracking, and smooth CI/CD workflows.
