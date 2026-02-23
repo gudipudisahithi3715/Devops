@@ -1,0 +1,98 @@
+# AWS Resource Tracker using Shell Scripting
+
+## Project Overview
+This project demonstrates how shell scripting can be used to automate the tracking of AWS resources using the AWS CLI. The script fetches details of commonly used AWS services and displays them in a readable format. This helps in monitoring cloud resources, auditing environments, and reducing dependency on the AWS Management Console.
+
+## Tools and Technologies
+- AWS CLI
+- Bash / Shell Scripting
+- Linux (Ubuntu)
+- AWS IAM
+- Cron Jobs (optional)
+
+
+## Prerequisites
+- Active AWS account
+- IAM user with read-only permissions
+- AWS CLI installed
+- AWS CLI configured with credentials
+- Linux-based environment
+
+## IAM Permissions
+The IAM user should have permission to read AWS resources such as:
+- EC2
+- S3
+- IAM
+- Lambda
+
+Read-only access is sufficient for this project.
+
+## AWS CLI Installation
+sudo apt update  
+sudo apt install awscli -y
+
+Verify installation:
+aws --version
+
+## AWS CLI Configuration
+aws configure
+
+Provide the following details:
+- AWS Access Key
+- AWS Secret Key
+- Default Region
+- Output format (json)
+
+## Shell Script
+Create the script file:
+vi aws_resource_tracker.sh
+
+Script content:
+
+#!/bin/bash
+
+echo "Fetching AWS Resource Details"
+echo "-----------------------------"
+
+echo "EC2 Instances:"
+aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId' --output table
+
+echo "-----------------------------"
+
+echo "S3 Buckets:"
+aws s3 ls
+
+echo "-----------------------------"
+
+echo "IAM Users:"
+aws iam list-users --query 'Users[].UserName' --output table
+
+echo "-----------------------------"
+
+echo "Lambda Functions:"
+aws lambda list-functions --query 'Functions[].FunctionName' --output table
+
+echo "-----------------------------"
+echo "AWS Resource Tracking Completed"
+
+## Make Script Executable
+chmod +x aws_resource_tracker.sh
+
+## Run the Script
+./aws_resource_tracker.sh
+
+## Automation Using Cron Job (Optional)
+crontab -e
+
+Example (run daily at 10 AM):
+0 10 * * * /home/ubuntu/aws-resource-tracker/aws_resource_tracker.sh >> /home/ubuntu/resource.log
+
+## Key Learnings
+- AWS CLI hands-on usage
+- Shell scripting for DevOps automation
+- IAM permission management
+- Cloud resource monitoring
+- Real-world DevOps scripting practices
+
+## Conclusion
+This project demonstrates how shell scripting and AWS CLI can be combined to build simple yet effective DevOps automation solutions for tracking and monitoring AWS resources.
