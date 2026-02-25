@@ -1,0 +1,298 @@
+# Day 17 – Configuration Management in DevOps
+
+This document explains the fundamentals of **Configuration Management**, its importance in DevOps, challenges in traditional infrastructure management, and why Ansible is widely adopted as the preferred configuration management tool.
+
+We will also cover:
+
+- Real-world infrastructure challenges
+- Evolution from on-premises to cloud
+- Comparison of configuration management tools
+- Why Ansible is preferred
+- Key Ansible concepts
+- Interview questions
+
+---
+
+# What is Configuration Management?
+
+Configuration Management is the process of managing and maintaining the configuration of servers and infrastructure in a consistent and automated manner.
+
+In DevOps, configuration management ensures:
+
+- Servers remain updated
+- Security patches are applied
+- Required software is installed
+- Infrastructure stays consistent across environments
+
+It is one of the core pillars of modern DevOps practices.
+
+---
+
+# The Traditional Problem (Before DevOps)
+
+Before DevOps became mainstream, infrastructure was managed by:
+
+- System Administrators
+- Build & Release Engineers
+- Configuration Engineers
+
+### Example Scenario
+
+Imagine an organization managing:
+
+- 100 on-premises servers
+  - 50 Linux
+  - 25 CentOS
+  - 25 Ubuntu
+
+Each server requires:
+
+1. OS upgrades
+2. Security patches
+3. Default software installations (e.g., Git, databases)
+
+Managing this manually required:
+
+- Logging into each server
+- Executing shell or PowerShell commands
+- Writing scripts for each OS distribution
+- Handling command differences between Ubuntu, CentOS, etc.
+
+This approach becomes extremely difficult as server count increases.
+
+---
+
+# The Cloud & Microservices Explosion
+
+With cloud adoption:
+
+- Server count increased 10x
+- Server size decreased
+- Microservices architecture became common
+- Infrastructure became dynamic (auto-scaling)
+
+If 1,000 servers existed earlier, cloud environments could easily grow to 10,000+ servers.
+
+Manual scripting was no longer sustainable.
+
+This led to the evolution of **Configuration Management tools**.
+
+---
+
+# Popular Configuration Management Tools
+
+Several tools were introduced to solve this problem:
+
+- Puppet
+- Chef
+- Ansible
+- Salt
+
+Over time, **Ansible emerged as the most widely adopted tool**.
+
+While Puppet and Chef were early leaders, Ansible gained massive popularity around 2016–2017 and became the go-to solution for most DevOps teams.
+
+---
+
+# Why Ansible is Preferred
+
+## 1. Push Model vs Pull Model
+
+- Puppet → Pull-based model
+- Ansible → Push-based model
+
+### Push Model (Ansible)
+
+- Write playbook on your local machine
+- Execute once
+- Configuration is pushed to all target servers
+
+This simplifies management significantly.
+
+---
+
+## 2. Agentless Architecture
+
+Puppet uses a Master-Slave (Master-Agent) architecture.
+
+Ansible is **agentless**, meaning:
+
+- No agent installation required on target servers
+- Only SSH (Linux) or WinRM (Windows) is needed
+- IP addresses are listed in an inventory file
+- Passwordless authentication can be configured
+
+This makes Ansible lightweight and easier to scale.
+
+---
+
+## 3. Dynamic Environment Support
+
+Modern infrastructure is dynamic:
+
+- Scale up during high traffic
+- Scale down during low traffic
+
+Ansible supports:
+
+- Static inventory
+- Dynamic inventory
+
+With dynamic inventory, new instances created in AWS can automatically be managed without manually updating inventory files.
+
+---
+
+## 4. YAML-Based Configuration
+
+Puppet requires learning Puppet DSL.
+
+Ansible uses **YAML**.
+
+Benefits:
+
+- Easy to read
+- Human-friendly
+- Already used in Kubernetes and other DevOps tools
+- No need to learn a new language
+
+---
+
+## 5. Windows & Linux Support
+
+Ansible supports:
+
+- Linux → via SSH
+- Windows → via WinRM
+
+Linux support is excellent.
+Windows support is good but slightly more complex compared to Linux.
+
+---
+
+# Ansible Architecture Overview
+
+Basic components:
+
+- Control Node (Laptop / Ansible Server)
+- Managed Nodes (Target Servers)
+- Inventory File (List of IP addresses / DNS)
+- Playbooks (YAML files)
+- Modules (Reusable tasks)
+
+---
+
+# Advantages of Ansible
+
+- Agentless
+- Push-based execution
+- Simple YAML syntax
+- Easy setup
+- Strong Linux support
+- Large community
+- Ansible Galaxy for module sharing
+- Custom module development using Python
+
+---
+
+# Ansible Galaxy
+
+Ansible Galaxy allows:
+
+- Sharing reusable modules
+- Publishing roles
+- Community collaboration
+- Using pre-built modules
+
+Organizations can:
+
+- Create custom modules
+- Share across teams
+- Contribute to open-source community
+
+---
+
+# Disadvantages of Ansible
+
+Ansible is powerful but not perfect.
+
+Areas for improvement:
+
+1. Windows configuration can be complex
+2. Debugging logs are not always easy to interpret
+3. Performance issues may occur when managing very large-scale environments (10,000+ servers in parallel)
+
+---
+
+# Common Ansible Interview Questions
+
+## 1. What programming language is Ansible written in?
+Answer: Python
+
+## 2. What language is used to write Ansible playbooks?
+Answer: YAML
+
+## 3. Does Ansible support Windows and Linux?
+Yes.
+- Linux → SSH
+- Windows → WinRM
+
+## 4. Is Ansible push or pull?
+Answer: Push-based
+
+## 5. What is the difference between Puppet and Ansible?
+
+| Feature | Puppet | Ansible |
+|----------|---------|----------|
+| Architecture | Master-Slave | Agentless |
+| Execution | Pull | Push |
+| Language | Puppet DSL | YAML |
+| Setup Complexity | Higher | Lower |
+
+## 6. Does Ansible depend on cloud provider (AWS/Azure/GCP)?
+
+No.
+
+Ansible only requires:
+
+- Reachable IP address
+- SSH (Linux) or WinRM (Windows)
+- Proper authentication
+
+Cloud provider does not matter.
+
+---
+
+# Summary
+
+Configuration Management solves the challenge of managing thousands of servers in a consistent and automated way.
+
+Among available tools:
+
+- Puppet
+- Chef
+- Salt
+- Ansible
+
+Ansible has become the industry standard due to:
+
+- Simplicity
+- Agentless architecture
+- Push model
+- YAML syntax
+- Strong community support
+
+---
+
+# Next Steps
+
+The next phase involves:
+
+- Writing Ansible Playbooks
+- Creating EC2 instances
+- Configuring inventory files
+- Executing playbooks
+- Performing real-world automation tasks
+
+Hands-on practice is essential to master configuration management.
+
+---
