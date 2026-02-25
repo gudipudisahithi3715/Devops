@@ -1,0 +1,396 @@
+# Day 18 – Ansible Practical Implementation
+
+## DevOps Complete Course – Practical Ansible
+
+This document covers the practical implementation of **Ansible**, including:
+
+- Installing Ansible
+- Setting up passwordless authentication
+- Running Ansible ad-hoc commands
+- Writing Ansible Playbooks
+- Understanding inventory grouping
+- Using verbosity for debugging
+- Introduction to Ansible Roles
+- Real-world DevOps use cases
+
+---
+
+# 1. Environment Setup
+
+For learning Ansible, it is recommended to use a **Linux machine** (Ubuntu preferred).  
+
+You can:
+
+- Use an AWS EC2 Ubuntu instance
+- Use a local Linux VM
+- Use WSL (if on Windows)
+
+Minimum requirement:
+- 1 Ansible Server (Control Node)
+- 1 Target Server (Managed Node)
+
+---
+
+# 2. Installing Ansible (Ubuntu)
+
+First update packages:
+
+```bash
+sudo apt update
+```
+
+Install Ansible:
+
+```bash
+sudo apt install ansible
+```
+
+Verify installation:
+
+```bash
+ansible --version
+```
+
+If installed correctly, it will display version details.
+
+---
+
+# 3. Setting Up Passwordless Authentication (SSH Key Setup)
+
+Ansible requires **passwordless SSH authentication** to manage target servers.
+
+## Step 1: Generate SSH Key on Ansible Server
+
+```bash
+ssh-keygen
+```
+
+This creates:
+
+- `~/.ssh/id_rsa` (Private Key)
+- `~/.ssh/id_rsa.pub` (Public Key)
+
+## Step 2: Copy Public Key
+
+```bash
+cat ~/.ssh/id_rsa.pub
+```
+
+Copy the output.
+
+## Step 3: Add Public Key to Target Server
+
+On the target server:
+
+```bash
+mkdir -p ~/.ssh
+nano ~/.ssh/authorized_keys
+```
+
+Paste the copied public key inside `authorized_keys`.
+
+Save the file.
+
+## Step 4: Test SSH
+
+From Ansible server:
+
+```bash
+ssh <target-private-ip>
+```
+
+If login happens without password → setup successful.
+
+---
+
+# 4. Inventory File
+
+An inventory file contains IP addresses of target servers.
+
+Example:
+
+```
+172.31.62.28
+```
+
+Default inventory location:
+
+```
+/etc/ansible/hosts
+```
+
+Custom inventory example:
+
+```
+inventory
+```
+
+---
+
+# 5. Ansible Ad-Hoc Commands
+
+Ad-hoc commands are used for executing **single or simple tasks** without writing playbooks.
+
+## Syntax
+
+```bash
+ansible -i inventory all -m <module> -a "<arguments>"
+```
+
+## Example: Create File
+
+```bash
+ansible -i inventory all -m shell -a "touch devops_class"
+```
+
+Verify on target server:
+
+```bash
+ls -ltr
+```
+
+File should be created.
+
+---
+
+## Running Other Commands
+
+Check CPU cores:
+
+```bash
+ansible -i inventory all -m shell -a "nproc"
+```
+
+Check disk usage:
+
+```bash
+ansible -i inventory all -m shell -a "df -h"
+```
+
+---
+
+# 6. Grouping Servers in Inventory
+
+Inventory grouping example:
+
+```
+[db_servers]
+172.31.62.28
+
+[web_servers]
+172.31.62.100
+```
+
+Run command only on web servers:
+
+```bash
+ansible -i inventory web_servers -m shell -a "uptime"
+```
+
+---
+
+# 7. Writing First Ansible Playbook
+
+Playbooks are written in **YAML format**.
+
+## Example: Install and Start Nginx
+
+Create file:
+
+```
+first_playbook.yaml
+```
+
+```yaml
+---
+- name: Install and Start Nginx
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Start Nginx
+      service:
+        name: nginx
+        state: started
+```
+
+---
+
+## Execute Playbook
+
+```bash
+ansible-playbook -i inventory first_playbook.yaml
+```
+
+Output will show:
+
+- Gathering Facts
+- Installing Nginx
+- Starting Nginx
+
+Verify:
+
+```bash
+sudo systemctl status nginx
+```
+
+---
+
+# 8. Verbose Mode (Debugging)
+
+To see detailed logs:
+
+```bash
+ansible-playbook -i inventory first_playbook.yaml -vvv
+```
+
+Verbose mode shows:
+
+- SSH connection details
+- Python execution steps
+- Module execution logs
+- JSON responses
+
+Useful for troubleshooting.
+
+---
+
+# 9. Real-Time DevOps Use Case
+
+Example scenario:
+
+- Create 3 EC2 instances
+- Configure 1 as Kubernetes Master
+- Configure 2 as Worker Nodes
+
+Best practice:
+
+- Use Terraform → Create EC2 instances
+- Use Ansible → Configure Kubernetes
+
+Infrastructure creation → Terraform  
+Configuration management → Ansible  
+
+---
+
+# 10. Introduction to Ansible Roles
+
+When playbooks become large (50+ tasks), managing everything in a single file becomes difficult.
+
+Solution → **Ansible Roles**
+
+## Create Role
+
+```bash
+ansible-galaxy role init kubernetes
+```
+
+This creates structured folder:
+
+```
+kubernetes/
+├── defaults/
+├── files/
+├── handlers/
+├── meta/
+├── tasks/
+├── templates/
+├── tests/
+└── vars/
+```
+
+---
+
+## Role Structure Explanation
+
+### tasks/
+Contains main tasks (`main.yaml`).
+
+### handlers/
+Handles conditional tasks (e.g., restart service on change).
+
+### defaults/
+Stores default variables.
+
+### vars/
+Stores higher-priority variables.
+
+### files/
+Static files (certificates, HTML, configs).
+
+### templates/
+Dynamic templates (Jinja2 format).
+
+### meta/
+Metadata and licensing information.
+
+### tests/
+Testing-related files.
+
+---
+
+## Parent Playbook Using Role
+
+```yaml
+---
+- hosts: all
+  roles:
+    - kubernetes
+```
+
+Roles improve:
+
+- Structure
+- Reusability
+- Readability
+- Maintainability
+
+---
+
+# 11. Key Interview Points
+
+- Difference between Ad-hoc and Playbooks
+- Inventory grouping
+- What is become?
+- What is gather_facts?
+- What are Ansible roles?
+- Difference between vars and defaults?
+- What are handlers?
+
+---
+
+# Summary
+
+In this session, we:
+
+- Installed Ansible
+- Configured passwordless SSH
+- Executed Ad-hoc commands
+- Wrote first Playbook
+- Used verbosity mode
+- Understood server grouping
+- Introduced Ansible Roles
+- Connected real-world DevOps usage
+
+This marks the transition from theory to practical implementation of Ansible.
+
+---
+
+# Next Steps
+
+- Practice multiple ad-hoc commands
+- Write playbooks for:
+  - Apache installation
+  - Docker installation
+  - User creation
+- Implement roles
+- Combine Terraform + Ansible
+- Practice Kubernetes cluster configuration
+
+Consistent hands-on practice is key to mastering Ansible.
