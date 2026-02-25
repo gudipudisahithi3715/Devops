@@ -1,0 +1,242 @@
+# Git Interview Questions and Answers – Part 1
+
+This covers some of the most commonly asked basic Git interview questions along with clear and concise answers. These questions are useful for beginners as well as professionals preparing for DevOps, Developer, or SCM-related interviews.
+
+---
+
+## 1. Is Git a Distributed or Centralized Version Control System? What is the Difference?
+
+Git is a **Distributed Version Control System (DVCS)**.
+
+### Centralized Version Control System (CVCS)
+Examples: SVN, CVS  
+- Uses a client-server architecture.
+- All versions of the code are stored in a central server.
+- Developers depend on the server for history and versions.
+
+### Distributed Version Control System (DVCS)
+Example: Git  
+- Every developer has a complete copy of the repository.
+- All versions and history are stored locally.
+- No dependency on a central server for accessing history.
+
+The main difference is that in DVCS, the entire repository history is distributed to every developer.
+
+---
+
+## 2. What Commands Are Used to Commit Changes to a Remote Repository?
+
+To push changes to a remote repository, the following three commands are used:
+
+```bash
+git add .
+git commit -m "commit message"
+git push
+```
+
+- `git add` → Stages changes
+- `git commit` → Saves changes locally
+- `git push` → Sends changes to the remote repository
+
+---
+
+## 3. What Is the Difference Between Git Fetch and Git Pull?
+
+### Git Fetch
+- Retrieves latest changes from the remote repository.
+- Does NOT merge changes into the local branch.
+- Used to review changes before merging.
+
+### Git Pull
+- Retrieves changes from the remote repository.
+- Automatically merges them into the current branch.
+
+In short:
+- `git fetch` = Download changes
+- `git pull` = Download + Merge
+
+---
+
+## 4. What Is the Difference Between Git Merge and Git Rebase?
+
+Both are used to integrate changes from one branch into another.
+
+### Git Merge
+- Combines branches.
+- Preserves commit history.
+- Creates a merge commit.
+- Non-linear history.
+
+### Git Rebase
+- Moves or reapplies commits on top of another branch.
+- Creates a clean, linear history.
+- Preferred when a clean commit history is required.
+
+If maintaining a linear history is important, use `git rebase`.
+
+---
+
+## 5. What Is the Difference Between .git and .gitignore?
+
+### .git Folder
+- Contains all repository metadata.
+- Stores commits, branches, configurations, and remote URLs.
+- Essential for the repository to function.
+- Should never be deleted.
+
+### .gitignore File
+- Specifies files and folders that Git should ignore.
+- Prevents unnecessary or sensitive files from being committed.
+- Example: passwords, logs, build artifacts.
+
+---
+
+## 6. What Are Pre-Commit and Post-Commit Hooks?
+
+A hook is an action that runs before or after a Git event.
+
+### Pre-Commit Hook
+- Runs before a commit is created.
+- Used to prevent committing unwanted files.
+- Can enforce rules like code formatting or security checks.
+
+### Post-Commit Hook
+- Runs after a commit is completed.
+- Can trigger notifications or additional automation.
+
+---
+
+## 7. What Is a Webhook?
+
+A webhook is a mechanism that triggers automated actions in external systems when certain events occur in Git platforms like GitHub or Bitbucket.
+
+Examples:
+- Triggering a CI/CD pipeline after a push
+- Running automation scripts after a pull request
+- Sending notifications after issue creation
+
+Webhooks enable integration between Git repositories and external tools.
+
+---
+
+## 8. How Do You Push and Pull Changes?
+
+To push changes:
+
+```bash
+git push
+```
+
+To pull changes:
+
+```bash
+git pull
+```
+
+---
+
+## 9. What Is Git Stash? What Are Its Use Cases?
+
+`git stash` temporarily saves uncommitted changes.
+
+### Use Case:
+- You are working on a feature.
+- A critical bug appears.
+- You need to switch branches without committing incomplete work.
+
+Commands:
+
+```bash
+git stash
+git stash pop
+```
+
+- `git stash` → Saves changes temporarily.
+- `git stash pop` → Restores saved changes.
+
+---
+
+## 10. What Is the Difference Between Git Clone and Git Fork?
+
+### Git Clone
+- Creates a local copy of a remote repository.
+- Used for working on a project locally.
+
+```bash
+git clone <repo-url>
+```
+
+### Git Fork
+- Creates a copy of someone else's repository in your GitHub account.
+- Used when contributing to open-source projects.
+- Maintains separate namespace ownership.
+
+In short:
+- Clone = Copy to local system.
+- Fork = Copy to your GitHub account.
+
+---
+
+## 11. How Do You Amend a Commit?
+
+To modify the most recent commit:
+
+```bash
+git commit --amend
+```
+
+Used when:
+- You forgot to add a file.
+- You want to update the commit message.
+- You need to correct the previous commit.
+
+---
+
+## 12. What Is Git Cherry-Pick?
+
+`git cherry-pick` applies a specific commit from one branch to another.
+
+Example:
+- A commit exists in branch `xyz`.
+- You want the same commit in branch `feature`.
+
+```bash
+git cherry-pick <commit-id>
+```
+
+It copies that specific commit without merging the entire branch.
+
+---
+
+## 13. How Do You Resolve a Merge Conflict?
+
+Merge conflicts occur when multiple developers modify the same lines of code.
+
+### Steps to Resolve:
+1. Identify conflicting files.
+2. Review conflicting changes.
+3. Discuss with the team if necessary.
+4. Decide which changes to keep.
+5. Edit the file to resolve conflict.
+6. Stage and commit the resolved files.
+
+Example:
+
+```bash
+git add .
+git commit
+```
+
+For rebase conflicts:
+
+```bash
+git rebase --continue
+```
+
+Collaboration and clear communication are key to resolving merge conflicts effectively.
+
+---
+
+# Conclusion
+
+These are some of the most frequently asked basic Git interview questions. Understanding these concepts clearly will help in technical interviews as well as in real-world project work.
