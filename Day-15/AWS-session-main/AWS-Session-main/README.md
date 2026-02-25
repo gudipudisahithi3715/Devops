@@ -4,7 +4,7 @@
 
 1. Clone this project
 ```
-git clone https://github.com/verma-kunal/AWS-Session.git
+git clone https://github.com/gudipudisahithi3715/Devops/Day-15/AWS-session-main/
 ```
 2. Setup the following environment variables - `(.env)` file
 ```
