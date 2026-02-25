@@ -1,0 +1,329 @@
+# Day 14 – Git Commands for DevOps Engineers
+
+## Overview
+
+This covers essential Git concepts and commands used daily by DevOps engineers and software developers. It explains how Git works, common workflows, branching strategies, and differences between important Git operations like merge and rebase.
+
+---
+
+# 1. Initializing a Git Repository
+
+To create a new Git repository locally:
+
+```bash
+git init
+```
+
+This command creates a hidden `.git` directory.  
+The `.git` folder is the core component of Git and is responsible for:
+
+- Tracking changes
+- Storing commit history
+- Managing branches
+- Handling hooks
+- Maintaining version control metadata
+
+---
+
+# 2. Checking Repository Status
+
+To check the current state of the repository:
+
+```bash
+git status
+```
+
+This shows:
+- Untracked files
+- Modified files
+- Files staged for commit
+
+---
+
+# 3. Adding Files to Git (Staging)
+
+Git does not track files automatically. You must explicitly add them.
+
+Add a specific file:
+
+```bash
+git add calculator.sh
+```
+
+Add all files:
+
+```bash
+git add .
+```
+
+---
+
+# 4. Viewing Changes
+
+To see what changes were made before committing:
+
+```bash
+git diff
+```
+
+This shows line-by-line modifications.
+
+---
+
+# 5. Committing Changes
+
+After staging files, commit them:
+
+```bash
+git commit -m "Initial commit"
+```
+
+Commits help in:
+- Tracking history
+- Identifying who made changes
+- Reverting to previous versions
+- Maintaining proper version control
+
+View commit history:
+
+```bash
+git log
+```
+
+Short version:
+
+```bash
+git log --oneline
+```
+
+---
+
+# 6. Basic Git Workflow (Daily Use)
+
+The standard Git workflow used in most organizations:
+
+```bash
+git add .
+git commit -m "commit message"
+git push
+```
+
+These are the most commonly used commands in day-to-day development.
+
+---
+
+# 7. Working with Remote Repositories
+
+## Checking Remote
+
+```bash
+git remote -v
+```
+
+If no remote is configured, pushing will fail.
+
+## Adding Remote
+
+```bash
+git remote add origin <repository-url>
+```
+
+Push to remote:
+
+```bash
+git push -u origin main
+```
+
+---
+
+# 8. Cloning a Repository
+
+To download a repository from a remote location:
+
+```bash
+git clone <repository-url>
+```
+
+Two common authentication methods:
+
+### HTTPS
+- Uses username/password or token
+
+### SSH
+- Uses public/private key authentication
+
+Generate SSH key:
+
+```bash
+ssh-keygen -t rsa
+```
+
+Public key location:
+
+```
+~/.ssh/id_rsa.pub
+```
+
+Add the public key to your Git hosting platform under SSH settings.
+
+---
+
+# 9. Clone vs Fork
+
+## Clone
+- Downloads a repository to your local system.
+
+## Fork
+- Creates a copy of a repository under your own account.
+- Used for collaboration.
+- Independent from original repository unless synced.
+
+Git is a distributed version control system, and forking supports distributed collaboration.
+
+---
+
+# 10. Branching in Git
+
+By default, repositories contain a `main` branch.
+
+Branches are used to:
+- Develop new features
+- Fix bugs
+- Isolate work
+- Avoid breaking production code
+
+---
+
+## Creating a Branch
+
+```bash
+git branch branch-name
+```
+
+Or create and switch:
+
+```bash
+git checkout -b branch-name
+```
+
+Switch branch:
+
+```bash
+git checkout branch-name
+```
+
+---
+
+# 11. Cherry Pick
+
+Cherry-pick allows copying a specific commit from one branch to another.
+
+```bash
+git cherry-pick <commit-id>
+```
+
+Useful for:
+- Small number of commits
+- Selective changes
+
+Not practical for large feature branches.
+
+---
+
+# 12. Git Merge
+
+Merge combines branches together.
+
+```bash
+git merge branch-name
+```
+
+Characteristics:
+- Preserves commit history
+- Creates a merge commit
+- Non-linear history
+
+---
+
+# 13. Git Rebase
+
+Rebase moves a branch to a new base commit.
+
+```bash
+git rebase branch-name
+```
+
+Characteristics:
+- Rewrites commit history
+- Creates linear history
+- Cleaner log structure
+
+---
+
+# 14. Merge vs Rebase
+
+| Merge | Rebase |
+|--------|--------|
+| Creates merge commit | No extra merge commit |
+| Non-linear history | Linear history |
+| Safer for shared branches | Cleaner history |
+
+Use **merge** when:
+- Working in shared branches
+- Avoiding history rewriting
+
+Use **rebase** when:
+- You want a clean, linear commit history
+
+---
+
+# 15. Handling Merge Conflicts
+
+Conflicts occur when:
+- Multiple branches modify the same lines of code.
+
+Steps to resolve:
+1. Open the conflicted file.
+2. Remove conflict markers.
+3. Decide correct changes.
+4. Stage the file:
+
+```bash
+git add file-name
+```
+
+5. Commit changes:
+
+```bash
+git commit -m "Resolved conflict"
+```
+
+In real projects, always coordinate with developers before resolving conflicts.
+
+---
+
+# 16. Most Commonly Used Git Commands
+
+- `git init`
+- `git status`
+- `git add`
+- `git commit`
+- `git push`
+- `git clone`
+- `git branch`
+- `git checkout`
+- `git merge`
+- `git rebase`
+- `git cherry-pick`
+- `git log`
+- `git diff`
+- `git remote -v`
+
+---
+
+# Conclusion
+
+Git is an essential tool for DevOps engineers and developers.  
+Understanding repository initialization, branching strategies, merging, rebasing, and remote collaboration is crucial for working efficiently in real-world projects.
+
+Regular practice of these commands helps build confidence and improves version control management in production environments.
