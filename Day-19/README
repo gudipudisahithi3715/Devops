@@ -1,0 +1,327 @@
+# Day 19 – Infrastructure as Code (IaC)
+
+
+In this document, we focus on understanding:
+
+- The problem with traditional infrastructure management
+- Cloud migration challenges
+- Multi-cloud and hybrid-cloud complexities
+- Infrastructure as Code (IaC)
+- API as Code
+- Introduction to Terraform
+- Why Terraform solves real-world DevOps problems
+
+---
+
+# 1. Understanding the Problem
+
+As a DevOps Engineer, your responsibility includes managing infrastructure for applications.
+
+Consider an organization running:
+
+- 300+ applications
+- Multiple servers
+- Databases
+- Storage systems
+- Networking components
+
+Infrastructure can be hosted on:
+
+- AWS
+- Microsoft Azure
+- Google Cloud
+- On-Premises Data Centers
+- Oracle Cloud
+- DigitalOcean
+- Many other providers
+
+---
+
+# 2. Traditional Approach to Automation
+
+Initially, infrastructure might be created manually via cloud console.
+
+To improve efficiency, organizations start automating using provider-specific tools:
+
+### AWS
+- CloudFormation Templates (CFT)
+- AWS CLI
+- AWS CDK
+
+### Azure
+- Azure Resource Manager (ARM)
+
+### OpenStack (On-Prem)
+- Heat Templates
+
+These tools follow the concept of:
+
+> Infrastructure as Code (IaC)
+
+Instead of manually creating resources, infrastructure is defined using code.
+
+---
+
+# 3. The Migration Problem
+
+### Scenario 1: Cloud Migration
+
+Suppose the organization:
+
+1. Uses AWS
+2. Writes hundreds of CloudFormation templates
+3. Fully automates infrastructure
+
+Suddenly, management decides to move to Azure.
+
+Now:
+- AWS CloudFormation templates are useless
+- Entire automation must be rewritten in Azure ARM
+
+Later:
+- Organization shifts to On-Prem with OpenStack
+- Again, automation must be rewritten in Heat Templates
+
+This results in:
+
+- Rewriting scripts multiple times
+- Learning multiple tools
+- Increased maintenance overhead
+- Vendor lock-in
+
+---
+
+# 4. Hybrid Cloud Complexity
+
+Modern organizations often use Hybrid Cloud:
+
+- Part infrastructure on AWS
+- Part on Azure
+- Some workloads On-Prem
+
+Example:
+
+- AWS → Storage services
+- Azure → DevOps & build services
+- On-Prem → Sensitive workloads
+
+Now DevOps Engineers must:
+
+- Learn CloudFormation
+- Learn Azure ARM
+- Learn Heat Templates
+- Maintain all simultaneously
+
+This becomes unmanageable at scale.
+
+---
+
+# 5. The Solution – Terraform
+
+To solve this multi-cloud problem, a tool called:
+
+> Terraform (developed by HashiCorp)
+
+was introduced.
+
+Terraform allows you to:
+
+- Use a single language
+- Manage multiple cloud providers
+- Avoid vendor lock-in
+- Simplify migration
+
+---
+
+# 6. What is Terraform?
+
+Terraform is an Infrastructure as Code tool that:
+
+- Automates infrastructure provisioning
+- Supports multiple cloud providers
+- Uses a declarative configuration language (HCL)
+
+Instead of learning:
+
+- AWS CloudFormation
+- Azure ARM
+- Heat Templates
+
+You learn:
+
+> One tool → Terraform
+
+---
+
+# 7. How Terraform Solves the Problem
+
+Terraform works using:
+
+> API as Code
+
+Each cloud provider exposes APIs.
+
+For example:
+- AWS has AWS APIs
+- Azure has Azure APIs
+- GCP has GCP APIs
+
+Terraform:
+
+1. Takes your Terraform script
+2. Converts it into provider-specific API calls
+3. Sends requests to the cloud provider
+4. Receives response
+5. Creates infrastructure
+
+You do NOT directly call cloud APIs.
+
+Terraform acts as a translator between:
+
+Your Code → Cloud Provider APIs
+
+---
+
+# 8. What is API?
+
+API stands for:
+
+> Application Programming Interface
+
+An API allows applications to communicate programmatically.
+
+### Manual Method
+- Open browser
+- Login to cloud console
+- Create resource manually
+
+### Programmatic Method
+- Send HTTP request
+- Use curl or script
+- Create resource automatically
+
+APIs enable automation.
+
+Terraform leverages these APIs internally.
+
+---
+
+# 9. Infrastructure as Code (IaC)
+
+Infrastructure as Code means:
+
+Defining infrastructure using code instead of manual processes.
+
+Examples:
+- CloudFormation Templates
+- Azure ARM Templates
+- Terraform
+
+Benefits:
+- Automation
+- Version control
+- Repeatability
+- Reduced human error
+- Faster provisioning
+
+---
+
+# 10. API as Code
+
+Terraform extends IaC with:
+
+> API as Code
+
+Instead of writing provider-specific scripts:
+
+- You write Terraform code
+- Terraform converts it into API calls
+- Executes against chosen provider
+
+You define the provider in:
+
+```
+provider.tf
+```
+
+Example:
+
+```
+provider "aws" {
+  region = "us-east-1"
+}
+```
+
+Switching providers requires minimal changes.
+
+---
+
+# 11. Terraform vs Native Tools
+
+| Feature | CloudFormation / ARM | Terraform |
+|----------|----------------------|------------|
+| Vendor Specific | Yes | No |
+| Multi-Cloud | No | Yes |
+| Migration Friendly | No | Yes |
+| Learning Curve | Multiple Tools | Single Tool |
+| API Integration | Direct | Abstracted |
+
+---
+
+# 12. Key Advantages of Terraform
+
+- Multi-cloud support
+- Reduced vendor lock-in
+- Modular architecture
+- Reusable modules
+- Community support
+- Consistent workflow
+
+---
+
+# 13. Concepts Covered
+
+In this session, we understood:
+
+- Real-world cloud migration challenges
+- Hybrid cloud complexity
+- Infrastructure as Code
+- API as Code
+- Role of Terraform in modern DevOps
+- How Terraform communicates with cloud APIs
+
+---
+
+# 14. What’s Next?
+
+Next steps include:
+
+- Installing Terraform
+- Understanding Terraform workflow
+- Writing Terraform files
+- Creating AWS EC2 instances using Terraform
+- Managing state files
+- Working with modules
+- Performing live infrastructure deployment
+
+---
+
+# Final Takeaway
+
+Infrastructure as Code allows automation.
+
+Terraform enhances IaC by:
+
+- Supporting multiple cloud providers
+- Using API as Code
+- Reducing complexity
+- Simplifying migrations
+- Enabling scalable infrastructure management
+
+Modern DevOps Engineers must have strong understanding of:
+
+- IaC concepts
+- Cloud provider APIs
+- Terraform fundamentals
+
+Consistent practice and real-world projects are essential for mastery.
