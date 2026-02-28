@@ -1,0 +1,95 @@
+# Day 25 – Multi-Stage Docker Builds and Distroless Images
+
+This session covers:
+
+- Multi-stage Docker builds  
+- Distroless images  
+- Production-related Docker issues  
+- Image size optimization  
+- Security improvements  
+
+These concepts are important for real-world scenarios and interview discussions.
+
+---
+
+## Why Multi-Stage Docker Builds?
+
+### Traditional Dockerfile Approach
+
+Example: Python calculator application.
+
+Typical steps:
+
+1. Use a base image (e.g., Ubuntu).
+2. Set a working directory (optional).
+3. Install Python.
+4. Install pip.
+5. Install required Python packages.
+6. Build the application.
+7. Execute it using CMD or ENTRYPOINT.
+
+### Problem with This Approach
+
+Even if the application only needs a runtime to execute:
+
+- The final image contains:
+  - Ubuntu base image
+  - System packages
+  - apt repositories
+  - Build tools
+  - All dependencies used during build
+
+The final Docker image becomes unnecessarily large.
+
+Example scenario:
+- Ubuntu base image: ~400 MB
+- Java: ~50 MB
+- React dependencies: ~100 MB
+- MySQL dependencies: ~100 MB
+
+Final image size: ~1 GB
+
+But at runtime, only:
+- Java Runtime (JRE)
+- Application binary (JAR/WAR/EAR)
+
+are required.
+
+---
+
+## Concept of Multi-Stage Docker Builds
+
+Multi-stage builds split a Dockerfile into multiple stages.
+
+### Stage 1 – Build Stage
+
+- Use a rich base image (e.g., Ubuntu).
+- Install all build dependencies.
+- Build the application binary.
+- No CMD or ENTRYPOINT here.
+
+Example:
+
+- Install required packages.
+- Build binary.
+- Prepare artifact.
+
+### Stage 2 – Final Stage
+
+- Use a minimal base image.
+  - Example: Python runtime image
+  - Example: OpenJDK image
+  - Example: Distroless image
+- Copy only the built artifact from Stage 1.
+- Define CMD or ENTRYPOINT here.
+
+Syntax example:
+
+```dockerfile
+FROM ubuntu AS build
+# Install dependencies
+# Build binary
+
+FROM openjdk:11
+COPY --from=build /app/app.ear /app/app.ear
+CMD ["java", "-jar", "/app/app.ear"]
