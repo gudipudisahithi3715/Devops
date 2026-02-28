@@ -1,0 +1,369 @@
+# Day 23 – Docker 0 To Hero (Part 1)
+
+## Overview
+
+This session covers:
+
+- Why containers are lightweight (deep dive)
+- Docker architecture
+- Docker lifecycle
+- Docker terminology
+- Installing Docker on a virtual machine
+- Writing the first Dockerfile
+- Building, running, and pushing a Docker image
+
+---
+
+# Why Containers Are Lightweight
+
+Containers are lightweight because:
+
+- They do not have a full operating system.
+- They include:
+  - Application
+  - Application dependencies
+  - Minimum required system dependencies
+- They use the remaining resources from the host operating system (kernel).
+
+Virtual machines:
+
+- Have a complete guest operating system.
+- Are heavier in nature.
+- Consume fixed resources whether fully utilized or not.
+
+Containers:
+
+- Share kernel resources.
+- Use minimal system dependencies.
+- Allow multiple containers to run on the same virtual machine.
+- Do not consume resources when not running.
+
+---
+
+## Logical Isolation in Containers
+
+Even though containers use the host kernel, they still maintain logical isolation.
+
+Why isolation is required:
+
+- Container A should not access Container B.
+- Prevent security risks.
+- Avoid compromising other applications.
+
+Containers include minimal system dependencies to ensure:
+
+- Logical separation
+- Security boundaries
+
+---
+
+## Files and Folders Inside a Container
+
+Containers include basic folders such as:
+
+- `/bin` – Binary execution files
+- `/sbin` – System binary execution files
+- `/etc` – Configuration files
+- `/lib` – Library files
+- `/usr` – User-related files
+- `/var` – Logs and variable data
+- `/root` – Root user home directory
+
+These folders:
+
+- Are not shared between containers.
+- Ensure isolation.
+
+---
+
+## What Containers Use from Host OS
+
+Containers use the following from the host kernel:
+
+- File system
+- Networking stack
+- System calls
+- Namespaces
+- Control groups (cgroups)
+
+These are kernel-level components.
+
+---
+
+# Image Size Comparison
+
+Example: Official Ubuntu Docker image
+
+- Size: 28.16 MB (Linux AMD64)
+
+Ubuntu virtual machine image:
+
+- Around 2.3 GB
+
+Containers are nearly 100 times smaller in this example.
+
+This allows:
+
+- Running multiple containers on one VM
+- Better resource utilization
+- Reduced complexity
+
+---
+
+# What is Docker?
+
+Docker is a containerization platform.
+
+- Containerization is the concept.
+- Docker implements containerization.
+
+Docker allows:
+
+- Building images
+- Running containers
+- Pushing images to registries
+
+---
+
+# Docker Architecture
+
+Docker consists of:
+
+## 1. Docker Client (CLI)
+
+- Used by the user to execute Docker commands.
+- Sends requests.
+
+## 2. Docker Daemon
+
+- The core service of Docker.
+- Listens to Docker CLI requests.
+- Builds images.
+- Runs containers.
+- Pushes images to registries.
+
+If Docker daemon stops:
+
+- Containers stop working.
+
+---
+
+# Docker Lifecycle
+
+## Step 1: Write a Dockerfile
+
+A Dockerfile contains instructions such as:
+
+- Base image
+- Copying source code
+- Installing dependencies
+- Running commands
+
+---
+
+## Step 2: Build Docker Image
+
+Command:
+
+docker build
+
+- Docker daemon processes the Dockerfile.
+- Creates a Docker image.
+- Images are similar to snapshots.
+
+---
+
+## Step 3: Run Docker Container
+
+Command:
+
+docker run
+
+- Creates a container from the image.
+- Runs the application.
+
+---
+
+# Docker Terminology
+
+## Docker Daemon
+
+- Background service.
+- Listens to Docker API requests.
+- Executes commands.
+
+## Docker Client
+
+- CLI tool used to interact with Docker daemon.
+
+## Docker Registry
+
+- Stores Docker images.
+- Can be public or private.
+
+## Docker Hub
+
+- Public Docker registry.
+- Used to store and share Docker images.
+- Similar to GitHub, but for Docker images.
+
+Difference:
+
+- GitHub → Stores source code.
+- Docker Hub → Stores Docker images.
+
+## Dockerfile
+
+- A file with instructions for building Docker images.
+
+## Docker Image
+
+- Snapshot created using Dockerfile.
+- Used to create containers.
+
+## Docker Container
+
+- Running instance of a Docker image.
+
+---
+
+# Installing Docker on Ubuntu
+
+1. Update packages:
+
+sudo apt update
+
+2. Install Docker:
+
+sudo apt install docker.io -y
+
+3. Verify Docker status:
+
+sudo systemctl status docker
+
+---
+
+## Fix Permission Issue
+
+If `docker run hello-world` gives permission denied:
+
+Add user to Docker group:
+
+sudo usermod -aG docker <username>
+
+Then:
+
+- Logout
+- Login again
+
+Now Docker commands will work without sudo.
+
+---
+
+# First Example – Python Hello World
+
+Example file:
+
+app.py → Prints "Hello World"
+
+Without Docker:
+
+- Install Python
+- Install dependencies
+- Configure environment
+- Run application
+
+With Docker:
+
+- Build image
+- Run container
+- Application runs directly
+
+---
+
+# First Dockerfile
+
+Key instructions:
+
+- FROM ubuntu:latest
+- WORKDIR /app
+- COPY . .
+- Install Python
+- CMD ["python3", "app.py"]
+
+Explanation:
+
+- Base image: Ubuntu
+- Copy source code
+- Install required dependencies
+- Run Python application
+
+---
+
+# Build Docker Image
+
+Example:
+
+docker build -t <username>/<repository>:latest .
+
+- -t → Tag image
+- . → Dockerfile in current directory
+
+---
+
+# Run Docker Container
+
+docker run -it <image-name>
+
+Output:
+
+Hello World
+
+---
+
+# Push Image to Docker Hub
+
+## Step 1: Login
+
+docker login
+
+Enter:
+
+- Username
+- Password
+
+---
+
+## Step 2: Push Image
+
+docker push <username>/<repository>:latest
+
+After push:
+
+- Repository created in Docker Hub
+- Tag visible (e.g., latest)
+
+Others can pull using:
+
+docker pull <username>/<repository>:latest
+
+---
+
+# Advantages of Docker
+
+- Lightweight
+- Reduced manual setup
+- Improved efficiency
+- Portable across platforms
+- Simplified sharing via registry
+
+---
+
+# Next Topics (Part 2)
+
+- Advanced Docker concepts
+- Multi-stage Dockerfile
+- Reducing image size
+- Best practices
+- More Docker commands
+- Interview questions
