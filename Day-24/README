@@ -1,0 +1,346 @@
+# Day 24 – Deploying a Django Web Application as a Docker Container
+
+## Overview
+
+This session focuses on deploying a Django web application as a Docker container.
+
+Previous sessions covered:
+
+- Fundamentals of containers
+- Why containers are lightweight compared to virtual machines
+- Files and folders inside a container
+- Docker architecture
+- Docker lifecycle
+- Installing Docker on an EC2 instance
+- Running a simple Docker CLI application
+
+Today’s objective is to containerize a Django web application.
+
+---
+
+# Do You Need Programming Knowledge?
+
+A DevOps engineer does not need to be an expert developer.
+
+However, you must:
+
+- Understand how applications function
+- Understand basic application workflow
+- Identify dependencies
+- Understand how services communicate
+- Identify entry points and execution flow
+
+Without this understanding, containerizing applications becomes difficult.
+
+---
+
+# Django Application Workflow
+
+## Step 1: Install Django
+
+To create a Django application:
+
+1. Install Python
+2. Install Django using pip
+
+Example:
+
+pip install django
+
+After installation, Django admin becomes available.
+
+---
+
+## Step 2: Create a Django Project
+
+Command:
+
+django-admin startproject <project-name>
+
+This creates the project skeleton.
+
+Inside the project, important files include:
+
+- settings.py
+- urls.py
+- manage.py
+
+### settings.py
+
+Contains:
+
+- Database configuration
+- Allowed hosts
+- Secret keys
+- Middleware configuration
+- Installed apps
+- Template configuration
+
+It defines the global configuration of the Django project.
+
+---
+
+## Step 3: Create a Django App
+
+Command:
+
+python manage.py startapp <app-name>
+
+This creates:
+
+- views.py
+- models.py
+- admin.py
+- apps.py
+- migrations folder
+
+The actual business logic is written in views.py.
+
+Templates (HTML files) are placed inside a templates folder.
+
+---
+
+## How a Django Request Flows
+
+1. User hits a URL in the browser.
+2. urls.py routes the request.
+3. views.py executes logic.
+4. A template is rendered.
+5. Response is returned to the browser.
+
+This flow remains the same for most Django applications.
+
+---
+
+# Traditional Deployment Problems
+
+Before containers:
+
+1. QA engineers downloaded source code.
+2. Installed dependencies manually.
+3. Faced OS-related issues (Windows, Mac, Linux).
+4. Environment mismatches caused failures.
+
+Common issue:
+
+- Developer says it works.
+- QA says it fails.
+- Root cause: environment differences.
+
+---
+
+# How Containers Solve This
+
+Containers package:
+
+- Source code
+- Dependencies
+- System libraries
+- Runtime environment
+
+To run the application:
+
+- Only Docker is required.
+- No manual dependency installation.
+
+OS differences do not matter because:
+
+- Containers include required system dependencies.
+- Only kernel-level resources are used from the host.
+
+---
+
+# Role of a DevOps Engineer
+
+When asked to containerize a Django application:
+
+1. Analyze the application.
+2. Identify dependencies.
+3. Write a Dockerfile.
+4. Build and run the container.
+
+A strong DevOps engineer understands:
+
+- Python applications
+- Django workflow
+- Node.js applications
+- Application architecture
+
+---
+
+# Writing the Dockerfile
+
+## Step 1: Choose Base Image
+
+Example:
+
+FROM ubuntu
+
+You can also use:
+
+FROM python
+
+If using Ubuntu:
+
+- Python must be installed manually.
+
+---
+
+## Step 2: Set Working Directory
+
+WORKDIR /app
+
+This defines where source code will reside.
+
+---
+
+## Step 3: Copy Requirements
+
+COPY requirements.txt .
+
+This is done first to:
+
+- Install dependencies
+- Optimize Docker layer caching
+
+---
+
+## Step 4: Copy Source Code
+
+COPY . .
+
+---
+
+## Step 5: Install Dependencies
+
+If using Ubuntu:
+
+- Install Python
+- Install pip
+- Run:
+
+pip install -r requirements.txt
+
+---
+
+# ENTRYPOINT vs CMD
+
+Both define the start command.
+
+### ENTRYPOINT
+
+- Cannot be overridden easily.
+- Used for main executable.
+- Example: python3
+
+### CMD
+
+- Can be overridden at runtime.
+- Used for parameters.
+- Example: manage.py runserver 0.0.0.0:8000
+
+Recommended approach:
+
+ENTRYPOINT → Main executable  
+CMD → Arguments that may change  
+
+Example use case:
+
+If port 8000 is occupied:
+
+- User can override CMD.
+- But cannot change python3 to something else.
+
+If you want everything fixed:
+
+- Put all commands inside ENTRYPOINT.
+
+---
+
+# Building the Image
+
+docker build .
+
+Check images:
+
+docker images
+
+---
+
+# Running Without Port Mapping
+
+docker run -it <image>
+
+The application runs inside the container.
+
+But:
+
+- It will not be accessible from the host.
+- Because no port mapping is defined.
+
+---
+
+# Running With Port Mapping
+
+docker run -p 8000:8000 -it <image>
+
+Now:
+
+- Container port 8000
+- Host port 8000
+
+Application becomes accessible in the browser.
+
+---
+
+# EC2 Security Group Configuration
+
+If running on EC2:
+
+1. Go to Instance
+2. Open Security Group
+3. Edit Inbound Rules
+4. Add Custom TCP Rule
+5. Allow port 8000
+6. Set source as required (0.0.0.0/0 or specific IP)
+
+Without this step, the application will not be accessible.
+
+---
+
+# Key Takeaways
+
+- Django project creates structure.
+- Django app contains business logic.
+- Containers package everything required to run the application.
+- Dockerfile skeleton remains mostly the same across Django projects.
+- ENTRYPOINT and CMD serve different purposes.
+- Port mapping is mandatory for external access.
+- Security groups must allow inbound traffic.
+
+---
+
+# What’s Next
+
+Upcoming topics:
+
+- Docker commands
+- Docker networking
+- Multi-stage Docker builds
+- Reducing image size
+
+---
+
+# Practice Recommendation
+
+1. Clone the repository.
+2. Build the Docker image.
+3. Run the container.
+4. Modify configurations.
+5. Experiment with ports.
+6. Try breaking and fixing it.
+
+Containerizing one Django application builds confidence to containerize many others.
+
+---
+
