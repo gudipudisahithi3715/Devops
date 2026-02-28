@@ -1,0 +1,319 @@
+# Day 22 – Project Management for DevOps Engineers
+
+In this session, I learned about **project management concepts and tools** that are important for a DevOps Engineer after joining an organization.
+
+This topic focuses on what happens:
+
+- In the first week
+- In the first month
+- After joining as a DevOps Engineer
+
+This applies to:
+- Freshers
+- Professionals switching domains
+- People with career gaps
+
+Apart from technical skills, understanding project management tools and processes is very important.
+
+---
+
+# Agile Methodology
+
+## What is Agile?
+
+Agile is a **methodology or process** used to manage projects.
+
+It is different from the traditional **Waterfall model**.
+
+---
+
+## Waterfall Model
+
+In the traditional approach:
+
+1. The feature is finalized.
+2. High-Level Design (HLD) and Low-Level Design (LLD) are created.
+3. Developers write the complete application code.
+4. The full feature may take 3–5 months.
+5. After completion, it moves to QE (testing).
+6. Finally, it is delivered to the customer.
+
+Everything happens in **one single cycle**.
+
+### Problems with Waterfall
+
+- QE waits for months before testing.
+- Developers work on the entire feature without feedback.
+- No early corrections.
+- Redesign becomes difficult.
+
+---
+
+## Agile Approach
+
+Instead of building everything at once:
+
+- The feature is broken into smaller parts.
+- Work is delivered in small increments.
+- Each part is tested early.
+
+### Sprint
+
+A **Sprint** is a defined time period (usually 2–3 weeks) during which:
+
+- A small part of the feature is developed.
+- It is delivered to staging or dev.
+- QE performs testing.
+
+### Benefits of Agile
+
+- Early feedback from QE.
+- Faster corrections.
+- Better planning.
+- Continuous improvement.
+- Step-by-step development.
+
+---
+
+## Why Agile is Important
+
+- Around 90% of organizations follow Agile.
+- Even experienced engineers switching domains are expected to understand Agile.
+- You should be familiar with:
+  - Sprint Planning
+  - Sprint Retrospective
+  - Backlog Grooming
+
+### How to Learn Agile
+
+- Refer to Wikipedia.
+- Use available online resources.
+
+Note: There is no standard definition. Every organization may follow Agile differently.
+
+---
+
+# Jira
+
+## What is Jira?
+
+Jira is a project management tool used to implement Agile.
+
+It is used to:
+
+- Track work
+- Manage tasks
+- Monitor progress
+- Handle stories, bugs, epics
+
+---
+
+## Why Jira is Important
+
+### High-Level Usage
+
+For example:
+
+- A CEO wants to see all Priority One issues.
+- Instead of asking managers individually,
+- They can query Jira and get centralized data.
+
+---
+
+### Team-Level Usage
+
+In a development team:
+
+- Scrum Master assigns stories during Sprint Planning.
+- Team members check the Jira board.
+- Stories are assigned and tracked.
+
+You can track:
+
+- What was done last week
+- What was done last quarter
+- Team velocity
+- Sprint progress
+- Work status
+
+It is not difficult to learn.
+It may take 1–2 days to understand the workflow.
+
+---
+
+## How to Practice Jira
+
+- Search for "Download Jira".
+- Start a 30-day free trial.
+- No credit card required.
+- Create an account.
+- Generate a license.
+- Download and install Jira.
+- Apply the license.
+- Practice on your local system.
+
+This helps you become comfortable before joining an organization.
+
+---
+
+# Confluence
+
+## What is Confluence?
+
+Confluence is a knowledge-sharing platform.
+
+It is used for:
+
+- Documentation
+- Internal knowledge sharing
+- Project pages
+- Product documentation
+
+---
+
+## Why Confluence is Needed
+
+In organizations:
+
+- Internal documentation cannot be public.
+- Teams need secure platforms.
+- It integrates with organizational LDAP.
+- Uses Single Sign-On (SSO).
+
+Each project can:
+
+- Create its own pages
+- Maintain internal documentation
+
+---
+
+## Example
+
+If a DevOps Engineer builds a CI/CD system and leaves:
+
+- Knowledge must remain documented.
+- New engineers should understand the setup.
+
+This documentation is maintained in Confluence.
+
+---
+
+# SharePoint
+
+SharePoint is also a knowledge-sharing platform.
+
+Similar to Confluence:
+
+- Used for internal documentation
+- Secure access
+- Organizational integration
+
+---
+
+# ServiceNow
+
+ServiceNow is widely used in service-based organizations.
+
+It is mainly used for:
+
+- Incident Management
+- Change Management
+
+---
+
+## Incident Management
+
+Example scenario:
+
+- Application deployed in production.
+- Due to high load or memory leak, it stops working properly.
+- Monitoring system detects the issue.
+- An alert is triggered.
+
+### What Happens Next?
+
+- An incident is created.
+- It is assigned to the responsible team.
+- Priority is set (e.g., Priority One).
+- Status updates are added.
+- Resolution details are documented.
+
+Monitoring tools can integrate with ServiceNow APIs to:
+
+- Automatically create incidents.
+- Assign them based on team and priority.
+
+---
+
+## Change Management
+
+After identifying the issue:
+
+- A fix must be deployed.
+- Production changes cannot be made directly.
+
+A structured process is followed:
+
+1. Create a change ticket.
+2. Identify involved teams.
+3. Plan server shutdown and restart.
+4. Deploy changes.
+5. Notify customers about downtime.
+6. Use deployment strategies like:
+   - Blue-Green Deployment
+   - Canary Deployment
+
+Everything must be tracked and approved.
+
+---
+
+# Read the Docs
+
+Read the Docs is an open-source documentation hosting platform.
+
+It is similar to Confluence or SharePoint but open-source.
+
+### Features
+
+- Hosts static documentation websites.
+- Good integration with GitHub.
+- CI can automatically deploy documentation changes.
+- Less feature-rich compared to Confluence or SharePoint.
+
+Used mainly in open-source projects.
+
+---
+
+# Git and GitHub in Project Management
+
+GitHub can also be used for project management.
+
+Instead of Jira, open-source projects may use:
+
+- GitHub Projects
+- Azure Boards
+
+You can:
+
+- Create tickets
+- Track status (To Do, In Progress, Done)
+- Add comments
+- Track release cycles
+
+Open-source projects track their release plans inside the GitHub project section.
+
+---
+
+# Key Takeaways
+
+Apart from technical DevOps skills, I learned that I must understand:
+
+- Agile methodology
+- Jira
+- Confluence
+- SharePoint
+- ServiceNow
+- Read the Docs
+- GitHub project tracking
+
+Understanding project management tools is essential to work effectively in an organization.
