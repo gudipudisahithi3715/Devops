@@ -1,0 +1,275 @@
+# Day 23 – Introduction to Containers
+
+## Overview
+
+- What containers are  
+- Why they were introduced  
+- How they differ from virtual machines  
+- The basic lifecycle of Docker  
+- Introduction to Builder  
+
+This is a foundational explanation. No commands or projects are implemented here.
+
+---
+
+## Virtual Machines – The Foundation
+
+Containers are an advancement over virtual machines, just like virtual machines were an advancement over physical servers.
+
+### Physical Server Problem
+
+A physical server (or laptop) has:
+
+- CPU  
+- RAM  
+- Hardware resources  
+
+Most of the time:
+
+- Resources are not fully utilized.  
+- Organizations with thousands of servers waste resources.  
+
+---
+
+## Virtualization and Hypervisor
+
+To solve this problem, virtualization was introduced.
+
+### Hypervisor
+
+A hypervisor allows:
+
+- Creation of multiple virtual machines on a single physical server.  
+
+### Virtual Machine (VM)
+
+A virtual machine:
+
+- Is a logical isolation.  
+- Has its own operating system.  
+- Runs applications on top of that OS.  
+
+Instead of:
+
+- One physical server → One application  
+
+It becomes:
+
+- One physical server → Multiple VMs → Multiple applications  
+
+This improves resource usage and isolation.
+
+---
+
+## Limitations of Virtual Machines
+
+Even with VMs:
+
+- Resources are still underutilized.  
+- Example: A VM with 25 GB RAM may only use 10 GB at peak.  
+- Remaining resources are wasted.  
+
+In large organizations using millions of instances, this becomes expensive.
+
+This led to the introduction of containers.
+
+---
+
+## Containers – Evolution from Virtual Machines
+
+Virtual machines solved problems of physical servers.
+
+Containers solve some problems of virtual machines.
+
+However:
+
+- Virtual machines are more secure.  
+- Containers do not provide full isolation like VMs.  
+
+---
+
+## Container Architecture
+
+Containers can be created in two models.
+
+### Model 1 – On Physical Server
+
+Physical Server  
+→ Operating System  
+→ Container Platform (Docker)  
+→ Containers  
+
+### Model 2 – On Virtual Machine
+
+Physical Server  
+→ Virtual Machine (EC2/Azure VM)  
+→ Container Platform (Docker)  
+→ Containers  
+
+Many organizations use Model 2 because:
+
+- Less maintenance overhead  
+- No need to maintain physical data centers  
+- Cloud providers handle infrastructure  
+
+---
+
+## Why Containers Are Lightweight
+
+Virtual machines:
+
+- Have a full operating system.  
+- Have complete isolation.  
+
+Containers:
+
+- Do not have a full operating system.  
+- Use resources from the host OS.  
+- Share system libraries and dependencies.  
+
+They include:
+
+- Application  
+- Application libraries  
+- System dependencies  
+- Minimal base image  
+
+They do not include a full OS like a VM.
+
+---
+
+## Container Package Includes
+
+- Application  
+- Application dependencies  
+- System dependencies  
+- Minimal base image  
+
+---
+
+## Image Size Comparison
+
+Virtual Machine Snapshot:
+
+- Usually in GB (1–3 GB or more)  
+
+Container Image:
+
+- Often in MB (100 MB, 500 MB, etc.)  
+- Depends on base image and dependencies  
+
+Because containers are lightweight:
+
+- Easier to transfer  
+- Easier to ship  
+- Faster to deploy  
+
+---
+
+## Docker – Containerization Platform
+
+Docker popularized containerization.
+
+It simplifies:
+
+- Creating images  
+- Running containers  
+- Managing lifecycle  
+
+---
+
+## Docker Lifecycle
+
+### Step 1 – Write a Dockerfile
+
+A Dockerfile defines:
+
+- Application  
+- Dependencies  
+- Configuration  
+
+### Step 2 – Build Image
+
+Command used:
+
+docker build
+
+Docker Engine converts:
+
+Dockerfile → Docker Image  
+
+### Step 3 – Run Container
+
+Command used:
+docker run
+
+Docker Image → Running Container  
+
+---
+
+## Docker Engine
+
+Docker Engine:
+
+- Processes Docker commands  
+- Builds images  
+- Runs containers  
+
+---
+
+## Single Point of Failure (SPOF)
+
+Docker Engine can be:
+
+- A Single Point of Failure  
+
+If Docker Engine goes down:
+
+- Containers may stop responding.  
+
+---
+
+## Layers in Docker
+
+When building images:
+
+- Docker creates multiple layers.  
+- Each layer consumes storage.  
+
+This can increase disk usage.
+
+---
+
+## Introduction to Builder
+
+Builder was introduced to:
+
+- Solve layer-related problems  
+- Reduce storage issues  
+- Address single point of failure challenges  
+- Work well with tools like Skopeo and Podman  
+
+### Builder Approach
+
+Instead of writing a Dockerfile:
+
+- A shell script can be written.  
+- Builder commands can be added.  
+- An image can be created.  
+
+Builder can create:
+
+- Docker images  
+- OCI-compliant images  
+
+---
+
+## Key Points
+
+- Containers evolved from virtual machines.  
+- Containers are lightweight because they do not include a full OS.  
+- They share host OS resources.  
+- Docker simplifies the container lifecycle.  
+- Docker lifecycle: Dockerfile → Image → Container  
+- Docker Engine can be a single point of failure.  
+- Builder is another tool for building container images.  
