@@ -1,0 +1,550 @@
+# Docker Interview Questions and Answers (Scenario-Based)
+
+This document summarizes key concepts and interview questions related to Docker. The questions are mostly scenario-based and reflect the type of questions that can appear in real interviews.
+
+These questions help evaluate the understanding of containers and Docker concepts learned in previous sessions.
+
+---
+
+# 1. What is Docker?
+
+Docker is an **open-source containerization platform**.
+
+It is used to:
+
+- Build containers
+- Manage the lifecycle of containers
+
+When explaining Docker in an interview, it is important to also explain **containers**.
+
+Example explanation:
+
+- Docker is used to build Docker images.
+- Write Dockerfiles.
+- Run Docker containers.
+- Push container images to registries.
+
+Docker helps manage the entire lifecycle of containers.
+
+---
+
+# 2. Difference Between Containers and Virtual Machines
+
+Containers and virtual machines differ mainly in **size, architecture, and dependencies**.
+
+## Containers
+
+- Containers are **lightweight in nature**.
+- They do **not have a complete operating system**.
+- They include:
+  - Application
+  - Application dependencies
+  - Minimal system libraries required to run the application.
+
+Example:
+
+If running a **Java application**, the container only needs:
+
+- Application code
+- Java runtime dependency
+- Required system libraries
+
+Containers only contain minimal files and folders.
+
+## Virtual Machines
+
+Virtual machines include:
+
+- Application
+- Java or other runtime dependencies
+- Complete operating system (Ubuntu, Amazon Linux, etc.)
+- Kernel
+- System libraries
+
+Operating systems are heavy, so virtual machines have **larger image sizes and more complexity**.
+
+### Key Difference
+
+Containers use **shared libraries and minimal dependencies**, while virtual machines run with a **complete operating system**.
+
+---
+
+# 3. Docker Lifecycle
+
+The Docker lifecycle explains the process from creating a container to running it.
+
+Typical lifecycle:
+
+1. **Write a Dockerfile**
+
+   - A Dockerfile contains instructions required to run an application.
+
+2. **Build the Docker Image**
+
+   - Using Docker CLI:
+   
+
+docker build
+
+
+This converts the Dockerfile into a Docker image.
+
+3. **Run a Docker Container**
+
+- Using:
+
+
+docker run
+
+
+4. **Push Image to Registry**
+
+Images can be pushed to registries such as:
+
+- Docker Hub
+- Quay.io
+- Amazon ECR
+- Google Container Registry (GCR)
+
+Images can also be **pulled and pushed** between registries.
+
+---
+
+# 4. Docker Components
+
+When Docker is installed, several components are involved.
+
+## Docker Client
+
+- The Docker CLI.
+- Users interact with Docker using commands like:
+
+
+docker build
+docker run
+docker pull
+docker push
+
+
+## Docker Daemon
+
+- The **heart of Docker**.
+- Responsible for executing Docker commands.
+- Receives requests from the Docker client.
+
+Example workflow:
+
+1. User runs:
+
+
+docker build
+
+
+2. Docker client sends request to **Docker daemon**.
+
+3. Docker daemon processes the request and creates the image.
+
+If the Docker daemon stops, Docker operations will not work.
+
+## Docker Registry
+
+A registry stores container images.
+
+Examples:
+
+- Docker Hub
+- Private registries
+- Organizational container registries
+
+Registries allow:
+
+- Pushing images
+- Pulling images
+
+---
+
+# 5. Difference Between `COPY` and `ADD`
+
+Both commands are used inside a Dockerfile.
+
+## Docker COPY
+
+- Copies files from the **local filesystem** to the container.
+
+Example use case:
+
+- Copy source code from the laptop or EC2 instance into the container.
+
+## Docker ADD
+
+- Can copy files from **remote URLs**.
+
+Example use cases:
+
+- Download a file from an S3 bucket
+- Download a file from GitHub
+- Retrieve log files from a remote location
+
+### Key Difference
+
+- `COPY` → copies files from local system
+- `ADD` → can copy files from URLs
+
+---
+
+# 6. Difference Between CMD and ENTRYPOINT
+
+Both instructions define commands that run when the container starts.
+
+## CMD
+
+- Used to provide **default arguments**.
+- These arguments **can be overridden** when running the container.
+
+Example:
+
+If a container runs a calculator application:
+
+Users may provide arguments like:
+
+- Addition
+- Subtraction
+- Multiplication
+- Division
+
+These parameters can be passed using **CMD**.
+
+## ENTRYPOINT
+
+- Defines the **main executable**.
+- This **cannot be overridden by default**.
+
+Example:
+
+If running a Python application:
+
+
+python manage.py
+
+
+This command can be set as **ENTRYPOINT**.
+
+Arguments such as:
+
+- Host
+- Port
+
+Can be passed through **CMD**.
+
+Example:
+
+- ENTRYPOINT → python manage.py
+- CMD → host and port arguments
+
+### Key Points
+
+- CLI arguments override CMD.
+- ENTRYPOINT defines the fixed executable.
+
+You can:
+
+- Use CMD alone
+- Use ENTRYPOINT alone
+- Use both together
+
+---
+
+# 7. Docker Networking Types
+
+Docker supports multiple networking types.
+
+## Default Network
+
+**Bridge Network**
+
+### Bridge Network
+
+- Default Docker networking mode.
+- Uses a virtual ethernet interface called **docker0**.
+- Containers connect to the host through this network.
+
+Workflow:
+
+1. User accesses host
+2. Host forwards request to container through **docker0**
+
+---
+
+## Host Network
+
+- Container shares the **host network directly**.
+- No virtual ethernet or docker0 network.
+
+Users can access the container application directly using the host network.
+
+---
+
+## Overlay Network
+
+Used when working with:
+
+- Multiple hosts
+- Docker Swarm
+- Kubernetes
+
+Overlay networking connects multiple hosts using a tunnel-like networking structure.
+
+---
+
+## Macvlan Network
+
+Allows containers to appear as **physical hosts on the network**.
+
+Containers get their own network identity.
+
+These networking modes are generally used only when there are special requirements.
+
+---
+
+# 8. How to Isolate Networking Between Containers
+
+By default, containers use the **docker0 network**.
+
+This means multiple containers share the same network.
+
+Example containers:
+
+- Login container
+- Payments container
+- Logout container
+
+All use the same docker0 network.
+
+This can create security risks.
+
+Example scenario:
+
+If the login container is compromised, the payments container may also be exposed.
+
+## Solution: Create Custom Bridge Networks
+
+You can create a separate network.
+
+Example:
+
+
+docker network create secure-network
+
+
+When running a container:
+
+
+docker run --network secure-network
+
+
+This allows:
+
+- Separate networking
+- Proper container isolation
+
+Containers communicate with the host through their assigned network.
+
+---
+
+# 9. Multi-Stage Builds in Docker
+
+Multi-stage builds allow building Docker images in **multiple stages**.
+
+Artifacts can be copied from one stage to another.
+
+## Example Scenario
+
+Suppose an application includes:
+
+- Frontend
+- Backend
+- Database connectors
+
+During build stage, many dependencies are installed:
+
+- Node
+- React
+- Angular
+- JDK
+- JRE
+- Database connectors
+
+The final application may only need:
+
+- JRE runtime
+- Executable binary
+
+Instead of including all dependencies in the final image, multi-stage builds allow copying only the final executable.
+
+Example outcome:
+
+- Initial image size → 800 MB
+- Final image size → 1 MB
+
+This reduces the container image size significantly.
+
+---
+
+# 10. Distroless Images in Docker
+
+Distroless images are **minimal Docker images**.
+
+They contain only the runtime required to run the application.
+
+The concept became popular in recent years.
+
+### Problem
+
+Many container images include unnecessary packages.
+
+Example:
+
+- MySQL packages
+- System utilities
+- Package managers
+
+These increase:
+
+- Image size
+- Security vulnerabilities
+
+### Solution
+
+Distroless images remove unnecessary components.
+
+Example comparison:
+
+| Image | Size |
+|------|------|
+| Ubuntu | ~100 MB |
+| Scratch (Distroless) | ~1 MB |
+
+Distroless images remove:
+
+- Package managers (apt, yum)
+- System tools
+- Utilities like curl, ping, wget
+
+Advantages:
+
+- Smaller image size
+- Reduced security vulnerabilities
+
+---
+
+# 11. Real-Time Docker Challenges
+
+## Docker Daemon as Single Point of Failure
+
+The Docker daemon is a **single process**.
+
+If it stops:
+
+- Containers stop functioning
+- Docker commands fail
+
+This makes it a **single point of failure**.
+
+### Modern Solution
+
+Tools like **Podman** address this issue because they do not rely on a daemon.
+
+---
+
+## Docker Daemon Runs as Root User
+
+Docker daemon runs as **root user**.
+
+If compromised:
+
+- Attackers may gain access to the entire host
+- Attackers may access the cluster
+
+This creates security concerns.
+
+Podman solves this issue because it can run without root privileges.
+
+---
+
+## Resource Constraints
+
+When running multiple containers on one host:
+
+- One container may consume excessive memory.
+- Other containers may not receive required resources.
+
+Example:
+
+- One container consumes 10GB memory
+- Other containers fail due to lack of resources
+
+Proper resource configuration is required.
+
+---
+
+# 12. Steps to Secure Containers
+
+Container security is critical when moving from virtual machines to containers.
+
+Containers share infrastructure, so improper configuration can compromise multiple applications.
+
+## 1. Use Distroless Images
+
+Distroless images:
+
+- Remove unnecessary packages
+- Reduce vulnerabilities
+- Keep images lightweight
+
+---
+
+## 2. Configure Networking Properly
+
+Sensitive applications should be isolated.
+
+Example:
+
+- Finance container
+- Login container
+
+These should run on **different bridge networks**.
+
+This prevents unauthorized communication.
+
+---
+
+## 3. Scan Container Images
+
+Always scan container images before deployment.
+
+Tools such as **Snyk** can detect vulnerabilities.
+
+Example:
+
+- Scan images before pushing to staging or production.
+
+This ensures container images are secure.
+
+---
+
+# Summary
+
+This document covered important Docker interview concepts including:
+
+- Docker basics
+- Containers vs Virtual machines
+- Docker lifecycle
+- Docker components
+- COPY vs ADD
+- CMD vs ENTRYPOINT
+- Docker networking
+- Network isolation
+- Multi-stage builds
+- Distroless images
+- Real-world Docker challenges
+- Container security practices
