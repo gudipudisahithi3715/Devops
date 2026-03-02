@@ -1,0 +1,501 @@
+Day-26 # Docker Bind Mounts and Volumes
+
+This document explains the concepts of **Docker Bind Mounts** and **Docker Volumes**, the problems they solve, and how they are used.
+
+---
+
+# Problems with Containers
+
+Containers are **ephemeral in nature**, which means they are **short-lived**.
+
+Containers use resources such as:
+
+- CPU
+- Memory
+- Storage / File system
+
+These resources are taken directly from the **host operating system kernel**.
+
+Because of this behavior, containers are **lightweight**.
+
+However, this leads to certain problems.
+
+---
+
+# Problem 1: Data Loss When Container Stops
+
+Example:
+
+A container is running an **nginx application**.
+
+The nginx application stores information such as:
+
+- Logged-in user details
+- User IP addresses
+- Access records
+
+This information is stored in a **log file**.
+
+Log files are important for:
+
+- Security auditing
+- Organization monitoring
+- Tracking user access history
+
+Organizations may need logs from:
+
+- Last 10 days
+- Last 5 days
+- Last 1 week
+
+### Issue
+
+If the container goes down:
+
+- The container is destroyed.
+- The log files inside the container are also deleted.
+
+Because containers are ephemeral, the stored data is lost.
+
+This means:
+
+- User authentication details are lost.
+- IP address tracking information is lost.
+- Auditing data is lost.
+
+This is a major problem.
+
+---
+
+# Problem 2: Data Sharing Between Containers
+
+Example architecture:
+
+- One **frontend container**
+- One **backend container**
+
+The backend container writes files such as:
+
+- JSON files
+- YAML files
+- XML files
+- Dynamically generated HTML files
+
+These files are read by the **frontend container** to display content to users.
+
+### Example Scenario
+
+The backend generates HTML files like:
+
+- Today's HTML file
+- Yesterday's HTML file
+- Files from previous days
+
+Users can access historical records from the frontend.
+
+### Issue
+
+If the **backend container goes down**:
+
+- All stored files inside the backend container are lost.
+- The frontend container cannot access previous data.
+
+The frontend can only show **today's records**.
+
+Older data becomes unavailable.
+
+This causes the application to behave incorrectly.
+
+---
+
+# Problem 3: Accessing Files from Host System
+
+Example:
+
+A container needs to read a file that exists on the **host system**.
+
+The file is created by a **cron job**.
+
+A cron job is a **periodical job** that runs on the host.
+
+The cron job generates files such as:
+
+- JSON files
+- XML files
+- YAML files
+
+These files are stored on the **host filesystem**.
+
+The container needs to:
+
+- Read these files
+- Display them to users
+
+### Issue
+
+Containers do not have a standard way to access **specific directories from the host filesystem**.
+
+Therefore the container cannot read those files.
+
+---
+
+# Solutions Provided by Docker
+
+Docker provides two solutions to solve these problems:
+
+1. **Bind Mounts**
+2. **Volumes**
+
+Both methods allow containers to store and access persistent data.
+
+---
+
+# Bind Mounts
+
+Bind mounts allow a **directory from the host** to be linked with a **directory inside the container**.
+
+Example structure:
+
+Host directory:
+/app
+
+
+Container directory:
+
+
+/app
+
+
+Using bind mounts, both directories are connected.
+
+### Behavior
+
+- Files written inside the container directory are stored on the host.
+- Files stored on the host can be accessed inside the container.
+
+### Example Scenario
+
+Container **C1** writes data to `/app`.
+
+That data is stored on the host.
+
+If container **C1** stops:
+
+- The host directory still exists.
+- Data is preserved.
+
+A new container **C2** can be created and bind the same host directory.
+
+The data remains available.
+
+---
+
+# Volumes
+
+Volumes also provide persistent storage but with additional features.
+
+Instead of specifying a host directory directly, Docker creates a **logical storage area called a volume**.
+
+A volume is created using Docker commands.
+
+Example:
+
+
+docker volume create <volume-name>
+
+
+The volume is stored on the host but managed by Docker.
+
+---
+
+# Volume Lifecycle
+
+Volumes can be managed using Docker CLI commands.
+
+Operations include:
+
+- Create volumes
+- List volumes
+- Inspect volumes
+- Delete volumes
+
+Because of this, volumes have a **lifecycle** managed by Docker.
+
+---
+
+# Advantages of Volumes
+
+Volumes provide several benefits.
+
+### Lifecycle Management
+
+Volumes can be managed directly using Docker commands.
+
+Examples:
+
+- Create
+- Delete
+- Attach
+- Detach
+
+---
+
+### Container Sharing
+
+A single volume can be attached to:
+
+- One container
+- Multiple containers
+
+Example:
+
+- Container C1
+- Container C2
+
+Both can access the same volume.
+
+---
+
+### External Storage Support
+
+Volumes can be stored on:
+
+- Local host
+- External EC2 instances
+- External storage systems
+- S3
+- NFS
+
+This provides flexibility.
+
+---
+
+### Backup Capability
+
+Volumes can be easily backed up.
+
+Data can be:
+
+- Moved between systems
+- Copied to external storage
+- Restored later
+
+---
+
+### High Performance Storage
+
+If the host storage is slow, a high-performance storage system can be used.
+
+Example:
+
+- Read-intensive storage
+- Write-intensive storage
+
+A high-performance storage volume can be mounted to the container.
+
+---
+
+# Mounting Volumes
+
+Docker provides two options for mounting volumes.
+
+## Option 1
+
+
+-v
+
+
+This option passes all arguments in a single command.
+
+Arguments include:
+
+- Source directory
+- Destination directory
+- Permissions
+- Storage options
+
+Arguments are separated using colons.
+
+---
+
+## Option 2
+
+
+--mount
+
+
+This is a **more verbose option**.
+
+Parameters are explicitly defined.
+
+Example parameters:
+
+- source
+- destination
+- permissions
+
+This makes commands easier to understand for other users.
+
+Using `--mount` is generally preferred because it is clearer.
+
+---
+
+# Volume Commands
+
+## List Volumes
+
+
+docker volume ls
+
+
+Displays all available volumes.
+
+Example volumes:
+
+- Argo CD
+- demo
+- local volumes
+
+---
+
+## Create Volume
+
+
+docker volume create Abhishek
+
+
+This creates a logical volume managed by Docker.
+
+---
+
+## Inspect Volume
+
+
+docker volume inspect Abhishek
+
+
+This command provides details such as:
+
+- Creation timestamp
+- Driver
+- Mount point
+- Scope
+- Volume name
+
+---
+
+## Delete Volume
+
+
+docker volume rm Abhishek
+
+
+Multiple volumes can be deleted in a single command.
+
+Example:
+
+
+docker volume rm ArgoCD demo
+
+
+---
+
+# Mounting a Volume to a Container
+
+Steps involved:
+
+1. Create a volume.
+2. Run a container.
+3. Attach the volume to the container.
+
+Example command structure:
+
+
+docker run -d --mount source=<volume-name>,target=/app <image-name>
+
+
+Example image:
+
+
+nginx:latest
+
+
+This mounts the volume to `/app` inside the container.
+
+---
+
+# Inspecting Container Mounts
+
+To check container details:
+
+
+docker ps
+
+
+This lists running containers.
+
+Then inspect the container:
+
+
+docker inspect <container-name>
+
+
+Inside the output, the **Mounts** section shows:
+
+- Volume name
+- Source location
+- Target directory inside container
+- Mount mode
+
+Example:
+
+- Source: volume
+- Destination: `/app`
+
+---
+
+# Important Note About Deleting Volumes
+
+A volume cannot be deleted if it is currently used by a container.
+
+Example error:
+
+
+volume is already in use
+
+
+Correct process:
+
+1. Stop the container
+2. Delete the container
+3. Delete the volume
+
+---
+
+# Summary
+
+Containers are ephemeral and lose data when they stop.
+
+This creates problems such as:
+
+- Loss of logs
+- Loss of application data
+- Inability to share data between containers
+- Inability to read host files
+
+Docker provides two solutions:
+
+- **Bind Mounts**
+- **Volumes**
+
+Bind mounts directly connect host directories to container directories.
+
+Volumes are managed by Docker and provide additional benefits such as:
+
+- Lifecycle management
+- External storage support
+- Easier backups
+- Better performance options
+- Easy sharing between containers
+
+Volumes are generally preferred over bind mounts.
