@@ -1,0 +1,350 @@
+# Introduction to Kubernetes
+
+This document summarizes the key concepts learned about Kubernetes and its role in the DevOps ecosystem.
+
+---
+
+# Why Kubernetes is Important in DevOps
+
+Many people focus heavily on **CI/CD solutions** when learning DevOps. A lot of tutorials and projects emphasize building pipelines and working with CI/CD tools.
+
+However, **Kubernetes is a key player in the market**.
+
+If you check DevOps job descriptions, Kubernetes appears in almost all of them. Because of this, Kubernetes is considered the **future of DevOps**.
+
+- If someone wants to stay in DevOps for a short time, they might manage with only CI/CD knowledge.
+- Some roles focus mainly on CI/CD and release engineering.
+- But for a **long-term DevOps career**, Kubernetes is essential.
+
+---
+
+# Microservices and Containers
+
+Organizations have been actively moving towards **microservices architectures** for the last six to seven years.
+
+Containers play an important role in this transition.
+
+In previous learning sessions, the focus was on:
+
+- Container evolution
+- Introduction to containers
+- Importance of containers
+- Hands-on projects using Docker
+
+Before learning Kubernetes, it is important to understand containers thoroughly.
+
+---
+
+# Prerequisite for Learning Kubernetes
+
+The main prerequisite for Kubernetes is **Docker (containers)**.
+
+This does not only mean knowing Docker commands. It means understanding the **fundamental concepts of containers**, such as:
+
+- What containers bring to the system
+- How containers differ from virtual machines
+- Networking isolation
+- Namespace isolation
+- Why containers are lightweight
+- How to secure containers
+- Distroless images
+- Multi-stage Docker builds
+
+These concepts are important before starting Kubernetes.
+
+---
+
+# Docker vs Kubernetes
+
+One of the first questions before learning Kubernetes is:
+
+**What is the difference between Docker and Kubernetes?**
+
+## Docker
+
+Docker is a **container platform**.
+
+It simplifies working with containers by providing:
+
+- Docker Engine
+- Docker CLI
+- Container lifecycle management
+
+Docker makes container usage easy and manageable.
+
+---
+
+## Kubernetes
+
+Kubernetes is a **container orchestration platform**.
+
+This is the textbook definition.
+
+But just saying Kubernetes is a container orchestration platform does not fully explain its purpose. To understand Kubernetes properly, it is necessary to look at the problems Docker alone cannot solve.
+
+---
+
+# Nature of Containers
+
+Containers are **ephemeral in nature**.
+
+This means they are **short-lived** and can stop or restart at any time.
+
+Example scenario:
+
+- A host machine runs Docker.
+- 100 containers are created on that host.
+- One container starts consuming excessive memory.
+- Other containers may fail to start or may crash due to lack of resources.
+
+Although containers are independent, they still share host resources.
+
+---
+
+# Problems with Docker
+
+Several important problems arise when using Docker alone.
+
+## 1. Single Host Limitation
+
+Docker typically runs on a **single host**.
+
+Example setup:
+
+- One host machine
+- Docker installed on it
+- Multiple containers running on the same host
+
+If one container consumes too many resources, other containers on the same host can be affected.
+
+This is a limitation of running containers on a single host.
+
+---
+
+## 2. Auto Healing Problem
+
+If a container is killed or crashes:
+
+- The application inside that container becomes inaccessible.
+- A DevOps engineer must manually restart the container.
+
+In large environments with **thousands of containers**, manual monitoring is impractical.
+
+Auto healing means:
+
+- Containers should restart automatically
+- No manual intervention should be required
+
+Docker does not provide this behavior by default.
+
+---
+
+## 3. Auto Scaling Problem
+
+Consider a host machine with:
+
+- 4 GB RAM
+- 4 CPU
+
+A container running on this host can only use the available resources.
+
+Now consider an application scenario:
+
+- Normally the application serves 10,000 users.
+- During a festival or special event, traffic increases to 100,000 users.
+
+To handle this load, the system must **scale the number of containers**.
+
+Scaling may involve:
+
+- Creating additional containers
+- Distributing traffic between containers using a load balancer
+
+Docker does not automatically handle scaling.
+
+---
+
+## 4. Lack of Enterprise-Level Support
+
+Docker is a **minimalistic platform**.
+
+It does not provide many enterprise-level capabilities by default, such as:
+
+- Load balancing
+- Firewalls
+- Auto scaling
+- Auto healing
+- API gateways
+- Security controls like whitelisting or blacklisting
+
+These capabilities are necessary for running production-level enterprise applications.
+
+---
+
+# How Kubernetes Solves These Problems
+
+Kubernetes addresses the limitations of Docker.
+
+The main problems solved include:
+
+1. Single host limitation
+2. Auto scaling
+3. Auto healing
+4. Enterprise-level support
+
+---
+
+# Kubernetes Cluster Architecture
+
+Kubernetes works as a **cluster**.
+
+A cluster is a **group of nodes**.
+
+Typical architecture includes:
+
+- One master node
+- Multiple worker nodes
+
+Although Kubernetes can run on a single node for development purposes, in production environments it is typically deployed as a cluster.
+
+---
+
+# Solving the Single Host Problem
+
+In Kubernetes:
+
+- Applications run across multiple nodes.
+- If a node becomes faulty or overloaded, containers (pods) can run on another node.
+
+This prevents one container from affecting others due to resource issues on a single host.
+
+---
+
+# Auto Scaling in Kubernetes
+
+Kubernetes supports scaling using configuration files.
+
+Kubernetes uses **YAML files** to define application behavior.
+
+Developers or DevOps engineers can specify the number of replicas.
+
+Example concept:
+
+- Increase replicas from 1 to 10 when traffic increases.
+
+Kubernetes also supports **Horizontal Pod Autoscaler (HPA)**.
+
+HPA automatically increases or decreases the number of pods based on metrics such as resource usage.
+
+---
+
+# Auto Healing in Kubernetes
+
+Kubernetes includes **auto healing capabilities**.
+
+If a container is about to fail or goes down:
+
+- Kubernetes detects the problem.
+- A new container (pod) is created automatically.
+
+This ensures the application remains available to users.
+
+The Kubernetes API server helps manage these actions.
+
+---
+
+# Pods in Kubernetes
+
+Kubernetes usually works with **pods** instead of directly managing containers.
+
+A pod can contain one or more containers.
+
+When issues occur, Kubernetes creates new pods to maintain the desired state.
+
+---
+
+# Enterprise-Level Support
+
+Kubernetes was originally developed at **Google**.
+
+Google internally used a system called **Borg** for container management.
+
+Kubernetes was created as a platform that provides enterprise-level container orchestration.
+
+However, Kubernetes itself continues to evolve.
+
+---
+
+# CNCF and Kubernetes Ecosystem
+
+Kubernetes development is supported by the **Cloud Native Computing Foundation (CNCF)**.
+
+CNCF maintains and supports many related projects.
+
+Examples include tools such as:
+
+- Podman
+- Buildpacks
+- Prometheus
+
+These tools form part of the broader cloud-native ecosystem.
+
+---
+
+# Extending Kubernetes
+
+Kubernetes allows extension through:
+
+- Custom resources
+- Custom Resource Definitions (CRDs)
+
+These mechanisms allow developers to extend Kubernetes functionality.
+
+For example, Kubernetes introduced the concept of **Ingress controllers** to support advanced load balancing solutions.
+
+---
+
+# Kubernetes Evolution
+
+Kubernetes is continuously evolving.
+
+New tools and improvements are regularly added to improve:
+
+- scalability
+- security
+- reliability
+- ecosystem support
+
+Because of this ongoing development, many organizations are gradually adopting Kubernetes in production environments.
+
+---
+
+# Learning Kubernetes
+
+Understanding **why Kubernetes is needed** is the first step.
+
+Once the core motivation is clear, learning the remaining concepts becomes easier.
+
+Future learning topics include:
+
+- Kubernetes architecture
+- Pods
+- Deployments
+- Services
+- Ingress controllers
+- Admission controllers
+
+These topics form the foundation of Kubernetes usage.
+
+---
+
+# Summary
+
+Key takeaways:
+
+- Kubernetes is a crucial technology in modern DevOps.
+- Docker alone has limitations such as single-host deployment, lack of auto healing, and lack of auto scaling.
+- Kubernetes solves these problems through cluster-based orchestration.
+- Kubernetes also provides enterprise-ready capabilities and integrates with a large cloud-native ecosystem.
+
+Understanding these fundamentals forms the foundation for learning Kubernetes in depth.
