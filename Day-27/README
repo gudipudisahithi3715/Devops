@@ -1,0 +1,358 @@
+# Docker Networking
+
+## Introduction
+
+Docker networking allows containers to communicate with each other and with the host system. Containers often need to exchange information or be isolated depending on the application requirements.
+
+## Why Networking is Needed in Docker
+
+Containers run on a host system where Docker is installed. Multiple containers can run on the same host. Networking enables:
+
+- Communication between containers
+- Communication between containers and the host
+- Logical isolation between containers when required
+
+### Example Scenario
+
+A host can run multiple containers:
+
+- **Container 1**: Frontend application
+- **Container 2**: Backend application
+
+In this case:
+
+- The frontend container must communicate with the backend container.
+
+Another scenario:
+
+- **Container 1**: Login application
+- **Container 2**: Finance or payments application
+
+In this case:
+
+- The finance container contains sensitive information such as credit card or debit card details.
+- The login container should not have access to the finance container.
+- Logical network isolation is required.
+
+## Key Networking Scenarios
+
+1. **Container 1 talks to Container 2**
+2. **Container 1 is isolated from Container 2**
+
+Docker networking provides solutions for both scenarios.
+
+## Containers and Host Communication
+
+Containers run on a host system such as:
+
+- EC2 instance
+- Physical server
+- Laptop
+
+Both the host and containers have network interfaces.
+
+Example:
+
+- Host network: `192.16.3.4`
+- Container network: `172.17.0.2`
+
+Since these networks belong to different subnets:
+
+- Direct communication between container and host may fail.
+
+To solve this problem, Docker creates a **virtual ethernet interface**.
+
+### Docker Virtual Network
+
+Docker creates a virtual ethernet network called:
+
+- **docker0**
+
+This virtual network acts as a **bridge** between:
+
+- Containers
+- Host system
+
+Without this bridge network:
+
+- Containers cannot communicate with the host.
+- Applications inside containers would not be reachable from the internet.
+
+Therefore, Docker provides **bridge networking by default**.
+
+## Default Docker Network
+
+The default network created by Docker is:
+
+- **Bridge Network**
+
+This network connects containers to the host through a virtual ethernet interface.
+
+## Types of Docker Networking
+
+Docker provides multiple networking options.
+
+### 1. Bridge Network
+
+- Default network created by Docker.
+- Uses the `docker0` virtual ethernet interface.
+- Allows containers to communicate with the host and other containers.
+
+### 2. Host Network
+
+In host networking:
+
+- Containers use the host network directly.
+- Containers share the same network as the host.
+
+Example:
+
+- Host IP: `192.16.3.4`
+- Container IP may appear within the same subnet.
+
+This means:
+
+- Anyone who can access the host can also access the container.
+
+This approach is considered insecure because:
+
+- Containers lose network isolation.
+- Host and container share the same networking environment.
+
+### 3. Overlay Network
+
+Overlay networking is used when:
+
+- Multiple hosts are involved.
+
+It creates a network that spans across multiple hosts.
+
+Overlay networks are commonly used with:
+
+- Container orchestration systems
+- Docker Swarm
+- Kubernetes
+
+Overlay networking is more complex and usually not required when running containers on a single Docker host.
+
+## Default Bridge Network Behavior
+
+When containers are created using the default settings:
+
+- All containers connect to the same `docker0` bridge network.
+
+This means:
+
+- Containers can communicate with each other.
+- Containers can communicate with the host.
+
+Example:
+
+- 100 containers on the same host
+- All connected to the same bridge network
+
+In this case:
+
+- Any container can ping another container.
+- All containers share the same communication path.
+
+This can create a security concern.
+
+## Logical Network Isolation
+
+Sometimes containers must be isolated.
+
+Example:
+
+- Login container
+- Finance container
+
+Finance containers may store:
+
+- User databases
+- Financial records
+- Payment information
+
+These containers must remain secure.
+
+If both containers use the same bridge network:
+
+- They can communicate directly.
+- This creates a potential security risk.
+
+## Custom Bridge Networks
+
+Docker allows creating **custom bridge networks**.
+
+Instead of using the default `docker0` network:
+
+- A separate bridge network can be created.
+
+Example:
+
+- Login container → Default bridge network
+- Finance container → Custom bridge network
+
+This breaks the common communication path.
+
+As a result:
+
+- Login container cannot communicate with the finance container.
+- Logical network isolation is achieved.
+
+## Example Architecture
+
+Host system contains:
+
+- Container 1 → Login application
+- Container 2 → Logout application
+- Container 3 → Finance application
+
+Networking setup:
+
+- Login and Logout containers use the default bridge network.
+- Finance container uses a custom bridge network.
+
+Result:
+
+- Login and Logout containers can communicate with each other.
+- Finance container remains isolated.
+
+## Docker Networking Commands
+
+### List Docker Networks
+
+```bash
+docker network ls
+
+# Docker Networking Commands and Examples
+
+## List Available Docker Networks
+
+This command shows all available networks including:
+
+- bridge
+- host
+- none
+- custom networks
+
+## Create Custom Network
+
+docker network create secure-network
+
+This creates a custom bridge network.
+
+## Remove Network
+
+docker network rm test
+
+Deletes a network.
+
+## Running Containers
+
+### Start Login Container
+
+docker run -d --name login nginx
+
+### Start Logout Container
+
+docker run -d --name logout nginx
+
+Both containers use the default bridge network.
+
+## Inspect Container Network
+
+docker inspect login
+
+This shows details including:
+
+- Network type
+- Container IP address
+
+Example IP addresses:
+
+- Login container → 172.17.0.2
+- Logout container → 172.17.0.3
+
+Both belong to the same subnet.
+
+## Container Communication Test
+
+From the login container:
+
+ping 172.17.0.3
+
+The login container can communicate with the logout container because both use the default bridge network.
+
+## Creating Secure Container
+
+Create a custom network:
+
+docker network create secure-network
+
+Run the finance container with this network:
+
+docker run -d --name finance --network secure-network nginx
+
+## Inspect Finance Container
+
+docker inspect finance
+
+Network type:
+
+- secure-network
+
+Example IP address:
+
+- 172.19.x.x
+
+This subnet differs from the default bridge network.
+
+## Communication Test
+
+If the login container tries to ping the finance container:
+
+- Communication fails.
+
+This shows that the finance container is isolated.
+
+## Host Network Example
+
+A container can also run using the host network.
+
+Command:
+
+docker run -d --name host-demo --network host nginx
+
+In this case:
+
+- Docker does not create a virtual network.
+- The container directly uses the host network.
+
+When inspecting the container:
+
+- No separate container IP address is assigned.
+- The container uses the host IP.
+
+## Summary
+
+Docker networking enables:
+
+- Container-to-container communication
+- Container-to-host communication
+- Logical isolation between containers
+
+### Key Networking Types
+
+- Bridge Network – Default Docker network
+- Host Network – Container shares host network
+- Overlay Network – Used across multiple hosts
+
+### Security Improvements
+
+Security can be improved by:
+
+- Creating custom bridge networks
+- Isolating containers that handle sensitive data
+
+This allows secure and controlled communication between containers.
