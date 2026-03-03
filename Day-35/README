@@ -1,0 +1,454 @@
+# Kubernetes Interview Questions – Part 1
+
+## Introduction
+
+- The topic  is **Kubernetes Interview Questions – Part 1**.
+
+# Question 1: Difference Between Docker and Kubernetes
+
+## Answer
+
+- **Docker** is a **container platform**.
+- **Kubernetes** is a **container orchestration platform**.
+
+### Additional Capabilities of Kubernetes
+
+Containers are **ephemeral in nature**, meaning:
+
+- Containers can go down for multiple reasons.
+- If a container goes down, the application becomes unavailable.
+
+Kubernetes solves this problem by providing:
+
+- **Auto healing**
+- **Auto scaling**
+
+### Node Failure Scenario
+
+Docker works on a **single node platform**.
+
+Example:
+
+- Docker is installed on a system.
+- Containers run on that system.
+
+If the system goes down:
+
+- The application becomes unreachable.
+
+Kubernetes works as a **cluster of multiple nodes**.
+
+Example:
+
+- Multiple virtual machines form a Kubernetes cluster.
+- If one node fails, Kubernetes moves the Pod to another node.
+
+### Enterprise Capabilities
+
+Kubernetes also provides:
+
+- Load balancing
+- Integration with **custom resource definitions**
+- Ability to deploy **custom controllers**
+
+Example:
+
+- Ingress Controllers provide advanced capabilities.
+
+### Summary
+
+- Docker → Container platform
+- Kubernetes → Container orchestration platform with advanced capabilities.
+
+---
+
+# Question 2: Main Components of Kubernetes Architecture
+
+This is one of the **most common interview questions**.
+
+Kubernetes architecture can be divided into:
+
+- **Control Plane**
+- **Data Plane**
+
+---
+
+## Control Plane Components
+
+### API Server
+
+- Responsible for handling APIs.
+- Communicates with end users.
+
+### Scheduler
+
+- Responsible for scheduling resources in the cluster.
+
+### etcd
+
+- Kubernetes **object store**.
+- Stores Kubernetes resources as objects.
+
+### Controller Manager
+
+- Manages default controllers in Kubernetes.
+
+Example:
+
+- ReplicaSet
+- Replication Controller
+
+### Cloud Controller Manager
+
+Used when Kubernetes runs on cloud providers.
+
+Example:
+
+- AWS EKS
+
+When a service of type **LoadBalancer** is created:
+
+- Cloud Controller Manager interacts with the cloud provider.
+- A load balancer IP address is created.
+
+---
+
+## Data Plane Components
+
+### Kubelet
+
+- Responsible for managing Pods on nodes.
+- Ensures Pods are running correctly.
+
+### Kube Proxy
+
+- Networking component of Kubernetes.
+- Updates **IP tables**.
+
+Example:
+
+- Routes traffic from node IP and port to the Pod.
+
+### Container Runtime
+
+Container runtime is required to run containers.
+
+Examples:
+
+- Docker Shim
+- containerd
+- CRI-O
+
+Previously:
+
+- Kubernetes supported Docker Shim out of the box.
+
+Now:
+
+- Container runtime must be installed manually.
+
+Kubernetes supports any runtime implementing the **Container Runtime Interface**.
+
+---
+
+# Question 3: Difference Between Docker Swarm and Kubernetes
+
+Docker Swarm is a **Docker-based orchestration solution**.
+
+### Kubernetes
+
+- Suitable for **enterprise environments**
+- Used in **large or mid-scale organizations**
+- Supports advanced networking capabilities
+
+Examples:
+
+- Flannel
+- Calico
+- OVN
+
+### Docker Swarm
+
+- Easy to install
+- Easy to use
+- Suitable for **small scale applications**
+
+### Ecosystem
+
+Kubernetes has strong **third-party support**.
+
+Example:
+
+- CNCF community
+- Custom Resource Definitions
+
+Developers can extend Kubernetes by creating **custom controllers**.
+
+### Summary
+
+- Kubernetes → Large scale, enterprise environments
+- Docker Swarm → Small scale applications
+
+---
+
+# Question 4: Difference Between Docker Container and Kubernetes Pod
+
+A **Pod** is the lowest level deployment in Kubernetes.
+
+Kubernetes resources are defined using **YAML files**.
+
+Inside the YAML file, all specifications required for running containers are defined.
+
+### Pod Characteristics
+
+- A Pod can contain:
+  - One container
+  - Multiple containers
+
+### Communication
+
+Containers inside the same Pod:
+
+- Share the same network
+- Can communicate easily
+
+### Storage
+
+Containers in a Pod can also share:
+
+- Storage
+- Resources
+
+### Summary
+
+A Pod is essentially a **runtime specification of a container**.
+
+---
+
+# Question 5: What is a Namespace in Kubernetes?
+
+A **namespace** provides **logical isolation** in a Kubernetes cluster.
+
+### Why Namespace is Required
+
+A Kubernetes cluster is shared by multiple teams and projects.
+
+Example:
+
+- 20 teams working on 20 microservices.
+
+All services may run in the **same Kubernetes cluster**.
+
+### Namespace Isolation
+
+Namespaces allow logical separation.
+
+Example:
+
+- Namespace A → Project A
+- Namespace B → Project B
+
+Each team works in its own namespace.
+
+### Access Control
+
+Using **RBAC (Role Based Access Control)**:
+
+- Teams can be restricted from accessing other namespaces.
+
+Example:
+
+- Developers in Namespace A cannot access resources in Namespace B.
+
+### Summary
+
+A namespace provides **logical isolation of resources** in a Kubernetes cluster.
+
+---
+
+# Question 6: Role of Kube Proxy
+
+Kube Proxy is responsible for **configuring network rules on nodes**.
+
+### Example Scenario
+
+If a service is created in **NodePort mode**:
+
+- The application becomes accessible through **Node IP and port**.
+
+Kube Proxy performs the routing configuration.
+
+### How It Works
+
+- Kube Proxy updates **IP tables** on the node.
+- When a request is sent to:
+
+
+NodeIP:Port
+
+
+The request is routed to the correct Pod.
+
+This routing happens using:
+
+- Linux kernel
+- IP tables
+
+Other modes like **IPVS** can also be used.
+
+---
+
+# Question 7: Types of Kubernetes Services
+
+Kubernetes Services provide three main capabilities:
+
+- Load balancing
+- Service discovery
+- Exposing applications
+
+There are three main types of services.
+
+---
+
+## ClusterIP
+
+- Default service type.
+- Accessible **only within the Kubernetes cluster**.
+
+---
+
+## NodePort
+
+- Exposes application using:
+
+
+NodeIP:Port
+
+
+Anyone who has access to the node IP can access the application.
+
+Example:
+
+- Worker nodes running as EC2 instances.
+
+---
+
+## LoadBalancer
+
+- Exposes applications to external users.
+
+Example:
+
+- Cloud Controller Manager creates a **public IP address**.
+
+Users anywhere in the world can access the application.
+
+---
+
+# Question 8: Difference Between NodePort and LoadBalancer
+
+### NodePort
+
+- Application accessible through **node IP and port**.
+- Only users who can access the node IP can access the application.
+
+Example:
+
+- Users within the organization network.
+
+---
+
+### LoadBalancer
+
+- Creates a **public load balancer IP address**.
+- Application accessible from anywhere on the internet.
+
+---
+
+# Question 9: Role of Kubelet
+
+Kubelet manages the **Pod lifecycle on worker nodes**.
+
+### Responsibilities
+
+- Monitors Pods on worker nodes.
+- Detects if a Pod has gone down.
+
+If a Pod fails:
+
+1. Kubelet detects the issue.
+2. Kubelet informs the **API Server**.
+3. API Server notifies the **ReplicaSet Controller**.
+4. ReplicaSet creates a new Pod.
+
+### Summary
+
+Kubelet ensures that Pods are running as expected on worker nodes.
+
+---
+
+# Question 10: Day-to-Day Activities on Kubernetes
+
+This is a common interview question.
+
+### Example Answer
+
+As DevOps engineers, we:
+
+- Manage Kubernetes clusters for the organization.
+- Deploy applications onto Kubernetes clusters.
+- Ensure applications are running without issues.
+
+### Monitoring
+
+- Monitoring is set up on Kubernetes clusters.
+- Issues with Pods or Services are investigated.
+
+### Troubleshooting
+
+If developers face issues such as:
+
+- Pod failures
+- Service routing issues
+- Networking problems
+
+DevOps engineers troubleshoot and resolve them.
+
+### Maintenance Activities
+
+Regular cluster maintenance includes:
+
+- Upgrading worker node versions
+- Installing required packages
+- Fixing security vulnerabilities
+
+Example cluster setup:
+
+- 3 master nodes
+- 10 worker nodes
+
+### Support Activities
+
+DevOps engineers also act as **subject matter experts**.
+
+If teams face Kubernetes issues:
+
+- They create **Jira tickets**
+- DevOps engineers help resolve them.
+
+---
+
+# Summary
+
+**10 Kubernetes interview questions**, including:
+
+1. Docker vs Kubernetes
+2. Kubernetes architecture
+3. Docker Swarm vs Kubernetes
+4. Container vs Pod
+5. Kubernetes Namespace
+6. Role of Kube Proxy
+7. Types of Kubernetes Services
+8. NodePort vs LoadBalancer
+9. Role of Kubelet
+10. Day-to-day Kubernetes activities
