@@ -1,0 +1,487 @@
+# Kubernetes Production Systems
+
+## Introduction
+
+Hello, my name is Abhishek, and welcome back to the channel.
+
+This is **Day 32 of the Complete DevOps Course**. In this session, the focus is on **Kubernetes Production Systems**.
+
+The goal of this session is to explain how **DevOps Engineers manage the lifecycle of Kubernetes clusters in production environments**.
+
+### Kubernetes Cluster Lifecycle
+
+DevOps Engineers are responsible for managing the lifecycle of Kubernetes clusters, which includes:
+
+- Creation of Kubernetes clusters
+- Upgradation of clusters
+- Configuration management
+- Deletion of clusters
+
+Understanding how this lifecycle is managed is important for real production environments.
+
+---
+
+# Local Kubernetes Environments vs Production Environments
+
+Many people learn Kubernetes using local environments such as:
+
+- Minikube
+- k3s
+- kind
+- k3d
+- microk8s
+
+These platforms are useful for:
+
+- Learning Kubernetes
+- Practicing Kubernetes concepts
+- Exploring Kubernetes features
+
+However, these tools are **development environments**, not production systems.
+
+For example, Minikube documentation clearly states that it is a **local Kubernetes cluster and should not be used in production**.
+
+### Why Local Clusters Are Not Used in Production
+
+Local Kubernetes setups:
+
+- Do not provide full production capabilities
+- Usually do not support high availability
+- Are not designed to handle real production issues
+
+Because of this, DevOps Engineers must learn **how Kubernetes is managed in real production systems**.
+
+---
+
+# Kubernetes Distributions
+
+Before understanding production Kubernetes management, it is important to understand **Kubernetes distributions**.
+
+### What is a Distribution?
+
+A distribution is a platform built on top of an **open source project**, providing additional features and support.
+
+#### Example: Linux Distributions
+
+Linux is an **open source operating system**. Many organizations build distributions on top of Linux, such as:
+
+- Amazon Linux
+- Red Hat
+- CentOS
+- Ubuntu
+
+These distributions:
+
+- Use the open source Linux platform
+- Add improvements or wrappers
+- Provide support and security updates
+
+For example:
+
+- If there is a kernel issue in **Red Hat Linux**, you can contact Red Hat support.
+- If you use **Amazon Linux**, Amazon provides security updates and patches.
+
+The main advantage is **enterprise support and regular updates**.
+
+---
+
+# Kubernetes as an Open Source Platform
+
+Kubernetes is also an **open source container orchestration platform**.
+
+Because it is open source, companies build **distributions on top of Kubernetes**, similar to Linux distributions.
+
+These distributions improve:
+
+- User experience
+- Customer support
+- Operational management
+
+Examples include:
+
+- Amazon EKS
+- Red Hat OpenShift
+- VMware Tanzu
+- Rancher
+
+These platforms are **not creating a new orchestration engine**. Instead, they provide:
+
+- Additional tools
+- Support services
+- Improved customer experience
+
+---
+
+# Why Kubernetes Distributions Are Popular
+
+Distributions are popular because they provide **enterprise support**.
+
+For example:
+
+- If you face issues with **Amazon EKS**, you can raise a support ticket with AWS.
+- AWS will help resolve the issue because you are paying for the service.
+
+However, if you install Kubernetes manually on EC2 instances:
+
+- AWS only supports EC2 infrastructure
+- Kubernetes troubleshooting becomes your responsibility
+
+To receive Kubernetes support from AWS, you must use **Amazon EKS**, which is their managed Kubernetes service.
+
+---
+
+# Popular Kubernetes Distributions
+
+When preparing for DevOps interviews, it is important to know commonly used Kubernetes platforms.
+
+Interviewers will not ask about tools like Minikube in production environments.
+
+Instead, they may ask which Kubernetes distribution you have used.
+
+Based on research, the commonly used platforms are:
+
+1. Kubernetes (self-managed)
+2. OpenShift
+3. Rancher
+4. VMware Tanzu
+5. Amazon EKS
+6. Azure AKS
+7. Google GKE
+8. Docker Kubernetes Engine
+
+These are all **Kubernetes distributions**.
+
+Note:
+
+- Docker Swarm is **not a Kubernetes distribution**.
+- It is a **separate container orchestration engine**.
+
+---
+
+# Using Kubernetes in Production
+
+When explaining your experience in interviews, you should say that you are using:
+
+- Kubernetes
+- OpenShift
+- Rancher
+- EKS
+- AKS
+- GKE
+
+You should **not say you are using Minikube or MicroK8s in production**.
+
+---
+
+# Difference Between Minikube and Kubernetes
+
+Minikube is designed for **local development environments**.
+
+Example configuration for Minikube:
+
+- Single node architecture
+- 2 CPUs
+- 4 GB RAM
+
+Production Kubernetes clusters are much more complex and include:
+
+- Multiple nodes
+- High availability
+- Storage systems
+- etcd storage requirements
+- Full cluster components
+
+Because of these requirements, production clusters require **much more resources and infrastructure**.
+
+---
+
+# Difference Between Kubernetes and EKS
+
+### Self-Managed Kubernetes
+
+If you:
+
+- Launch EC2 instances
+- Install Kubernetes manually
+- Create your own cluster
+
+Then:
+
+- You are responsible for managing Kubernetes
+- AWS will not provide Kubernetes support
+
+AWS only supports the **EC2 infrastructure**.
+
+---
+
+### Amazon EKS
+
+Amazon EKS is a **managed Kubernetes service**.
+
+Advantages:
+
+- AWS provides support
+- Additional tools and scripts are available
+- Includes tools such as **eksctl**
+
+EKS is essentially a **Kubernetes distribution provided by AWS**, with additional wrappers and integrations.
+
+The core Kubernetes functionality remains the same.
+
+---
+
+# Managing Kubernetes Clusters in Production
+
+DevOps Engineers often manage **many Kubernetes clusters** in production environments.
+
+To manage cluster operations, specific tools are used.
+
+One of the most widely used tools is:
+
+## Kops (Kubernetes Operations)
+
+Kops stands for:
+
+**Kubernetes Operations**
+
+It helps manage the **lifecycle of Kubernetes clusters**, including:
+
+- Installation
+- Upgrades
+- Configuration
+- Modifications
+- Deletion
+
+Because of these lifecycle management features, Kops is widely used by DevOps Engineers.
+
+---
+
+# Other Kubernetes Installation Tools
+
+Other tools also exist for Kubernetes cluster setup:
+
+- kubeadm
+- kubespray
+- other installation tools
+
+Previously, **kubeadm** was widely used.
+
+However, kubeadm requires many **manual steps**, especially for:
+
+- Upgrades
+- Cluster modifications
+- Lifecycle management
+
+Kops simplifies these operations, which is why it is commonly used.
+
+---
+
+# Installing Kubernetes with Kops
+
+The demonstration shows how DevOps Engineers install Kubernetes clusters using **Kops**.
+
+However, the setup requires AWS resources, which may incur charges.
+
+Resources used include:
+
+- EC2 instances
+- EBS volumes
+- S3 buckets
+- Route 53
+- Custom domains
+
+Because of this, users should be careful when performing the demo.
+
+---
+
+# Prerequisites
+
+Before installing Kubernetes with Kops, the following dependencies are required:
+
+- Python 3
+- AWS CLI
+- kubectl
+
+### Why These Tools Are Required
+
+- AWS CLI requires Python 3
+- kubectl is required to interact with Kubernetes clusters
+
+The setup can be performed:
+
+- On a personal laptop
+- On an EC2 instance (Ubuntu)
+
+Basic setup steps include:
+
+- Updating repositories
+- Installing Python
+- Installing kubectl
+- Configuring system paths
+
+---
+
+# Installing Kops
+
+Kops is installed on the system and used to manage Kubernetes clusters.
+
+Once installed, running the command:
+
+
+kops
+
+
+confirms that the installation is successful.
+
+---
+
+# AWS CLI Configuration
+
+Before creating clusters, AWS CLI must be configured.
+
+The configuration command is:
+
+
+aws configure
+
+
+This requires:
+
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region
+- Output format
+
+Access keys can be created in AWS under:
+
+**Security Credentials → Access Keys**
+
+---
+
+# Required AWS Permissions
+
+If using an IAM user instead of the admin account, the following permissions are required:
+
+- EC2 Full Access
+- S3 Full Access
+- IAM Full Access
+- VPC Full Access
+
+Admin users already have these permissions.
+
+---
+
+# S3 Bucket Requirement
+
+Kops requires an **S3 bucket**.
+
+### Why S3 is Required
+
+Kops manages many Kubernetes clusters and stores cluster configuration in S3.
+
+The S3 bucket acts as **storage for cluster configuration data**.
+
+A bucket must be created before creating the Kubernetes cluster.
+
+---
+
+# Creating a Kubernetes Cluster with Kops
+
+Cluster creation requires a command that includes:
+
+- Cluster name
+- S3 storage location
+- AWS region
+- Availability zone
+- Node count
+- Node instance type
+- EBS volume size
+
+Example parameters include:
+
+- Node count (number of worker nodes)
+- Instance type (t2.micro, etc.)
+- EBS storage size
+
+The cluster name and S3 bucket name must be customized.
+
+---
+
+# Domain Configuration
+
+In the example:
+
+
+k8s.local
+
+
+is used as a **local domain**.
+
+However, in production environments, organizations use real domains such as:
+
+- amazon.com
+- google.com
+- xyz.com
+
+These domains must be configured in **Route 53**.
+
+---
+
+# Route 53 Hosted Zone
+
+A hosted zone must be created in Route 53 for the domain.
+
+A command can automatically create the hosted zone by replacing:
+
+
+dev.example.com
+
+
+with the desired domain.
+
+Once the hosted zone is configured, Kubernetes cluster setup can be completed.
+
+---
+
+# Important Notes
+
+Running Kops commands will create AWS resources such as:
+
+- EC2 instances
+- EBS volumes
+- S3 buckets
+- Route 53 configurations
+
+These resources may incur **AWS charges**.
+
+If you do not want to spend money:
+
+- Understand the process conceptually
+- Use Minikube for local Kubernetes practice
+
+---
+
+# Recommendation for Practice
+
+For daily Kubernetes learning:
+
+- Use **Minikube**
+- Practice deployments and configurations locally
+
+The Kops setup is mainly for understanding **how production Kubernetes clusters are managed**.
+
+---
+
+# Summary
+
+In this session, the following concepts were covered:
+
+- Kubernetes production environments
+- Kubernetes distributions
+- Difference between local clusters and production clusters
+- Difference between Kubernetes and managed services like EKS
+- Kubernetes lifecycle management
+- Managing clusters using Kops
+- AWS prerequisites for Kubernetes cluster creation
+
+The session focuses on understanding **how DevOps Engineers manage Kubernetes clusters in production system"
