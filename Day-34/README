@@ -1,0 +1,524 @@
+# Kubernetes Services
+
+## Introduction
+
+- The topic  is **Kubernetes Services**.
+- Services are a **very critical component of Kubernetes**.
+
+- We **do not deploy a Pod directly**.
+- Instead, we usually deploy a **Deployment**.
+
+Similarly, once a **Deployment is created**, most of the time we also create a **Service** in Kubernetes.
+
+The main questions discussed in this session are:
+
+- Why do we need a **Service in Kubernetes**?
+- What happens if there is **no Service concept in Kubernetes**?
+
+---
+
+# Scenario Without Kubernetes Services
+
+To understand the importance of services, consider a scenario where **Kubernetes does not have the concept of services**.
+
+## Deployment Flow
+
+A developer or DevOps engineer deploys an application as a **Deployment**.
+
+The flow is:
+
+- Deployment
+- ReplicaSet
+- Pods
+
+Example:
+
+If the replica count is **3**, then three Pods are created:
+
+- Pod 1
+- Pod 2
+- Pod 3
+
+---
+
+# Why Multiple Pod Replicas Are Required
+
+Multiple replicas are required to handle **multiple users** accessing the application.
+
+Example:
+
+- If there is only **one user**, one Pod may be sufficient.
+- If there are **multiple concurrent users**, more replicas are required.
+
+Concurrent users mean multiple people using the application **at the same time**.
+
+Example:
+
+- Multiple people using **WhatsApp at the same time**.
+
+If all requests go to **one Pod**, the Pod may fail because it receives **too much load**.
+
+Therefore:
+
+- Multiple Pod replicas are created.
+- The number of replicas depends on:
+  - Number of concurrent users
+  - Number of requests one Pod can handle.
+
+Example:
+
+- One Pod can handle **10 requests at a time**.
+- If there are **100 requests**, then **10 Pods** are required.
+
+This decision is usually taken by **developers and DevOps engineers together**.
+
+---
+
+# Pod Failure Scenario
+
+In the Kubernetes environment, **Pods going down is very common**.
+
+Reasons may include:
+
+- Network issues
+- Container failures
+
+Containers are **ephemeral**, meaning:
+
+- If a container dies, it **does not automatically come back**.
+
+However, Kubernetes provides **Auto Healing**.
+
+## Auto Healing Behavior
+
+Auto healing is implemented using:
+
+- Deployment
+- ReplicaSet controller
+
+If a Pod goes down:
+
+- ReplicaSet detects it.
+- ReplicaSet creates a **new Pod automatically**.
+
+---
+
+# Problem With Changing Pod IP Addresses
+
+Example:
+
+Initial Pod IP addresses:
+
+- 172.16.3.4
+- 172.16.3.5
+- 172.16.3.6
+
+If a Pod goes down and a new Pod is created:
+
+- The **IP address changes**.
+
+Example:
+
+- Old IP → `172.16.3.4`
+- New IP → `172.16.3.8`
+
+Even though the application is running, the **IP address changes**.
+
+---
+
+# Problem Without Services
+
+In this scenario:
+
+- DevOps engineers provide **Pod IP addresses** to different teams.
+
+Example:
+
+- User Project 1 → `172.16.3.4`
+- User Project 2 → `172.16.3.5`
+- User Project 3 → `172.16.3.6`
+
+Teams access the application using these IP addresses.
+
+However, if a Pod restarts and the **IP address changes**, the users will face issues.
+
+Example:
+
+- User sends request to `172.16.3.4`
+- Actual Pod IP becomes `172.16.3.8`
+
+Result:
+
+- Application appears **unreachable**.
+
+Neither the user nor the DevOps engineer is wrong.
+
+The issue occurs because the **IP address changed**.
+
+---
+
+# Real World Example
+
+In real-world systems:
+
+Applications are **not accessed using direct IP addresses**.
+
+Example:
+
+- Google does not tell users to access the application using different IP addresses.
+
+Instead:
+
+- Users access **google.com**.
+- Internally, traffic is **load balanced**.
+
+---
+
+# Kubernetes Service
+
+To solve this problem, Kubernetes introduces **Service**.
+
+Service acts as a **load balancer**.
+
+Instead of accessing Pod IP addresses directly:
+
+Users access the application using the **Service**.
+
+Example Service name:
+
+
+payment.default.svc
+
+
+Structure:
+
+- `payment` → Service name
+- `default` → Namespace
+- `svc` → Service domain
+
+Users access the application using the **Service name**.
+
+---
+
+# Load Balancing
+
+When users send requests to the Service:
+
+The Service distributes traffic across Pods.
+
+Example:
+
+Requests received:
+
+- 10 requests from User Project 1
+- 10 requests from User Project 2
+- 10 requests from User Project 3
+
+Service distributes the requests across Pods:
+
+- Pod 1
+- Pod 2
+- Pod 3
+
+Traffic is balanced across all Pods.
+
+The Service uses a component called **kube-proxy** to perform load balancing.
+
+---
+
+# Service Discovery Problem
+
+A question arises:
+
+If Pod IP addresses change, how does the Service know where to send the traffic?
+
+If Service tracks **IP addresses**, the same problem occurs.
+
+---
+
+# Service Discovery Solution
+
+Kubernetes solves this problem using:
+
+- **Labels**
+- **Selectors**
+
+Instead of tracking IP addresses, Services track **labels**.
+
+---
+
+# Labels
+
+Labels are **tags applied to Pods**.
+
+Example label:
+
+
+app: payment
+
+
+All Pods belonging to the same application have the **same label**.
+
+Example:
+
+- Pod 1 → `app: payment`
+- Pod 2 → `app: payment`
+- Pod 3 → `app: payment`
+
+---
+
+# Service Discovery Using Labels
+
+Service watches for Pods with a **specific label**.
+
+Example:
+
+Service monitors Pods with:
+
+
+app: payment
+
+
+Even if:
+
+- Pods restart
+- IP addresses change
+
+The **label remains the same**.
+
+Why?
+
+Because ReplicaSet creates Pods using the **same YAML manifest**, which includes the label.
+
+Therefore:
+
+- Service always finds the correct Pods using labels.
+
+This mechanism is called **Service Discovery**.
+
+---
+
+# Deployment With Labels
+
+Deployment YAML includes labels inside the metadata.
+
+Example:
+
+
+metadata:
+labels:
+app: payment
+
+
+Flow:
+
+- Deployment created
+- ReplicaSet created
+- Pods created
+
+Each Pod contains the same label.
+
+Example:
+
+- Pod 1 → `app: payment`
+- Pod 2 → `app: payment`
+
+Service selects Pods using these labels.
+
+---
+
+# Service Tracking Pods
+
+Service does not track IP addresses.
+
+Instead, it tracks Pods using **labels**.
+
+If:
+
+- New Pods are created
+- Replica count increases
+
+New Pods will have the **same label**.
+
+Service automatically starts routing traffic to them.
+
+---
+
+# Advantages of Kubernetes Service
+
+Kubernetes Services provide three major advantages:
+
+1. **Load Balancing**
+2. **Service Discovery**
+3. **Exposing Applications**
+
+---
+
+# Exposing Applications
+
+By default:
+
+Pods can only be accessed **inside the Kubernetes cluster**.
+
+Example:
+
+A user can access the application by:
+
+- SSH into the cluster
+- Accessing the Pod IP
+
+However, this is **not practical for real-world users**.
+
+Example:
+
+Users accessing Google do not SSH into servers.
+
+They simply open:
+
+
+https://google.com
+
+
+Therefore, Kubernetes Services allow applications to be **exposed outside the cluster**.
+
+---
+
+# Types of Kubernetes Services
+
+When creating a Service in Kubernetes, three main types are available:
+
+1. **ClusterIP**
+2. **NodePort**
+3. **LoadBalancer**
+
+---
+
+# ClusterIP Service
+
+ClusterIP is the **default service type**.
+
+Characteristics:
+
+- Application is accessible **only inside the Kubernetes cluster**.
+- External users cannot access it.
+
+Benefits provided:
+
+- Load Balancing
+- Service Discovery
+
+---
+
+# NodePort Service
+
+NodePort exposes the application through **worker node IP addresses**.
+
+Access behavior:
+
+- Users who have access to **worker node IPs** can access the application.
+- Users outside the network cannot access it.
+
+Example:
+
+If worker nodes are **EC2 instances**, anyone with access to those node IP addresses can access the application.
+
+---
+
+# LoadBalancer Service
+
+LoadBalancer exposes the application to the **external world**.
+
+Example:
+
+If Kubernetes is running on **AWS EKS**:
+
+- A **public Elastic Load Balancer IP address** is created.
+
+Users anywhere on the internet can access the application using this **public IP address**.
+
+This public IP is generated through Kubernetes integration with cloud providers.
+
+---
+
+# Kubernetes Cloud Controller Manager
+
+The **Cloud Controller Manager** component interacts with the cloud provider.
+
+Example process:
+
+1. Kubernetes detects a Service of type **LoadBalancer**.
+2. Kubernetes requests the cloud provider to create a **Load Balancer**.
+3. The cloud provider returns a **public IP address**.
+4. Users access the application through this public IP.
+
+---
+
+# Access Behavior Based on Service Type
+
+## ClusterIP
+
+- Only users with access to the **Kubernetes cluster network** can access the application.
+
+## NodePort
+
+- Users who have access to **worker node IP addresses** can access the application.
+
+## LoadBalancer
+
+- Anyone with **internet access** can access the application.
+
+---
+
+# Example Scenarios
+
+## Public Application
+
+Example:
+
+
+amazon.com
+
+
+If the application must be accessible worldwide:
+
+Use **LoadBalancer Service**.
+
+---
+
+## Internal Application
+
+If the application should be accessible only inside the organization:
+
+Use **NodePort Service**.
+
+---
+
+## Cluster Internal Application
+
+If only DevOps engineers or internal cluster components need access:
+
+Use **ClusterIP Service**.
+
+---
+
+# Summary
+
+Kubernetes Services provide three major capabilities:
+
+1. **Load Balancing**
+
+   - Distributes traffic across multiple Pods.
+
+2. **Service Discovery**
+
+   - Uses **labels and selectors** instead of IP addresses.
+
+3. **Exposing Applications**
+
+   - Allows applications to be accessed inside or outside the cluster.
+
+Service types determine **who can access the application**:
+
+- ClusterIP → Only inside Kubernetes cluster
+- NodePort → Accessible through worker node IP
+- LoadBalancer → Accessible from the internet
