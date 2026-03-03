@@ -1,0 +1,592 @@
+# Deploying the First Application in Kubernetes
+
+## Introduction
+
+- The topic is **deploying the first application in Kubernetes**.
+
+These sessions cover:
+
+- Differences between Docker and Kubernetes
+- Kubernetes architecture
+- How to install Kubernetes
+
+Without understanding these concepts, it may be difficult to understand the current topic.
+
+---
+
+# Why Kubernetes is Used
+
+Kubernetes provides several advantages compared to Docker:
+
+- **Cluster capability**
+- **Auto scaling**
+- **Auto healing**
+- **Enterprise-level behavior**
+
+These features help manage containers efficiently at scale.
+
+To achieve these capabilities, it is necessary to understand some basic Kubernetes terminologies.
+
+---
+
+# Pod in Kubernetes
+
+When moving from Docker to Kubernetes:
+
+- Docker deploys **containers**
+- Kubernetes deploys **pods**
+
+In Kubernetes, the **lowest level of deployment is a Pod**.
+
+You cannot directly deploy a container in Kubernetes.  
+Instead, containers are deployed inside **pods**.
+
+---
+
+# What is a Pod?
+
+A **Pod** is defined as:
+
+> A specification of how to run a container.
+
+In Docker, a container is run using command-line arguments.
+
+Example Docker command:
+
+docker run -d -p 80:80 nginx
+
+In Docker, commands may include:
+
+- `-d`
+- `-it`
+- `-p` (port mapping)
+- `-v` (volume mounts)
+- `--network`
+
+These configurations are passed directly in the command line.
+
+In Kubernetes, these specifications are written in a **YAML file**, such as:
+
+
+pod.yaml
+
+
+This YAML file defines:
+
+- API version
+- Pod name
+- Container specifications
+- Ports
+- Other configurations
+
+---
+
+# Pod as a Wrapper
+
+A Pod acts as a **wrapper for containers**.
+
+Instead of running commands directly, Kubernetes defines container configuration using a **YAML specification**.
+
+This allows:
+
+- Standardization
+- Declarative configuration
+- Easy management using configuration files
+
+In Kubernetes, most resources are defined using **YAML files**, including:
+
+- Pods
+- Deployments
+- Services
+
+---
+
+# Structure of a Pod
+
+A Pod can contain:
+
+- A **single container**
+- **Multiple containers**
+
+Most commonly, a Pod contains **one container**.
+
+However, multiple containers can exist in a Pod for special use cases such as:
+
+- Sidecar containers
+- Init containers
+
+---
+
+# Advantages of Multiple Containers in a Pod
+
+When multiple containers exist inside the same Pod, Kubernetes provides:
+
+### Shared Networking
+
+Containers inside the same Pod can communicate using:
+
+localhost
+
+Example:
+localhost:3000
+
+### Shared Storage
+
+Containers inside the same Pod can share files.
+
+Example scenario:
+
+- One container runs the application
+- Another container provides configuration files
+
+Both containers can share data easily inside the Pod.
+
+---
+
+# Pod Networking
+
+Kubernetes assigns a **Cluster IP address to the Pod**.
+
+Important points:
+
+- IP addresses are assigned to **Pods**
+- Containers inside the Pod share the Pod’s IP address
+
+Applications inside containers can be accessed through the **Pod IP address**.
+
+---
+
+# Purpose of Pods
+
+Pods simplify container management.
+
+When dealing with:
+
+- Hundreds of containers
+- Thousands of containers
+
+A YAML file describing the container makes it easier for DevOps engineers to understand:
+
+- Which application is running
+- Which port is used
+- What networking is configured
+- What volumes are mounted
+
+This improves visibility and standardization.
+
+---
+
+# kubectl
+
+`kubectl` is the **command-line tool for Kubernetes**.
+
+It is similar to the **Docker CLI** used in Docker.
+
+Using `kubectl`, users can interact with Kubernetes clusters.
+
+---
+
+# Common kubectl Commands
+
+### Check Nodes
+
+
+kubectl get nodes
+
+
+Shows the nodes available in the Kubernetes cluster.
+
+### Check Pods
+
+
+kubectl get pods
+
+
+Shows all Pods in the cluster.
+
+### Check Deployments
+
+
+kubectl get deployments
+
+
+Shows deployment resources.
+
+### Delete Resources
+
+Resources such as Pods can also be deleted using `kubectl`.
+
+---
+
+# Setup for the Demo
+
+The steps performed in the demo are:
+
+1. Install `kubectl`
+2. Create a Kubernetes cluster using **Minikube**
+3. Deploy the first Pod
+
+---
+
+# Installing kubectl
+
+Steps:
+
+1. Search for **kubectl installation** in the browser.
+2. Open the Kubernetes installation page.
+3. Select the operating system:
+
+- Linux
+- macOS
+- Windows
+
+4. Copy the installation script and execute it.
+
+To verify installation:
+
+
+kubectl version
+
+
+---
+
+# Local Kubernetes Clusters
+
+For learning Kubernetes locally, several tools are available:
+
+- Minikube
+- k3s
+- kind
+- microk8s
+
+These clusters are used for **learning and testing**.
+
+They are not equivalent to full production clusters.
+
+---
+
+# Why Minikube is Used
+
+Minikube is used in the demo because:
+
+- It is simple to install
+- It allows learning Kubernetes locally
+- It avoids AWS costs
+
+In production environments, Kubernetes clusters run on platforms such as:
+
+- AWS
+- EKS
+- Other cloud platforms
+
+---
+
+# Installing Minikube
+
+Steps:
+
+1. Search for **Minikube installation**.
+2. Open the official Minikube website.
+3. Select the operating system.
+4. Choose the correct architecture:
+
+- `x86_64`
+- `arm64`
+
+Example:
+
+- ARM processors use **arm64**
+- Most Linux systems use **x86_64**
+
+Execute the provided installation commands.
+
+---
+
+# Starting a Kubernetes Cluster with Minikube
+
+After installing Minikube, start the cluster using:
+
+
+minikube start
+
+
+Minikube creates:
+
+- A **virtual machine**
+- A **single-node Kubernetes cluster**
+
+In production environments, Kubernetes clusters typically contain:
+
+- Multiple master nodes
+- Multiple worker nodes
+
+Minikube uses a **single-node architecture** for practice.
+
+---
+
+# Verifying the Cluster
+
+Check nodes using:
+
+
+kubectl get nodes
+
+
+Output shows:
+
+- Node name
+- Node status
+- Control plane information
+
+Example:
+
+
+minikube node
+status: Ready
+
+
+This confirms the Kubernetes cluster is running.
+
+---
+
+# Creating the First Pod
+
+To create a Pod:
+
+1. Go to Kubernetes documentation.
+2. Copy the Pod YAML example.
+3. Modify values if required.
+
+Example image used:
+
+
+nginx:1.14.2
+
+
+Container port:
+
+
+80
+
+
+These values can be modified depending on the application.
+
+---
+
+# Docker Equivalent Command
+
+The Pod configuration is equivalent to a Docker command such as:
+
+
+docker run -d --name nginx -p 80:80 nginx
+
+
+This demonstrates that a **Pod specification describes how to run a container**.
+
+---
+
+# Creating the Pod
+
+Use the command:
+
+
+kubectl create -f pod.yaml
+
+
+This creates the Pod in the Kubernetes cluster.
+
+---
+
+# Checking the Pod
+
+To verify the Pod:
+
+
+kubectl get pods
+
+
+To view detailed information:
+
+
+kubectl get pods -o wide
+
+
+This displays:
+
+- Pod name
+- Status
+- Pod IP address
+- Node details
+
+---
+
+# Accessing the Application
+
+To access the application:
+
+1. Log into the Minikube cluster.
+
+
+minikube ssh
+
+
+2. Use the Pod IP address.
+
+Example:
+
+
+curl <pod-ip>
+
+
+This returns the application response.
+
+Example output:
+
+
+Thank you for using nginx
+
+
+---
+
+# kubectl Cheat Sheet
+
+To learn Kubernetes commands, refer to the **kubectl cheat sheet**.
+
+It provides many examples, including:
+
+- Listing Pods
+- Listing resources across namespaces
+- Describing resources
+- Managing deployments
+
+Even experienced engineers use this reference.
+
+---
+
+# Deleting a Pod
+
+To delete a Pod:
+
+
+kubectl delete pod <pod-name>
+
+
+This removes the Pod from the cluster.
+
+---
+
+# Enhancing Pod Specifications
+
+Pod YAML files can be enhanced by adding configurations such as:
+
+- Volumes
+- Volume mounts
+
+These concepts will be discussed later.
+
+---
+
+# Auto Scaling and Auto Healing
+
+Kubernetes provides:
+
+- Auto scaling
+- Auto healing
+
+However, these capabilities are not directly provided by Pods.
+
+Instead, Kubernetes introduces another wrapper called **Deployment**.
+
+---
+
+# Deployment
+
+A **Deployment** is a wrapper on top of a Pod.
+
+Deployments provide:
+
+- Auto scaling
+- Auto healing
+- Application lifecycle management
+
+Deployment YAML files are similar to Pod YAML files.
+
+Example difference:
+
+
+kind: Pod
+
+
+becomes
+
+
+kind: Deployment
+
+
+Deployments include additional configurations such as:
+
+- Templates
+- Replica management
+
+In production environments, applications are usually deployed using:
+
+- Deployments
+- StatefulSets
+- DaemonSets
+
+---
+
+# Debugging Pods
+
+To debug Pods, two main commands are used.
+
+---
+
+## Describe Pod
+
+
+kubectl describe pod <pod-name>
+
+
+This command provides:
+
+- Pod status
+- Events
+- Errors
+- Configuration details
+
+It helps identify issues with the Pod.
+
+---
+
+## View Pod Logs
+
+
+kubectl logs <pod-name>
+
+
+This command displays application logs generated by the container.
+
+Logs help identify issues in applications running inside the Pod.
+
+---
+
+# Summary
+
+In this session:
+
+- Learned about **Pods in Kubernetes**
+- Understood why Pods are used instead of containers
+- Installed **kubectl**
+- Installed **Minikube**
+- Created a **local Kubernetes cluster**
+- Deployed the **first Pod**
+- Accessed the application inside the Pod
+- Learned commands for **debugging Pods**
+
+Future topics will include:
+
+- Deployments
+- Services
+- Auto scaling
+- Auto healing
