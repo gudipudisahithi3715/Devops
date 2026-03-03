@@ -1,0 +1,489 @@
+# Kubernetes Deployment
+
+## Introduction
+
+- The topic  is **Kubernetes Deployment**.
+
+# Container vs Pod vs Deployment
+
+This is a common **interview question**.
+
+> What is the difference between a Container, Pod, and Deployment?
+
+Understanding this difference is important to demonstrate Kubernetes knowledge.
+
+---
+
+# Containers
+
+Containers can be created using container platforms like **Docker**.
+
+To run a container, specifications are usually provided using command-line options.
+
+Example:
+
+
+docker run -it
+docker run -d
+
+
+Additional options may include:
+
+- `-p` → Port mapping
+- `-v` → Volume
+- `--network` → Network configuration
+- Image name
+
+These options define how the container should run.
+
+---
+
+# Pod
+
+Kubernetes modifies this approach.
+
+Instead of providing configuration through command-line options, Kubernetes uses a **YAML manifest file**.
+
+Example:
+
+
+pod.yaml
+
+
+Inside this YAML manifest, you define:
+
+- Container image
+- Port configuration
+- Volumes
+- Network configuration
+- Other specifications required to run the container
+
+A **Pod YAML manifest** is a **running specification of a Docker container**.
+
+---
+
+## Pod Characteristics
+
+- A Pod can contain:
+  - A **single container**
+  - **Multiple containers**
+
+### Why Multiple Containers in a Pod?
+
+Multiple containers are used when applications depend on other components.
+
+Example scenario:
+
+- One container runs the main application.
+- Another container acts as a **sidecar container**.
+
+Example use case:
+
+- **Service Mesh**
+
+---
+
+## Advantages of Pods
+
+### Shared Networking
+
+Containers inside the same Pod share networking.
+
+They can communicate using:
+
+
+localhost
+
+
+### Shared Storage
+
+Containers inside a Pod can share the same storage or volumes.
+
+---
+
+# Why Deployment is Required
+
+A common question:
+
+> If we can deploy applications using Pods, why do we need Deployments?
+
+The reason is related to important Kubernetes capabilities:
+
+- **Auto healing**
+- **Auto scaling**
+
+Pods **do not provide these capabilities**.
+
+Pods are similar to containers in the sense that they only define how a container should run.
+
+Pods can provide:
+
+- Container specification
+- Multi-container capabilities
+- Shared networking and storage
+
+However, Pods **cannot implement auto healing or auto scaling**.
+
+---
+
+# Deployment
+
+To achieve features such as:
+
+- Auto healing
+- Auto scaling
+- Zero downtime deployments
+
+Kubernetes uses **Deployments**.
+
+Applications should **not be deployed directly as Pods in production**.
+
+Instead, they should be deployed using **Deployments**.
+
+---
+
+# Deployment Architecture
+
+When a **Deployment** is created, Kubernetes creates additional resources automatically.
+
+The flow is:
+
+
+Deployment
+↓
+ReplicaSet
+↓
+Pods
+
+
+---
+
+## ReplicaSet
+
+A **ReplicaSet** is a Kubernetes controller.
+
+The ReplicaSet is responsible for:
+
+- Creating Pods
+- Maintaining the required number of Pod replicas
+
+---
+
+# Replica Count
+
+Inside the **Deployment YAML manifest**, you specify the number of Pod replicas required.
+
+Example:
+
+
+replicas: 2
+
+
+This means:
+
+- Two Pods should always be running.
+
+The ReplicaSet ensures that this number is maintained.
+
+---
+
+# Auto Healing
+
+Example scenario:
+
+- Deployment specifies **2 replicas**.
+- ReplicaSet creates **2 Pods**.
+
+If a user accidentally deletes one Pod:
+
+- ReplicaSet detects the change.
+- A new Pod is automatically created.
+
+This behavior is called **Auto Healing**.
+
+The ReplicaSet ensures the **desired state** is maintained.
+
+---
+
+# Auto Scaling
+
+If the replica count changes:
+
+Example:
+
+
+replicas: 100
+
+
+If the replica count is updated to:
+
+
+replicas: 150
+
+
+ReplicaSet will create **50 additional Pods**.
+
+This enables scaling of the application.
+
+---
+
+# Kubernetes Controllers
+
+ReplicaSet is a **Kubernetes Controller**.
+
+A controller ensures that:
+
+- The **desired state** matches the **actual state** of the cluster.
+
+Example:
+
+Desired state in YAML:
+
+
+replicas: 3
+
+
+Controller ensures that **3 Pods are always running**.
+
+If a Pod is deleted, the controller creates a new one.
+
+---
+
+# Types of Controllers
+
+Kubernetes has:
+
+- **Default controllers**
+- **Custom controllers**
+
+Examples of custom controllers include:
+
+- Argo CD
+- Admission Controllers
+
+Controllers ensure that the **state defined in the YAML manifest is maintained in the cluster**.
+
+---
+
+# Interview Questions
+
+### Question 1
+
+**What is the difference between:**
+
+- Container
+- Pod
+- Deployment
+
+### Question 2
+
+**What is the difference between Deployment and ReplicaSet?**
+
+Answer:
+
+- **Deployment** is a high-level abstraction.
+- **ReplicaSet** is the Kubernetes controller that maintains Pod replicas.
+
+---
+
+# Kubernetes Demo
+
+## Checking Existing Resources
+
+To check Pods:
+
+
+kubectl get pods
+
+
+To check Deployments:
+
+
+kubectl get deploy
+
+
+To list all resources:
+
+
+kubectl get all
+
+
+To list resources in all namespaces:
+
+
+kubectl get all -A
+
+
+---
+
+# Creating a Pod
+
+Example Pod YAML:
+
+
+kubectl apply -f pod.yaml
+
+
+Verify Pod:
+
+
+kubectl get pods
+
+
+To get detailed information:
+
+
+kubectl get pods -o wide
+
+
+---
+
+# Accessing the Pod
+
+For a Minikube cluster:
+
+
+minikube ssh
+
+
+Inside the cluster:
+
+
+curl <pod-ip>
+
+
+This confirms the application is running.
+
+---
+
+# Problem with Pods
+
+If a Pod is deleted:
+
+
+kubectl delete pod <pod-name>
+
+
+The application stops running.
+
+Pods do not automatically recreate themselves.
+
+This means **no auto healing capability**.
+
+---
+
+# Deployment Example
+
+Instead of creating Pods directly, create a **Deployment**.
+
+Example command:
+
+
+kubectl apply -f deployment.yaml
+
+
+Verify resources:
+
+
+kubectl get deploy
+
+
+Check ReplicaSet:
+
+
+kubectl get rs
+
+
+Check Pods:
+
+
+kubectl get pods
+
+
+Deployment automatically creates:
+
+- ReplicaSet
+- Pods
+
+---
+
+# Watching Pods
+
+To watch Pods in real time:
+
+
+kubectl get pods -w
+
+
+---
+
+# Auto Healing Demo
+
+Delete a Pod:
+
+
+kubectl delete pod <pod-name>
+
+
+Even if a Pod is deleted:
+
+- ReplicaSet automatically creates a new Pod.
+
+This ensures the **desired replica count is maintained**.
+
+---
+
+# Scaling Pods
+
+Update the replica count in the deployment YAML.
+
+Example:
+
+
+replicas: 3
+
+
+Apply the configuration again:
+
+
+kubectl apply -f deployment.yaml
+
+
+Now verify:
+
+
+kubectl get pods
+
+
+Three Pods will be running.
+
+ReplicaSet ensures that this count is maintained.
+
+---
+
+# Zero Downtime Deployment
+
+When scaling Pods:
+
+- Existing Pods are not disturbed.
+- New Pods are created in parallel.
+
+Even if a Pod is deleted, a new Pod is created immediately.
+
+This ensures **zero downtime for users**.
+
+---
+
+# Key Takeaways
+
+- Pods define how containers run in Kubernetes.
+- Deployments provide advanced capabilities.
+- Deployments create ReplicaSets.
+- ReplicaSets create and manage Pods.
+- ReplicaSets maintain the desired state.
+
+In real-world scenarios:
+
+- Applications are deployed using **Deployments**, not Pods.
+
+---
