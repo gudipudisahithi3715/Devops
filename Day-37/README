@@ -1,0 +1,367 @@
+# Kubernetes Ingress -- My Learning Notes
+
+## Introduction
+
+In this session I learned about **Kubernetes Ingress**, why it is
+required, and how it solves some limitations of **Kubernetes Services**.
+Many people find this topic confusing mainly because they do not clearly
+understand the problem that Ingress solves and they also struggle with
+the practical setup.
+
+To understand **Ingress** properly, it is important to already
+understand **Kubernetes Services**, because **Ingress works on top of
+services**.
+
+------------------------------------------------------------------------
+
+## What is Kubernetes Ingress?
+
+**Ingress** is a Kubernetes resource that manages **external access to
+services inside the Kubernetes cluster**.
+
+It mainly provides:
+
+-   **Advanced load balancing**
+-   **HTTP/HTTPS routing**
+-   **Domain-based routing**
+-   **Path-based routing**
+-   **TLS/SSL termination**
+
+Ingress acts as an **entry point for external traffic** to reach
+services inside the cluster.
+
+------------------------------------------------------------------------
+
+## Why Ingress Was Introduced
+
+Initially Kubernetes only had **Services** to expose applications.
+Before **Kubernetes version 1.1**, Ingress did not exist.
+
+Architecture used earlier:
+
+Deployment → Pods → Service → External Access
+
+Later organizations migrating from **VMs and physical servers** to
+Kubernetes discovered several limitations.
+
+------------------------------------------------------------------------
+
+## Traditional Architecture (Before Kubernetes)
+
+Applications were deployed on:
+
+-   **Virtual Machines**
+-   **Physical Servers**
+
+External traffic was handled using enterprise load balancers such as:
+
+-   **Nginx**
+-   **F5**
+-   **HAProxy**
+-   **Traffic Load Balancers**
+
+These load balancers supported advanced capabilities like:
+
+-   **Ratio based load balancing**
+-   **Sticky sessions**
+-   **Path based routing**
+-   **Host or domain based routing**
+-   **Whitelisting / Blacklisting**
+-   **TLS / HTTPS secure load balancing**
+-   **Web Application Firewall**
+-   **Advanced routing rules**
+
+------------------------------------------------------------------------
+
+## What Kubernetes Services Provide
+
+Kubernetes Services provide:
+
+-   **Service discovery**
+-   **Load balancing**
+-   **External exposure**
+-   **Stable endpoint for pods**
+
+However the load balancing mechanism is **very basic**.
+
+Kubernetes Services use **Round Robin Load Balancing**.
+
+Example:
+
+If **10 requests** arrive and there are **2 pods**:
+
+-   5 requests → Pod‑1
+-   5 requests → Pod‑2
+
+This is implemented internally using **kube-proxy** and **IPTables
+rules**.
+
+------------------------------------------------------------------------
+
+## Problem 1 -- Lack of Enterprise Load Balancing
+
+Kubernetes Services lack many enterprise features such as:
+
+-   **Sticky sessions**
+-   **TLS routing**
+-   **Path routing**
+-   **Host routing**
+-   **Domain routing**
+-   **Ratio based routing**
+-   **Advanced security rules**
+
+Because of this, many organizations migrating from VM infrastructure
+expected **more advanced traffic control**.
+
+------------------------------------------------------------------------
+
+## Problem 2 -- Cost of LoadBalancer Services
+
+When using:
+
+`Service Type = LoadBalancer`
+
+The cloud provider creates a **public load balancer with a static IP**.
+
+Cloud providers **charge money for each public load balancer**.
+
+Example:
+
+If a company has **100 services**:
+
+-   100 LoadBalancer services
+-   100 public IPs
+-   100 load balancer charges
+
+For companies with **thousands of microservices**, this becomes **very
+expensive**.
+
+------------------------------------------------------------------------
+
+## Traditional Load Balancer Model
+
+Earlier architectures usually used **one central load balancer**.
+
+Example routing:
+
+amazon.com/abc → Application‑1\
+amazon.com/xyz → Application‑2
+
+So only **one public IP** was required.
+
+In Kubernetes, however, every **LoadBalancer service creates its own
+load balancer**, increasing cost.
+
+------------------------------------------------------------------------
+
+## Summary of the Problems
+
+**Problem 1** Kubernetes Services do not provide **enterprise level load
+balancing**.
+
+**Problem 2** Using **LoadBalancer services for every application
+becomes expensive**.
+
+These problems led to the introduction of **Kubernetes Ingress**.
+
+------------------------------------------------------------------------
+
+## How Kubernetes Solved the Problem
+
+Kubernetes introduced **Ingress Resource**.
+
+Concept:
+
+-   Developers define **routing rules**
+-   Load balancer providers implement **Ingress Controllers**
+
+------------------------------------------------------------------------
+
+## What is an Ingress Controller
+
+An **Ingress Controller** is responsible for **implementing the rules
+defined in the Ingress resource**.
+
+Examples:
+
+-   **Nginx Ingress Controller**
+-   **HAProxy Ingress Controller**
+-   **F5 Ingress Controller**
+-   **Ambassador Ingress Controller**
+-   **Traefik Ingress Controller**
+
+Each load balancer vendor provides its own controller.
+
+------------------------------------------------------------------------
+
+## Architecture of Ingress
+
+Workflow:
+
+1.  User creates **Ingress Resource**
+2.  **Ingress Controller watches** for Ingress objects
+3.  Controller configures the load balancer
+4.  Traffic is routed to services
+
+Flow:
+
+Client → Load Balancer → Service → Pods
+
+------------------------------------------------------------------------
+
+## Kubernetes Controllers Concept
+
+Each Kubernetes resource has a **controller** watching it.
+
+Examples:
+
+Pods → **Kubelet**\
+Services → **kube-proxy**
+
+Similarly:
+
+Ingress → **Ingress Controller**
+
+Without an Ingress controller, **Ingress resources will not function**.
+
+------------------------------------------------------------------------
+
+## Important Concept
+
+Ingress Resource = **Configuration rules**\
+Ingress Controller = **Implementation of those rules**
+
+Both are required.
+
+------------------------------------------------------------------------
+
+## Choosing an Ingress Controller
+
+Organizations choose controllers based on their existing load balancer
+technology.
+
+Example:
+
+If a company already uses **Nginx**, they usually deploy **Nginx Ingress
+Controller**.
+
+Installation methods:
+
+-   **Helm Charts**
+-   **Kubernetes YAML manifests**
+
+------------------------------------------------------------------------
+
+## One Ingress for Multiple Services
+
+Ingress allows **multiple services to share one load balancer**.
+
+Example:
+
+/app1 → Service‑1\
+/app2 → Service‑2\
+/app3 → Service‑3
+
+This reduces:
+
+-   Public IP usage
+-   Infrastructure cost
+
+------------------------------------------------------------------------
+
+## Types of Routing Supported
+
+### Host Based Routing
+
+example.com → Service A\
+api.example.com → Service B
+
+### Path Based Routing
+
+example.com/app1 → Service 1\
+example.com/app2 → Service 2
+
+### TLS / HTTPS Routing
+
+Ingress also supports **secure HTTPS communication using TLS
+certificates**.
+
+------------------------------------------------------------------------
+
+## Practical Commands
+
+Check pods:
+
+``` bash
+kubectl get pods
+```
+
+Check services:
+
+``` bash
+kubectl get svc
+```
+
+Get Minikube IP:
+
+``` bash
+minikube ip
+```
+
+Test service:
+
+``` bash
+curl <minikube-ip>:<nodeport>
+```
+
+------------------------------------------------------------------------
+
+## Creating an Ingress Resource
+
+Apply configuration:
+
+``` bash
+kubectl apply -f ingress.yaml
+```
+
+Verify ingress:
+
+``` bash
+kubectl get ingress
+```
+
+Initially the **ADDRESS field may be empty** because the controller is
+not installed.
+
+------------------------------------------------------------------------
+
+## Installing Nginx Ingress Controller (Minikube)
+
+``` bash
+minikube addons enable ingress
+```
+
+Verify controller pods:
+
+``` bash
+kubectl get pods -n ingress-nginx
+```
+
+Once running, the **Ingress resource will get an address**.
+
+------------------------------------------------------------------------
+
+## Key Learning
+
+Pods have **dynamic IP addresses**, so they should **not be accessed
+directly**.
+
+Kubernetes **Services provide stable networking**, but they do not
+support advanced routing.
+
+**Ingress acts as a smart routing layer** that provides:
+
+-   Domain based routing
+-   Path based routing
+-   TLS termination
+-   Centralized external access
