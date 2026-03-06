@@ -1,0 +1,217 @@
+# Kubernetes Services – Practical Learning
+
+In this practice session I explored how Kubernetes Services work and why they are important when deploying applications in a Kubernetes cluster. The main goal was to understand service discovery, load balancing, and how applications running inside Kubernetes can be accessed.
+
+I started by verifying that the Kubernetes cluster was running. The cluster was created using Minikube.
+
+```bash
+minikube status
+```
+
+Before starting the deployment I checked the existing resources in the cluster and removed any previously created deployments and services so that the environment would be clean.
+
+```bash
+kubectl get all
+kubectl delete deploy <deployment-name>
+kubectl delete svc <service-name>
+```
+
+After cleanup, running the command again showed that only the default Kubernetes service remained.
+
+```bash
+kubectl get all
+```
+
+For the demonstration I used a simple Python Django application. The application repository contains the application code, a Dockerfile, and the required dependencies in a requirements file. The application automatically starts when the container is executed.
+
+To run this application inside Kubernetes, I first needed to build a Docker image.
+
+```bash
+docker build -t python-sample-app-demo:v1 .
+```
+
+After building the image locally, the next step was to create a Kubernetes deployment. A deployment ensures that the desired number of application pods are always running in the cluster. If a pod fails or is deleted, Kubernetes automatically recreates it.
+
+The deployment configuration included two replicas so that two pods would run simultaneously.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-python-app
+  labels:
+    app: sample-python-application
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-python-application
+  template:
+    metadata:
+      labels:
+        app: sample-python-application
+    spec:
+      containers:
+      - name: python-app
+        image: python-sample-app-demo:v1
+        ports:
+        - containerPort: 8000
+```
+
+The important part here is the use of labels. Each pod created by the deployment receives the label `app: sample-python-application`. These labels are very important because Kubernetes services use them to identify which pods they should route traffic to.
+
+The deployment was created using the following command.
+
+```bash
+kubectl apply -f deployment.yaml
+```
+
+After applying the deployment, I verified that it was created successfully.
+
+```bash
+kubectl get deploy
+```
+
+Then I checked the pods that were created by the deployment.
+
+```bash
+kubectl get pods
+```
+
+To view additional details such as pod IP addresses, I used:
+
+```bash
+kubectl get pods -o wide
+```
+
+One important thing I learned is that the `kubectl` command communicates with the Kubernetes API Server. When a command such as `kubectl get pods` is executed, it sends a request to the API server, and the API server returns the response containing the pod information.
+
+This internal communication can be observed by increasing the verbosity level.
+
+```bash
+kubectl get pods -v=7
+```
+
+At higher verbosity levels like `-v=9`, kubectl shows detailed information such as HTTP requests, responses, and the JSON data exchanged between kubectl and the API server.
+
+Another important concept is how deployments manage pods. A deployment internally creates a ReplicaSet, and the ReplicaSet ensures that the required number of pods are always running. For example, if the deployment specifies two replicas and one pod is deleted, Kubernetes automatically creates another pod to maintain the desired count.
+
+```bash
+kubectl delete pod <pod-name>
+```
+
+After deleting a pod, running `kubectl get pods` again shows a newly created pod. However, the new pod will have a different IP address. This demonstrates that pod IP addresses are dynamic.
+
+For example, initial pod IPs might look like:
+
+```
+172.17.0.5
+172.17.0.6
+```
+
+After deleting and recreating a pod:
+
+```
+172.17.0.7
+172.17.0.5
+```
+
+This dynamic IP behavior creates a challenge. If users directly access the application using a pod IP address and the pod is recreated, the IP address changes and the application becomes unreachable.
+
+To solve this problem, Kubernetes provides services.
+
+A Kubernetes service acts as a stable networking layer that allows users or other applications to access pods without worrying about changing IP addresses. Instead of connecting directly to pods, users connect to the service, and the service forwards traffic to the appropriate pods.
+
+Services identify pods using labels and selectors. Since pods created by the deployment always have the same labels, the service can always locate them even if their IP addresses change.
+
+Before creating a service, I tested accessing the application directly using the pod IP from inside the cluster.
+
+```bash
+curl -L http://<pod-ip>:8000/demo
+```
+
+The `/demo` endpoint is part of the Django application. While this works inside the cluster, it is not reliable because pod IPs can change.
+
+To provide stable access to the application, I created a Kubernetes service using the NodePort type.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-django-app-service
+spec:
+  type: NodePort
+  selector:
+    app: sample-python-application
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+    nodePort: 30007
+```
+
+In this configuration, the selector matches pods with the label `app: sample-python-application`. This allows the service to route traffic to the correct pods.
+
+The `port` field represents the service port, `targetPort` represents the container port where the application runs, and `nodePort` exposes the service on a specific port of the Kubernetes node.
+
+The service was created using:
+
+```bash
+kubectl apply -f service.yaml
+```
+
+After creating the service, I verified it using:
+
+```bash
+kubectl get svc
+```
+
+Since the service type is NodePort, the application can be accessed using the node's IP address and the node port.
+
+To get the Minikube node IP:
+
+```bash
+minikube ip
+```
+
+Once the IP is known, the application can be accessed as follows:
+
+```
+http://<node-ip>:30007/demo
+```
+
+This request goes through the following flow:
+
+```
+Client → Node IP:NodePort → Kubernetes Service → Pod
+```
+
+If multiple pods exist, the service distributes traffic between them, which provides basic load balancing.
+
+Although NodePort allows access through the node IP, it is still not ideal for exposing applications to external users on the internet. For that purpose, Kubernetes provides another service type called LoadBalancer.
+
+The service type can be modified using:
+
+```bash
+kubectl edit svc python-django-app-service
+```
+
+Then change the service type to:
+
+```
+type: LoadBalancer
+```
+
+In cloud environments such as AWS, Azure, or Google Cloud, Kubernetes automatically provisions an external load balancer when a service of type LoadBalancer is created. The cloud provider assigns a public IP address, and users can access the application using that IP.
+
+After creating the LoadBalancer service, running the following command shows the external IP:
+
+```bash
+kubectl get svc
+```
+
+However, when running Kubernetes locally using Minikube, the external IP often remains in a pending state. This happens because local clusters do not have integration with a cloud provider that can create load balancers automatically.
+
+In real cloud environments, Kubernetes uses a component called the Cloud Controller Manager to interact with the cloud provider APIs. This component is responsible for creating resources such as load balancers when required.
+
+Overall, the key learning from this practice is that pods in Kubernetes have dynamic IP addresses and should not be accessed directly. Kubernetes services provide a stable networking layer that enables service discovery and load balancing. NodePort services expose applications through the node IP, while LoadBalancer services allow applications to be accessed publicly through cloud provider load balancers.
