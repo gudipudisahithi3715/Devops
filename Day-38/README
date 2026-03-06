@@ -1,0 +1,277 @@
+# Kubernetes RBAC -- My Learning Notes
+
+## Introduction
+
+In this session, I learned about Kubernetes RBAC (Role-Based Access
+Control) and why it is important for managing security and access inside
+a Kubernetes cluster. RBAC may look simple, but if it is not implemented
+correctly it can become very difficult to debug issues later.
+
+Because RBAC directly impacts cluster security, understanding the
+concept behind it is more important than just knowing how to create YAML
+files.
+
+------------------------------------------------------------------------
+
+# What is Kubernetes RBAC
+
+RBAC stands for Role-Based Access Control.
+
+It is used to control who can access what resources in a Kubernetes
+cluster. Instead of giving full access to everyone, permissions are
+defined based on roles. This ensures that each user or application only
+has the permissions it actually needs.
+
+RBAC mainly focuses on two areas: - Managing user access to the
+cluster - Managing access for applications running inside the cluster
+
+------------------------------------------------------------------------
+
+# Two Major Parts of RBAC
+
+## 1. User Access Management
+
+When using local Kubernetes environments like Minikube or Kind, we
+usually get administrative access by default. But in real organizations,
+multiple teams use the same cluster.
+
+Examples of teams: - Development team - QA team - DevOps team
+
+Each team must have different permissions.
+
+For example: - Developers may deploy applications but should not delete
+system components. - QA engineers might only need read access to
+resources and logs. - DevOps engineers manage the cluster and
+administrative tasks.
+
+Without proper RBAC, someone might accidentally delete critical
+components from namespaces like kube-system or affect components such as
+etcd, which could break the entire cluster.
+
+RBAC helps prevent this by defining access based on roles.
+
+------------------------------------------------------------------------
+
+## 2. Service Account Access Management
+
+RBAC is also used to control how applications running inside the cluster
+interact with Kubernetes resources.
+
+For example, an application running in a Pod might need to: - Read
+ConfigMaps - Read Secrets - Interact with other Kubernetes resources
+
+But the application should only receive the permissions it truly
+requires.
+
+If a malicious or misconfigured pod gets too many permissions, it might
+delete resources or interact with the Kubernetes API server in unsafe
+ways.
+
+RBAC helps restrict this by assigning permissions to service accounts
+used by applications.
+
+------------------------------------------------------------------------
+
+# Core Components of Kubernetes RBAC
+
+RBAC in Kubernetes mainly works using three components:
+
+1.  Users or Service Accounts
+2.  Roles or ClusterRoles
+3.  RoleBindings or ClusterRoleBindings
+
+These components work together to define and enforce permissions.
+
+------------------------------------------------------------------------
+
+# Users vs Service Accounts
+
+## Users
+
+Users represent human users accessing the Kubernetes cluster.
+
+However, Kubernetes itself does not manage user accounts directly.
+Instead, it relies on external identity providers for authentication.
+
+Examples of identity providers: - AWS IAM - LDAP - Okta - SSO systems -
+Keycloak
+
+The Kubernetes API Server integrates with these systems using
+authentication mechanisms like OAuth.
+
+Example: If a Kubernetes cluster is running on Amazon EKS,
+authentication can be integrated with AWS IAM users and groups.
+
+In that case: - Users already exist in IAM - Groups define permissions -
+Users authenticate to Kubernetes using IAM
+
+This is similar to logging into applications using options like: - Login
+with Google - Login with Facebook
+
+The application does not create users itself but trusts an external
+identity provider.
+
+------------------------------------------------------------------------
+
+## Service Accounts
+
+Service accounts are used by applications running inside Kubernetes.
+
+Unlike users, service accounts are created directly inside the cluster
+using YAML configuration files.
+
+Creating a service account is similar to creating other Kubernetes
+resources.
+
+Example structure:
+
+apiVersion: v1 kind: ServiceAccount metadata: name:
+example-service-account
+
+If a pod does not specify a service account, Kubernetes automatically
+attaches a default service account to it.
+
+Applications use these service accounts to communicate with the
+Kubernetes API server.
+
+------------------------------------------------------------------------
+
+# Roles and ClusterRoles
+
+Once a user or service account exists, the next step is defining what
+actions they are allowed to perform.
+
+This is done using Roles.
+
+A Role defines permissions such as: - Access to Pods - Access to
+ConfigMaps - Access to Secrets
+
+A Role typically applies within a specific namespace.
+
+Example permissions inside a role might allow: - Reading pods - Listing
+config maps - Accessing secrets
+
+If permissions need to apply across the entire cluster, a ClusterRole is
+used instead.
+
+------------------------------------------------------------------------
+
+# RoleBindings and ClusterRoleBindings
+
+After defining permissions in a Role, those permissions must be assigned
+to a user or service account.
+
+This is done using RoleBindings.
+
+A RoleBinding connects: - A user or service account - A role that
+contains permissions
+
+In simple terms:
+
+Service Account / User → RoleBinding → Role
+
+RoleBinding attaches the permissions defined in a Role to a specific
+user or service account.
+
+If the permissions apply at the cluster level, ClusterRoleBinding is
+used instead.
+
+------------------------------------------------------------------------
+
+# Simple RBAC Architecture
+
+The RBAC workflow typically follows this structure:
+
+1.  Create a user or service account.
+2.  Define permissions using a Role or ClusterRole.
+3.  Attach the permissions to the user or service account using
+    RoleBinding or ClusterRoleBinding.
+
+Service Account / User → RoleBinding → Role
+
+Roles define permissions.\
+RoleBindings connect those permissions to users or service accounts.
+
+------------------------------------------------------------------------
+
+# OpenShift Sandbox for Practice
+
+A free OpenShift sandbox environment can be used to practice Kubernetes
+concepts.
+
+This environment provides: - A shared Kubernetes cluster - 30 days of
+free access - A dedicated namespace for experimentation
+
+Steps to access it:
+
+1.  Search for OpenShift Sandbox.
+2.  Register for a free Red Hat account.
+3.  Start the sandbox environment.
+4.  Login using the provided identity provider.
+
+Once logged in, a namespace is created specifically for the user.
+
+Inside the sandbox environment, it is possible to: - Create
+deployments - View pods - Scale applications - Explore Kubernetes
+resources - Practice RBAC concepts
+
+------------------------------------------------------------------------
+
+# Accessing the Cluster via CLI
+
+The OpenShift console provides a login command that can be copied and
+used in the terminal.
+
+Steps:
+
+1.  Click on the user profile in the OpenShift console.
+2.  Select Copy Login Command.
+3.  Authenticate and obtain the access token.
+4.  Use the command in the terminal to login.
+
+After logging in through the CLI, Kubernetes commands can be used.
+
+Example:
+
+kubectl get pods
+
+This command shows the pods running in the assigned namespace.
+
+------------------------------------------------------------------------
+
+# Practicing Kubernetes Concepts
+
+Inside the OpenShift sandbox environment, it is possible to practice
+many Kubernetes concepts such as:
+
+-   Deployments
+-   Services
+-   Ingress
+-   Storage
+-   Events
+-   Scaling pods
+
+For example, a deployment can be created using:
+
+kubectl create deployment nginx --image=nginx
+
+After creation, the deployment and pods can be viewed either through the
+CLI or through the OpenShift UI.
+
+The UI also allows scaling pods and monitoring cluster events.
+
+------------------------------------------------------------------------
+
+# Summary
+
+Key points I learned:
+
+-   Kubernetes RBAC controls access to cluster resources.
+-   RBAC manages permissions for both users and applications.
+-   Kubernetes does not create users; it relies on external identity
+    providers.
+-   Service accounts are used by applications running in the cluster.
+-   Roles define permissions.
+-   RoleBindings attach those permissions to users or service accounts.
+-   OpenShift sandbox can be used as a free environment to practice
+    Kubernetes concepts.
