@@ -1,0 +1,308 @@
+# GitHub Actions
+
+---
+
+## What is GitHub Actions?
+
+- A native CI/CD solution built into GitHub
+- Automatically executes pipelines in response to GitHub events (push, pull request, issue, etc.)
+- No separate server to install or maintain — GitHub manages the infrastructure
+- Free for public/open-source repositories; usage limits apply for private repositories
+- Comparable to GitLab CI (which is the equivalent for GitLab-hosted repositories)
+
+---
+
+## When to Use GitHub Actions vs Jenkins
+
+| Use GitHub Actions if… | Use Jenkins if… |
+|------------------------|-----------------|
+| All code lives on GitHub and will stay there | Code may migrate to GitLab, Azure DevOps, AWS CodeCommit, etc. |
+| Minimal maintenance overhead is a priority | Full plugin ecosystem and complex orchestration are needed |
+| Project is open source / public | Organization requires self-hosted, air-gapped CI infrastructure |
+| Team wants simple YAML-based pipelines | Fine-grained control over build agents is required |
+
+> **Key rule:** GitHub Actions is platform-locked to GitHub. If the organization might move to a different VCS in the future, prefer a platform-agnostic tool like Jenkins.
+
+---
+
+## Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Workflow** | A YAML file that defines one automated process (equivalent to a Jenkins pipeline) |
+| **Event / Trigger** | The GitHub activity that starts a workflow (e.g. `push`, `pull_request`, `issues`) |
+| **Job** | A group of steps that run on the same runner (equivalent to a Jenkins pipeline within a file) |
+| **Step** | A single task inside a job — either a shell command or a pre-built Action |
+| **Action** | A reusable plugin from the GitHub Marketplace (e.g. `actions/checkout`, `actions/setup-python`) |
+| **Runner** | The server/container that executes the job (GitHub-hosted or self-hosted) |
+
+---
+
+## File Structure
+
+All workflow files must be placed in this exact directory at the root of the repository:
+
+```
+<repo-root>/
+└── .github/
+    └── workflows/
+        ├── ci.yaml          # e.g. build and test
+        ├── deploy.yaml      # e.g. deploy to Kubernetes
+        └── pr-check.yaml    # e.g. validate PR title/description
+```
+
+- Multiple workflow files can exist in the `workflows/` folder
+- Each file can have its own trigger and runs independently
+- GitHub executes all matching workflows when a trigger event fires
+
+---
+
+## Anatomy of a Workflow File
+
+```yaml
+name: My First GitHub Actions Workflow   # display name in GitHub UI
+
+on: [push, pull_request]                 # trigger events
+
+jobs:
+  build:                                 # job ID (any name)
+    runs-on: ubuntu-latest               # runner image
+
+    steps:
+- name: Checkout code
+        uses: actions/checkout@v3        # pre-built Action (plugin)
+
+- name: Set up environment
+        uses: actions/setup-python@v2    # another pre-built Action
+        with:
+          python-version: '3.9'
+
+- name: Install dependencies
+        run: pip install pytest           # shell command
+
+- name: Run tests
+        run: pytest                       # shell command
+```
+
+Key syntax notes:
+- **`on:`** — one or more trigger events; GitHub starts the workflow when any of them fires
+- **`runs-on:`** — the container image for the runner (`ubuntu-latest`, `windows-latest`, `macos-latest`)
+- **`uses:`** — references a pre-built Action from the Marketplace; `@v3` is the Action's version (not the tool version)
+- **`with:`** — passes parameters to an Action
+- **`run:`** — executes a raw shell command
+
+---
+
+## Example 1 — Python Unit Test Pipeline
+
+### Source files
+
+```python
+# src/addition.py
+def add(a, b):
+    return a + b
+```
+
+```python
+# src/test_addition.py
+from addition import add
+
+def test_add():
+    assert add(2, 3) == 5
+```
+
+### Workflow file
+
+```yaml
+# .github/workflows/ci.yaml
+name: Python CI
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9']   # run on both versions
+
+    steps:
+- name: Checkout repository
+        uses: actions/checkout@v3
+
+- name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+- name: Install dependencies
+        run: |
+          pip install pytest
+
+- name: Run unit tests
+        run: pytest src/
+```
+
+When this workflow runs with two Python versions defined in the matrix, GitHub Actions creates **two parallel jobs** — one for Python 3.8 and one for Python 3.9.
+
+---
+
+## Example 2 — Java Build with Maven, SonarQube & Kubernetes Deploy
+
+```yaml
+# .github/workflows/deploy.yaml
+name: Java CI/CD
+
+on: [push]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+- name: Checkout code
+        uses: actions/checkout@v3
+
+- name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+- name: Build with Maven
+        run: mvn clean install
+
+- name: SonarQube scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN
+
+- name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+- name: Deploy to Kubernetes
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          echo "$KUBECONFIG_DATA" | base64 --decode > kubeconfig.yaml
+          kubectl apply -f deployment/deployment.yaml --kubeconfig=kubeconfig.yaml
+```
+
+> Sensitive values (`SONAR_TOKEN`, `KUBECONFIG`) are stored as GitHub Secrets and accessed via `${{ secrets.SECRET_NAME }}` — they are never exposed in logs.
+
+---
+
+## Plugins / Actions Marketplace
+
+GitHub Actions has a marketplace of reusable Actions (equivalent to Jenkins plugins), but with zero installation steps.
+
+| Task | Action to use |
+|------|--------------|
+| Checkout code | `actions/checkout@v3` |
+| Set up Python | `actions/setup-python@v2` |
+| Set up Java | `actions/setup-java@v3` |
+| Set up Node.js | `actions/setup-node@v3` |
+| Set up Ruby | `actions/setup-ruby@v1` |
+| Set up kubectl | `azure/setup-kubectl@v3` |
+| Cache dependencies | `actions/cache@v3` |
+| Upload build artifact | `actions/upload-artifact@v3` |
+
+**How to discover Actions:**
+1. Go to [github.com/marketplace?type=actions](https://github.com/marketplace?type=actions)
+2. Or browse the [GitHub Actions documentation](https://docs.github.com/en/actions) → Quickstart → choose your language/framework
+
+> The `@v3` in `actions/checkout@v3` refers to the **version of the Action plugin**, not the version of the tool being set up.
+
+---
+
+## Matrix Builds — Testing Across Multiple Versions
+
+A matrix strategy runs the same job across multiple combinations of variables, creating parallel jobs automatically.
+
+```yaml
+strategy:
+  matrix:
+    python-version: ['3.8', '3.9', '3.10']
+    os: [ubuntu-latest, windows-latest]
+```
+
+This creates **6 parallel jobs** (3 Python versions × 2 operating systems).
+
+To test on a single version only, simplify to:
+
+```yaml
+steps:
+- uses: actions/setup-python@v2
+    with:
+      python-version: '3.9'
+```
+
+---
+
+## Storing Secrets
+
+Secrets (passwords, tokens, kubeconfig files, API keys) must never be hard-coded in workflow files.
+
+**How to add a secret:**
+1. Go to the GitHub repository → **Settings → Secrets and variables → Actions**
+2. Click **New repository secret**
+3. Enter a name (e.g. `SONAR_TOKEN`) and value
+4. Click **Add secret**
+
+**How to use a secret in a workflow:**
+
+```yaml
+env:
+  MY_SECRET: ${{ secrets.MY_SECRET_NAME }}
+```
+
+Or inline:
+
+```yaml
+run: kubectl apply -f deploy.yaml --token=${{ secrets.K8S_TOKEN }}
+```
+
+> Secret values are masked in all workflow logs — they never appear in plain text.
+
+---
+
+## Self-Hosted Runners
+
+By default, GitHub provides hosted runners (`ubuntu-latest`, etc.) with limited compute. For workloads requiring more CPU/RAM (e.g. load testing, large builds), a self-hosted runner can be configured.
+
+**When to use self-hosted runners:**
+- GitHub-hosted runners don't have enough compute resources
+- Security/compliance requirements mandate running builds on internal infrastructure
+- Need access to private network resources
+
+**How to set up:**
+1. Go to **Settings → Actions → Runners → New self-hosted runner**
+2. Select OS and follow the installation script GitHub provides
+3. The runner registers itself and appears in the runner list
+4. In the workflow, specify:
+
+```yaml
+runs-on: self-hosted
+```
+
+---
+
+## GitHub Actions vs Jenkins — Comparison
+
+| Feature | GitHub Actions | Jenkins |
+|---------|---------------|---------|
+| **Hosting** | Managed by GitHub | Self-hosted EC2 / server required |
+| **Setup time** | Zero (just create a YAML file) | Install Java, Jenkins, plugins, configure agents |
+| **Maintenance** | None | OS updates, plugin updates, security patches |
+| **Cost (public repos)** | Free | Cost of EC2 instance + storage |
+| **Cost (private repos)** | ~2,000 free minutes/month; paid beyond that | Cost of infrastructure only |
+| **Plugin ecosystem** | Growing; newer and more limited | Mature; thousands of plugins |
+| **Platform lock-in** | Locked to GitHub | Works with any VCS |
+| **Secrets management** | Native (built-in) | Credentials plugin required |
+| **Matrix builds** | Native (built-in) | Requires additional configuration |
+| **UI complexity** | Simple GitHub UI | Separate Jenkins UI to manage |
+| **Pipeline as code** | ✅ YAML in `.github/workflows/` | ✅ Jenkinsfile in repo |
+| **Best for** | Open source, GitHub-only projects | Multi-platform, enterprise, complex pipelines |
+
+---
