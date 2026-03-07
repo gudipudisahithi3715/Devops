@@ -1,0 +1,247 @@
+Kubernetes Custom Resources
+
+## Overview
+
+Kubernetes ships with a set of native, out-of-the-box resources:
+
+- `Deployment`
+- `Service`
+- `Pod`
+- `ConfigMap`
+- `Secret`
+- `Ingress`
+
+When a required capability is **not** covered by these native resources, Kubernetes allows me to **extend its API** by introducing new resource types.
+
+---
+
+## Why Extend the Kubernetes API?
+
+Real-world tools that extend Kubernetes via custom resources:
+
+| Tool | Capability Added |
+|------|-----------------|
+| **Istio** | Service mesh, Mutual TLS, east-west traffic |
+| **Argo CD** | GitOps / continuous delivery |
+| **Flux** | GitOps |
+| **Keycloak** | Identity & access management, OAuth, OIDC |
+| **Kyverno** | Policy engine / security |
+| **kube-bench** | CIS security benchmarking |
+| **Prometheus** | Metrics & monitoring |
+| **Crossplane** | Infrastructure as code |
+
+> Kubernetes cannot bake logic for every third-party tool into its control plane — that's why the extension mechanism exists.
+
+---
+
+## The Three Core Concepts
+
+```
+CRD  →  CR  →  Custom Controller
+```
+
+| Concept | Short Form | Who Deploys It | Purpose |
+|---------|-----------|----------------|---------|
+| Custom Resource Definition | CRD | DevOps Engineer | Defines + registers a new API type in Kubernetes |
+| Custom Resource | CR | User / DevOps Engineer | An instance of that new API type |
+| Custom Controller | — | DevOps Engineer | Watches CRs and acts on them |
+
+---
+
+## Custom Resource Definition (CRD)
+
+- A **YAML file** submitted to Kubernetes that introduces a new API type
+- Defines all valid fields a user can include in a Custom Resource
+- Acts as the **schema/template** for the new resource — just like Kubernetes has a built-in schema for `Deployment`
+- Kubernetes validates every CR submission against its corresponding CRD
+- If I add an unknown field, Kubernetes throws: `field XYZ is not known`
+
+### Native Resource vs Custom Resource (comparison)
+
+| | Native Resource | Custom Resource |
+|-|----------------|-----------------|
+| YAML submitted by user | `deployment.yaml` | `virtual-service.yaml` |
+| Validated against | Built-in resource definition | CRD |
+| Processed by | Built-in controller | Custom controller |
+
+### Example CRD structure (conceptual)
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: virtualservices.networking.istio.io
+spec:
+  group: networking.istio.io
+  versions:
+- name: v1alpha3
+      served: true
+      storage: true
+  scope: Namespaced
+  names:
+    plural: virtualservices
+    singular: virtualservice
+    kind: VirtualService
+```
+
+---
+
+## Custom Resource (CR)
+
+- An **instance** of a type defined by a CRD
+- Created by end users or DevOps engineers
+- Validated against the CRD before being accepted by the API server
+
+### Example CR (Istio VirtualService)
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: my-virtual-service
+  namespace: my-namespace
+spec:
+  hosts:
+- my-service
+  http:
+- route:
+- destination:
+            host: my-service
+            port:
+              number: 8080
+```
+
+> ⚠️ Deploying a CR without a running Custom Controller = nothing happens. (Same as deploying an `Ingress` without an Ingress controller.)
+
+---
+
+## Custom Controller
+
+- A program that **watches** for CR events (create / update / delete) and performs the desired actions
+- Must be deployed to the cluster **before** (or alongside) any CRs it manages
+- Analogous to the native `DeploymentController` inside `kube-controller-manager`
+
+### How it works internally (high level)
+
+```
+User creates CR
+       │
+       ▼
+API Server accepts (validated against CRD)
+       │
+       ▼
+Custom Controller (watching via Informer/Watcher)
+       │
+       ▼
+Event added to Worker Queue
+       │
+       ▼
+Controller processes event → performs action on cluster
+```
+
+---
+
+## End-to-End Flow
+
+```
+[DevOps Engineer]                [User]
+       │                            │
+1. Deploy CRD              3. Create CR (e.g. VirtualService)
+2. Deploy Custom                  │
+     Controller              Validated against CRD
+                                    │
+                             Custom Controller watches CR
+                                    │
+                             Performs required action
+                             (e.g. configure service mesh)
+```
+
+---
+
+## Writing a Custom Controller
+
+- Preferred language: **Go (Golang)**
+- Kubernetes itself is written in Go
+- Strong community support
+- Excellent concurrency primitives
+
+- Core Go package: [`client-go`](https://github.com/kubernetes/client-go)
+- Allows interaction with the Kubernetes API server programmatically
+
+### Key internal components
+
+| Component | Role |
+|-----------|------|
+| **Informer / Watcher** | Listens for resource events (create/update/delete) |
+| **Reflector** | Syncs state from API server into local cache |
+| **Worker Queue** | Queues events for processing |
+| **Reconciler** | Processes each queued object and drives actual state → desired state |
+
+### Popular frameworks
+
+- [`controller-runtime`](https://github.com/kubernetes-sigs/controller-runtime) — official Kubernetes Go framework for building controllers
+- [`operator-sdk`](https://sdk.operatorframework.io/) — higher-level framework for building Operators (controllers + more)
+
+> **Operator** = Controller + additional lifecycle management logic (install, upgrade, backup, etc.)
+
+### Learning resource
+
+- [kubernetes/sample-controller](https://github.com/kubernetes/sample-controller) — official minimal example
+
+---
+
+## Deploying with Helm (Istio Example)
+
+```bash
+# 1. Add the Istio Helm repo
+helm repo add istio https://istio-release.storage.googleapis.com/charts
+helm repo update
+
+# 2. Create the istio-system namespace
+kubectl create namespace istio-system
+
+# 3. Install Istio base (deploys CRDs)
+helm install istio-base istio/base -n istio-system
+
+# 4. Install Istiod (deploys the custom controller)
+helm install istiod istio/istiod -n istio-system --wait
+```
+
+```bash
+# Verify CRDs were registered
+kubectl get crd | grep istio
+```
+
+Expected output includes entries like:
+```
+virtualservices.networking.istio.io
+destinationrules.networking.istio.io
+gateways.networking.istio.io
+...
+```
+
+> The same Helm-based install pattern applies to **Argo CD**, **Prometheus**, **Crossplane**, and most CNCF projects.
+
+---
+
+## DevOps Engineer Responsibilities
+
+### Installation
+- [ ] Deploy the **CRD** (registers new API types)
+- [ ] Deploy the **Custom Controller** (processes CR events)
+- [ ] Guide users in creating **Custom Resources**
+
+### Day-to-day operations
+- Understand the tool's concepts deeply (e.g., what is a VirtualService in Istio?)
+- Debug issues when CRs are not working as expected:
+
+```bash
+# Describe a custom resource
+kubectl describe virtualservice <name> -n <namespace>
+
+# Check controller logs
+kubectl logs -n istio-system deploy/istiod
+
+# List all custom resources of a type
+kubectl get virtualservices -A
+```
