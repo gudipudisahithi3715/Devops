@@ -1,0 +1,252 @@
+#  — Kubernetes ConfigMaps & Secrets
+
+---
+
+## The Problem: Externalizing Application Config
+
+Consider a backend application that talks to a database. It needs values like:
+
+- `DB_PORT`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `DB_CONNECTION_TYPE`
+
+**Hard-coding these values inside the application is bad practice** because:
+
+- If any value changes, the application breaks or returns wrong data
+- You often don't know these values at Docker image build time
+- Values can change frequently in production
+
+The standard solution is to read them from **environment variables** or **config files** at runtime — and in Kubernetes, that's what **ConfigMaps** and **Secrets** are for.
+
+---
+
+## What is a ConfigMap?
+
+- A Kubernetes resource used to store **non-sensitive** configuration data as key-value pairs
+- Decouples configuration from the application container
+- Data can be injected into a Pod as:
+- **Environment variables**
+- **Mounted files** (volume mounts)
+- Stored in `etcd` as plain-text objects
+
+---
+
+## What is a Secret?
+
+- A Kubernetes resource used to store **sensitive** configuration data (e.g. passwords, tokens, certificates)
+- Solves the same problem as ConfigMap but with added security:
+- Data is **encrypted at rest** before being saved to `etcd`
+- By default, Kubernetes uses Base64 encoding (not strong encryption)
+- Can be paired with stronger encryption via **HashiCorp Vault**, **Sealed Secrets**, or a custom `etcd` encryption key
+- Access should be restricted using **Kubernetes RBAC** (principle of least privilege)
+
+---
+
+## ConfigMap vs Secret — Interview Question
+
+| Feature | ConfigMap | Secret |
+|---------|-----------|--------|
+| **Use case** | Non-sensitive config (ports, URLs, flags) | Sensitive config (passwords, tokens, certs) |
+| **Data storage** | Plain text in `etcd` | Encrypted at rest in `etcd` |
+| **Access control** | Standard RBAC | Strict RBAC recommended |
+| **Default encoding** | None | Base64 |
+| **Example data** | `DB_PORT=3306` | `DB_PASSWORD=s3cr3t` |
+
+> **Interview answer:** Both ConfigMap and Secret store configuration data that is injected into Pods. The key difference is that Secrets are for sensitive data — they are encrypted at rest in `etcd` and should be protected by strict RBAC policies, whereas ConfigMaps store non-sensitive data in plain text.
+
+---
+
+## Creating a ConfigMap
+
+### Method 1: YAML file
+
+```yaml
+# cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-cm
+data:
+  DB-Port: "3306"
+```
+
+```bash
+kubectl apply -f cm.yaml
+
+# Verify
+kubectl get cm
+kubectl describe cm test-cm
+```
+
+### Method 2: Imperative command
+
+```bash
+kubectl create configmap test-cm --from-literal=DB-Port=3306
+```
+
+---
+
+## Using a ConfigMap as an Environment Variable
+
+Add an `env` section to the container spec in `deployment.yaml`:
+
+```yaml
+containers:
+- name: my-app
+    image: my-image
+    env:
+- name: DB_PORT                   # env var name inside the container
+        valueFrom:
+          configMapKeyRef:
+            name: test-cm               # ConfigMap name
+            key: DB-Port                # key inside the ConfigMap
+```
+
+```bash
+kubectl apply -f deployment.yaml
+
+# Verify inside the pod
+kubectl exec -it <pod-name> -- /bin/bash
+env | grep DB
+# Expected output: DB_PORT=3306
+```
+
+> ⚠️ **Limitation:** Environment variables inside a running container **cannot be updated dynamically**. If the ConfigMap value changes, the Pod must be restarted to pick up the new value — which may cause downtime.
+
+---
+
+## Using a ConfigMap as a Volume Mount
+
+Volume mounts solve the dynamic update problem. The config is mounted as a **file** inside the container, and Kubernetes automatically refreshes it when the ConfigMap changes.
+
+```yaml
+# deployment.yaml
+containers:
+- name: my-app
+    image: my-image
+    volumeMounts:
+- name: db-connection          # must match volume name below
+        mountPath: /opt              # path inside the container
+
+volumes:
+- name: db-connection
+    configMap:
+      name: test-cm                  # ConfigMap to read from
+```
+
+```bash
+kubectl apply -f deployment.yaml
+
+# Verify the mounted file inside the pod
+kubectl exec -it <pod-name> -- /bin/bash
+cat /opt/DB-Port
+# Output: 3306
+```
+
+---
+
+## Why Volume Mounts > Environment Variables for Config
+
+| | Environment Variable | Volume Mount |
+|-|---------------------|--------------|
+| **Dynamic updates** | ❌ Requires Pod restart | ✅ Updated automatically (after a few seconds) |
+| **Production safe** | ❌ Restart may cause traffic loss | ✅ No restart needed |
+| **Access method** | `os.environ["DB_PORT"]` | `open("/opt/DB-Port").read()` |
+
+### Demonstrating live config reload with volume mounts
+
+```bash
+# Step 1 — Check current value inside the pod
+kubectl exec -it <pod-name> -- cat /opt/DB-Port
+# Output: 3306
+
+# Step 2 — Update the ConfigMap
+# Edit cm.yaml: change DB-Port from 3306 to 3307
+kubectl apply -f cm.yaml
+
+# Step 3 — Verify the pod picked up the change (no restart needed)
+# Wait a few seconds, then:
+kubectl exec -it <pod-name> -- cat /opt/DB-Port
+# Output: 3307  ← updated automatically
+```
+
+> Kubernetes periodically syncs ConfigMap-backed volume mounts. Allow a few seconds for changes to propagate.
+
+---
+
+## Creating a Secret
+
+### Method 1: Imperative command (generic secret)
+
+```bash
+kubectl create secret generic test-secret --from-literal=DB-Port=3306
+```
+
+### Method 2: YAML file
+
+```yaml
+# secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test-secret
+type: Opaque
+data:
+  DB-Port: MzMwNg==    # Base64 encoded value of "3306"
+```
+
+```bash
+# Generate Base64 value
+echo -n "3306" | base64
+# Output: MzMwNg==
+
+kubectl apply -f secret.yaml
+```
+
+### Verifying a Secret
+
+```bash
+kubectl describe secret test-secret
+# Shows key names and byte sizes, not raw values
+
+kubectl edit secret test-secret
+# Shows Base64 encoded values
+
+# Decode a secret value
+echo "MzMwNg==" | base64 --decode
+# Output: 3306
+```
+
+### Using a Secret in a Deployment
+
+```yaml
+# As environment variable
+env:
+- name: DB_PORT
+    valueFrom:
+      secretKeyRef:
+        name: test-secret
+        key: DB-Port
+
+# As volume mount
+volumes:
+- name: secret-volume
+    secret:
+      secretName: test-secret
+
+volumeMounts:
+- name: secret-volume
+    mountPath: /opt/secret
+```
+
+### Hardening Secrets beyond Base64
+
+Default Base64 encoding is **not strong encryption**. For production, use:
+
+- [HashiCorp Vault](https://www.vaultproject.io/)
+- [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets)
+- Custom `etcd` encryption keys (configured via the API server)
+- Enforce **RBAC** so only authorized roles can `get`/`list`/`describe` Secrets
+
+---
