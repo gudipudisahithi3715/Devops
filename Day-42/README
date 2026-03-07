@@ -1,0 +1,290 @@
+# Deploying a Static Website on AWS EC2 — Beginner's Guide
+
+## Project Overview
+
+In this project I deploy a locally developed static website to a publicly accessible AWS EC2 instance. The workflow is:
+
+```
+Local Machine → GitHub → AWS EC2 Instance → Public Internet
+```
+
+---
+
+## Prerequisites
+
+- A static website (HTML, CSS, assets) on my local machine
+- A GitHub account
+- An AWS account (free tier is sufficient)
+- Git installed locally
+- A terminal with SSH support
+
+---
+
+## Step 1 — Push Website Files to GitHub
+
+First, I create a GitHub repository and push all local website files to it so I can later pull them onto the server.
+
+```bash
+# Navigate to the project folder
+cd ~/Documents/my-website
+
+# Initialize a Git repository
+git init
+
+# Stage all files
+git add .
+
+# Commit the files
+git commit -m "Added website files"
+
+# Link to the remote GitHub repository
+git remote add origin https://github.com/<username>/<repo-name>.git
+
+# Push to the master branch
+git push -u origin master
+```
+
+> **Note:** If the `main` branch is protected on GitHub, push to `master` instead, or configure branch protection rules accordingly.
+
+---
+
+## Step 2 — Launch an AWS EC2 Instance
+
+### 2.1 — Select a Region
+
+- Log into the AWS Console at [aws.amazon.com](https://aws.amazon.com)
+- Select a region close to my target audience (e.g., **Asia Pacific — Mumbai** for Indian users) to minimize latency
+
+### 2.2 — Choose an AMI (OS Image)
+
+- Navigate to **EC2 → Instances → Launch Instance**
+- Select **Red Hat Enterprise Linux (RHEL)** — free tier eligible
+- Any free-tier eligible AMI works (Amazon Linux, Ubuntu, Debian, etc.)
+
+### 2.3 — Choose an Instance Type
+
+- Select **t2.micro** (1 vCPU, 1 GB RAM) — free tier eligible
+- AWS supports scaling up to 128 vCPUs / 256 GB RAM if needed in production
+
+### 2.4 — Create a Key Pair
+
+- Click **Create new key pair**
+- Give it a name (e.g., `demo-website`)
+- Select **`.pem`** format (for OpenSSH on Linux/Mac) or **`.ppk`** (for PuTTY on Windows)
+- Download and store the `.pem` file securely — **it cannot be re-downloaded**
+- The same key pair can be reused across multiple EC2 instances
+
+### 2.5 — Configure Network Settings
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| VPC | Default | Logical isolation of cloud resources |
+| Auto-assign Public IP | **Enabled** | Required for public internet access |
+| Allow SSH traffic | My IP (recommended) or Anywhere | Login access |
+| Allow HTTP traffic | **Enabled** | Required to serve the website |
+
+> **Security tip:** Restricting SSH to **My IP** means even if the private key is leaked, an attacker cannot SSH in from a different IP address.
+
+> **HTTP vs HTTPS:** For this demo, HTTP is used. In production, redirect HTTP → HTTPS at the load balancer level.
+
+### 2.6 — Configure Storage
+
+- Set storage to **10 GB SSD** (EBS) — free tier allows up to 30 GB
+
+### 2.7 — Launch the Instance
+
+- Click **Launch Instance**
+- The instance moves to **running** state within seconds
+- Note the assigned **Public IPv4 address**
+
+---
+
+## Step 3 — Connect to the EC2 Instance via SSH
+
+```bash
+# Navigate to the folder containing the .pem key
+cd ~/Downloads
+
+# Restrict key file permissions (required by SSH)
+chmod 400 demo-website.pem
+
+# SSH into the EC2 instance
+ssh -i "demo-website.pem" ec2-user@<public-ip-address>
+```
+
+- Default username for RHEL/Amazon Linux is `ec2-user`
+- Type `yes` when prompted to confirm the host fingerprint
+
+After connecting, the terminal prompt changes to show the EC2 instance hostname — I am now inside the remote server.
+
+---
+
+## Step 4 — Set Up the Server
+
+### 4.1 — Switch to Root User
+
+```bash
+sudo su -
+```
+
+Regular users cannot install packages. `sudo su -` switches to the root user which has full system privileges.
+
+### 4.2 — Update the System
+
+```bash
+yum update -y
+```
+
+The `-y` flag auto-confirms all prompts.
+
+### 4.3 — Install Git
+
+```bash
+yum install git -y
+
+# Verify installation
+git --version
+```
+
+### 4.4 — Install Apache Web Server
+
+```bash
+yum install httpd -y
+```
+
+Apache (`httpd`) is the web server that listens for incoming HTTP requests and serves website files.
+
+> Apache serves files located at: **`/var/www/html/`**  
+> Any files placed in this directory will be publicly accessible.
+
+### 4.5 — (Optional) Install Node.js for Dynamic Apps
+
+```bash
+yum install nodejs -y
+```
+
+---
+
+## Step 5 — Deploy the Website
+
+### 5.1 — Clone the GitHub Repository
+
+```bash
+# Go to home directory
+cd ~
+
+# Clone the repository
+git clone https://github.com/<username>/<repo-name>.git
+
+# Enter the cloned folder
+cd <repo-name>
+
+# If files are on the master branch, switch to it
+git checkout master
+```
+
+### 5.2 — Copy Website Files to Apache's Serving Directory
+
+```bash
+# Copy the main HTML file
+cp index.html /var/www/html/
+
+# Copy folders/directories (requires -r for recursive copy)
+cp -r assets/ /var/www/html/
+cp -r errors/ /var/www/html/
+cp -r images/ /var/www/html/
+```
+
+> Use `cp -r` for directories. Using `cp` without `-r` on a folder will throw an error: `omitting directory`.
+
+### 5.3 — Verify Files are in Place
+
+```bash
+cd /var/www/html/
+ls
+pwd
+# Expected output: /var/www/html
+```
+
+---
+
+## Step 6 — Start the Apache Web Server
+
+```bash
+# Start the Apache service
+systemctl start httpd
+
+# Enable it to start automatically on reboot
+systemctl enable httpd
+
+# Verify it is running
+systemctl status httpd
+```
+
+Now open a browser and navigate to:
+
+```
+http://<public-ip-address>
+```
+
+The website should be live and publicly accessible.
+
+> **Browser tip:** If the page does not load, check that the browser is not automatically redirecting to `https://`. Manually type `http://` at the start of the URL — the server only listens on HTTP in this setup.
+
+---
+
+## Key Concepts Covered
+
+### VPC (Virtual Private Cloud)
+- A logically isolated network within AWS where my resources live
+- Controls who can access my instances at the network level
+- Different from VPN — VPN creates a secure tunnel for data in transit; VPC isolates the cloud environment itself
+
+### Security Groups (Firewall)
+- Act as a virtual firewall controlling inbound and outbound traffic
+- Rules I configured:
+- **Port 22 (SSH):** Allow login access
+- **Port 80 (HTTP):** Allow public web traffic
+
+### Key Pair Authentication
+- AWS uses key pair (public/private key) instead of passwords for SSH
+- The `.pem` file is the private key — keep it safe and never share it
+- `chmod 400` restricts the file to read-only by the owner, which SSH requires
+
+### IAM (Identity and Access Management)
+- Controls which users or roles can access which AWS resources
+- Follows the **principle of least privilege** — only grant the minimum permissions needed
+- Example: a developer can be given read-only access to one specific EC2 instance, not the entire AWS account
+
+### Public IP vs Private IP
+- **Public IP:** Accessible from the internet — used for web servers, SSH access
+- **Private IP:** Only accessible within the VPC — used for internal resources like databases that should never be exposed publicly
+
+### Apache Web Server (`httpd`)
+- Listens on port 80 for incoming HTTP requests
+- Serves any files placed in `/var/www/html/`
+- Must be explicitly started with `systemctl start httpd`
+
+---
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `Permission denied` when running `yum` | Not root user | Run `sudo su -` first |
+| `cp` throws "omitting directory" error | Missing `-r` flag | Use `cp -r <folder> <destination>` |
+| Website not loading in browser | Apache not started | Run `systemctl start httpd` |
+| Browser redirects to `https://` | Browser HTTPS upgrade | Manually type `http://` in the URL bar |
+| SSH connection refused | SSH rule missing in Security Group | Add inbound rule for port 22 |
+| `git: command not found` | Git not installed | Run `yum install git -y` |
+
+---
+
+## Next Steps
+
+- Replace the static site with a **Node.js** or **Python** dynamic application
+- Point a **custom domain** to the EC2 public IP using Route 53 or any DNS provider
+- Add **HTTPS** using AWS Certificate Manager + a load balancer, or use Let's Encrypt
+- Use **Dockerize** the application and run it as a container
+- Explore **Auto Scaling Groups** to handle traffic spikes automatically
+- Move static files to **S3 + CloudFront** for a fully managed, scalable static hosting solution
