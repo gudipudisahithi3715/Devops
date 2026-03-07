@@ -1,0 +1,284 @@
+#  — Kubernetes Monitoring with Prometheus & Grafana
+
+## Why Monitoring is Required
+
+- A single Kubernetes cluster may be used by multiple teams — when something breaks, I need visibility into what went wrong and where
+- As the number of clusters grows (dev, staging, production), manual inspection becomes impossible
+- Monitoring gives me real-time and historical metrics to:
+- Debug failing deployments or unreachable services
+- Track resource usage across nodes and namespaces
+- Set up alerts so issues are caught before they impact users
+
+---
+
+## What is Prometheus?
+
+- An open-source monitoring and alerting toolkit originally developed by SoundCloud
+- Collects metrics by **scraping** HTTP endpoints exposed by Kubernetes components and applications
+- Stores all collected data in a **time-series database** (data is indexed by timestamp)
+- Supports a rich query language called **PromQL** (Prometheus Query Language)
+- Can push alerts to **Alertmanager**, which routes notifications to Slack, email, PagerDuty, etc.
+
+---
+
+## Prometheus Architecture
+
+```
+Kubernetes Cluster
+│
+├── API Server (/metrics endpoint)       ← Prometheus scrapes this
+├── kube-state-metrics (/metrics)        ← Prometheus scrapes this
+├── Custom App metrics (/metrics)        ← Prometheus scrapes this (optional)
+│
+└── Prometheus Server
+    ├── HTTP Server (PromQL queries via UI or API)
+    ├── Time-Series Database (stored on disk / HDD / SSD)
+    └── Alertmanager
+        ├── Slack notifications
+        ├── Email notifications
+        └── Other integrations
+```
+
+Key components:
+
+- **Prometheus Server** — core engine; scrapes, stores, and serves metrics
+- **Time-Series Database** — stores all metric data with timestamps on the node's disk
+- **Alertmanager** — receives alerts from Prometheus and routes them to the configured channels
+- **PromQL** — query language used to retrieve and compute metrics
+- **Grafana** — external visualization layer that uses Prometheus as a data source
+
+---
+
+## What is Grafana?
+
+- A visualization and dashboarding platform
+- Does **not** collect metrics itself — it queries Prometheus (or other data sources) and renders the results as charts and graphs
+- Supports importing pre-built community dashboards from [grafana.com/grafana/dashboards](https://grafana.com/grafana/dashboards)
+- Useful because raw Prometheus output (JSON/text format) is difficult to read at scale
+
+---
+
+## What is kube-state-metrics?
+
+- A Kubernetes controller that exposes **additional** cluster-level metrics not provided by the default API server `/metrics` endpoint
+- Examples of metrics it exposes:
+- Status of all Deployments (desired vs running replicas)
+- Status of all Pods, Services, ConfigMaps
+- Node conditions and resource requests/limits
+- Exposes metrics at: `<node-ip>:<port>/metrics`
+- Installed automatically when using the Prometheus Helm chart
+
+---
+
+## Prerequisites
+
+- A running Kubernetes cluster (minikube, kind, k3s, or any cloud cluster)
+- `kubectl` configured and working
+- Helm installed
+
+### Starting a minikube cluster (recommended for local use)
+
+```bash
+# Using hyperkit driver (macOS) for easier networking
+minikube start --memory=4096 --driver=hyperkit
+
+# Or using the default Docker driver
+minikube start --memory=4096
+
+# Verify the cluster
+kubectl get pods -A
+```
+
+---
+
+## Installing Prometheus
+
+```bash
+# Step 1 — Add the Prometheus community Helm repo
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+# Step 2 — Update Helm repos
+helm repo update
+
+# Step 3 — Install Prometheus
+helm install prometheus prometheus-community/prometheus
+
+# Step 4 — Verify Prometheus pods are running
+kubectl get pods
+```
+
+Expected pods after install:
+- `prometheus-server-*`
+- `prometheus-kube-state-metrics-*`
+- `prometheus-alertmanager-*`
+- `prometheus-node-exporter-*`
+
+### Expose Prometheus UI (for local access)
+
+```bash
+# Expose the Prometheus server as a NodePort service
+kubectl expose service prometheus-server \
+  --type=NodePort \
+  --target-port=9090 \
+  --name=prometheus-server-ext
+
+# Get the minikube IP
+minikube ip
+
+# Access Prometheus UI
+# http://<minikube-ip>:<nodeport>
+kubectl get svc prometheus-server-ext
+```
+
+---
+
+## Installing Grafana
+
+```bash
+# Step 1 — Add the Grafana Helm repo
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+# Step 2 — Install Grafana
+helm install grafana grafana/grafana
+
+# Step 3 — Retrieve the admin password
+kubectl get secret --namespace default grafana \
+  -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
+# Step 4 — Expose Grafana as a NodePort service
+kubectl expose service grafana \
+  --type=NodePort \
+  --target-port=3000 \
+  --name=grafana-ext
+
+# Step 5 — Access Grafana UI
+# http://<minikube-ip>:<nodeport>
+kubectl get svc grafana-ext
+```
+
+> **Login credentials:** username = `admin`, password = output from Step 3 above.
+
+---
+
+## Connecting Grafana to Prometheus
+
+1. Log into Grafana UI
+2. Go to **Configuration → Data Sources**
+3. Click **Add data source**
+4. Select **Prometheus**
+5. Set the URL to the Prometheus server's cluster URL:
+
+```
+http://prometheus-server.<namespace>.svc.cluster.local
+```
+
+Or use the NodePort URL if accessing from outside the cluster:
+
+```
+http://<minikube-ip>:<prometheus-nodeport>
+```
+
+6. Click **Save & Test** — should show "Data source is working"
+
+---
+
+## Importing a Pre-built Dashboard
+
+Rather than writing PromQL queries from scratch, I can import a community dashboard template:
+
+1. In Grafana, go to **Dashboards → Import**
+2. Enter dashboard ID: **3662**
+3. Click **Load**
+4. Select **Prometheus** as the data source
+5. Click **Import**
+
+This dashboard provides pre-built panels for:
+- Kubernetes API server status
+- Node uptime and resource usage
+- etcd status
+- Cluster-level component health
+
+> Browse more dashboards at [grafana.com/grafana/dashboards](https://grafana.com/grafana/dashboards) and search for "Kubernetes".
+
+---
+
+## Exposing kube-state-metrics
+
+To get deeper cluster metrics (deployment status, replica counts, pod states):
+
+```bash
+# Find the kube-state-metrics service
+kubectl get svc | grep kube-state-metrics
+
+# Expose it as a NodePort
+kubectl expose service prometheus-kube-state-metrics \
+  --type=NodePort \
+  --target-port=8080 \
+  --name=kube-state-metrics-ext
+
+# Get the assigned NodePort
+kubectl get svc kube-state-metrics-ext
+
+# Access metrics in browser
+# http://<minikube-ip>:<nodeport>/metrics
+```
+
+The `/metrics` endpoint returns data in Prometheus exposition format. Example metric types:
+
+```
+kube_deployment_status_replicas_available
+kube_deployment_status_replicas_ready
+kube_pod_status_phase
+kube_node_status_condition
+kube_service_info
+```
+
+---
+
+## Adding a Custom Scrape Target to Prometheus
+
+To make Prometheus collect metrics from kube-state-metrics (or any custom endpoint), I need to update the Prometheus ConfigMap:
+
+```bash
+# Edit the Prometheus server ConfigMap
+kubectl edit cm prometheus-server
+```
+
+Inside the ConfigMap, locate the `scrape_configs` section and add a new job:
+
+```yaml
+scrape_configs:
+  # --- existing default jobs ---
+- job_name: prometheus
+    static_configs:
+- targets:
+- localhost:9090
+
+  # --- NEW: kube-state-metrics scrape job ---
+- job_name: kube-state-metrics
+    static_configs:
+- targets:
+- <minikube-ip>:<kube-state-metrics-nodeport>
+```
+
+> After saving, Prometheus automatically reloads the config and begins scraping the new target. Verify under **Status → Targets** in the Prometheus UI.
+
+---
+
+## Monitoring Custom Applications
+
+To monitor a developer-written application with Prometheus:
+
+1. **Developer** adds a Prometheus metrics library to the application code and exposes a `/metrics` HTTP endpoint
+- Python: [`prometheus_client`](https://github.com/prometheus/client_python)
+- Go: [`prometheus/client_golang`](https://github.com/prometheus/client_golang)
+- Java: [`simpleclient`](https://github.com/prometheus/client_java)
+
+2. **DevOps** adds the application's `/metrics` endpoint as a new scrape job in the Prometheus ConfigMap (same as above)
+
+3. The metrics are then available in Prometheus and can be visualized in Grafana
+
+> This is the standard pattern for **application-level observability** — the API server and kube-state-metrics only give cluster-level data; for business or application metrics, the application must expose them.
+
+---
