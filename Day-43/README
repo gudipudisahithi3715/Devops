@@ -1,0 +1,230 @@
+#  Introduction to CI/CD
+
+## What is CI/CD?
+
+CI/CD stands for two connected practices:
+
+- **Continuous Integration (CI)** — the process of automatically integrating, testing, and validating code changes every time a developer pushes to a version control system
+- **Continuous Delivery (CD)** — the process of automatically deploying the validated application to a target environment so the customer can access it
+
+Together they form an automated pipeline that moves code from a developer's machine to the end user reliably and quickly.
+
+---
+
+## The CI/CD Pipeline Stages
+
+These are the standard stages most organizations implement, though the exact steps vary by product and team:
+
+| Stage | Purpose |
+|-------|---------|
+| **Unit Testing** | Verify individual functions produce correct output (e.g. `2 + 3 = 5`) |
+| **Static Code Analysis** | Check formatting, indentation, unused variables, and code style |
+| **Code Quality / Vulnerability Scanning** | Detect security bugs and known CVEs before shipping to customers |
+| **Automation / End-to-End Testing** | Verify a change doesn't break other parts of the application |
+| **Reporting** | Store test results, coverage reports, and quality metrics for auditing |
+| **Deployment** | Push the application to a platform where customers can access it |
+
+### Stage Details
+
+**Unit Testing**
+- Tests a single function or block of code in isolation
+- Example: pass inputs `2` and `3` to an `add()` function and assert the output is `5`
+- Tools: JUnit, JaCoCo (Java), pytest (Python)
+
+**Static Code Analysis**
+- Checks for unused variables, wrong indentation, and formatting issues without running the code
+- Example: declaring 20 variables but only using 2 wastes memory — static analysis catches this
+- Tools: SonarQube, ESLint, Pylint
+
+**Code Quality / Vulnerability Testing**
+- Scans dependencies and code for known security vulnerabilities
+- Prevents shipping an application that can be exploited
+- Tools: SonarQube, Snyk, OWASP Dependency Check
+
+**Automation / End-to-End Testing**
+- Tests the entire application flow, not just the changed function
+- Ensures the addition feature change does not break subtraction, multiplication, or division
+- Tools: Selenium, Cypress, Playwright
+
+**Reporting**
+- Stores records of what passed, what failed, and code coverage percentages
+- Provides an audit trail for compliance and quality review
+
+**Deployment**
+- Pushes the validated artifact to a server, container platform, or Kubernetes cluster
+- Without this step, no customer can access the application
+
+---
+
+## Why Automate These Steps?
+
+- Doing all stages manually for every code commit would take weeks per release
+- Modern delivery expectations are **days or even hours**, not months
+- Automation ensures:
+- Every commit is tested consistently
+- No human steps are skipped under deadline pressure
+- Deployments are repeatable and reliable
+
+---
+
+## Version Control as the Trigger
+
+The CI/CD pipeline is triggered by code commits to a **Version Control System (VCS)**:
+
+```
+Developer writes code locally
+        ↓
+Developer pushes commit to VCS (GitHub / GitLab / Bitbucket)
+        ↓
+CI/CD pipeline is triggered automatically
+        ↓
+All pipeline stages execute
+        ↓
+Application is deployed
+```
+
+A developer does not push one giant release. Instead they push incremental versions (v1 → v2 → ... → v15) and the pipeline runs on every push, catching issues early.
+
+---
+
+## Legacy CI/CD — Jenkins
+
+Jenkins is one of the most widely used CI/CD orchestrators. It acts as a **pipeline orchestrator** — it does not run tests itself, but it integrates and coordinates other tools:
+
+```
+GitHub (code push)
+        ↓
+Jenkins (orchestrator / pipeline)
+    ├── Maven        → Build + Unit Tests
+    ├── SonarQube    → Static Analysis + Code Quality
+    ├── ALM / Allure → Test Reports
+    └── Kubernetes / Docker / EC2 → Deployment
+```
+
+- Jenkins watches a GitHub repository and triggers a pipeline on every commit or pull request
+- Each stage in the pipeline calls an external tool
+- The pipeline is defined in a **Jenkinsfile** stored alongside the code
+
+---
+
+## Jenkins Architecture & Limitations
+
+### Architecture
+
+```
+Jenkins Master Node (EC2 instance)
+    ├── Worker Node 1  → Team A pipelines
+    ├── Worker Node 2  → Team B pipelines
+    ├── Worker Node 3  → Team C pipelines
+    └── ...
+```
+
+- The **master node** schedules jobs and manages the UI
+- **Worker nodes** (agents) execute the actual pipeline steps
+- As teams grow, more worker nodes are added
+
+### Limitations at Scale
+
+- Jenkins nodes are **always-on VMs** — they consume compute (CPU + RAM) even when no code is being committed
+- In an organization with thousands of microservices, you may need 20–30 Jenkins master nodes and 3–4 worker nodes each — **hundreds of idle VMs**
+- Scaling down to zero is not practical with Jenkins because the master node must always be running
+- High maintenance overhead — OS patches, plugin updates, node management
+
+> **Core problem:** Jenkins cannot scale to zero. Idle infrastructure wastes money.
+
+---
+
+## Modern CI/CD — GitHub Actions
+
+GitHub Actions solves the idle resource problem by running pipelines inside **ephemeral containers or Kubernetes Pods** that are created on demand and destroyed after the job completes.
+
+### How it works
+
+```
+Developer pushes to GitHub repository
+        ↓
+GitHub Actions is triggered (event-driven)
+        ↓
+A container / Kubernetes Pod is created on a runner
+        ↓
+All pipeline steps execute inside the container
+        ↓
+Container is destroyed — compute cost drops to zero
+        ↓
+Next commit → repeat
+```
+
+### Runner Options
+
+| Runner Type | Description |
+|-------------|-------------|
+| **GitHub-hosted runners** | Microsoft/Azure manages the servers; free for public/open-source repos |
+| **Self-hosted runners** | I host my own Kubernetes cluster; GitHub Actions schedules pods on it |
+
+### Advantages over Jenkins
+
+- **Scales to zero** — no containers running when there are no commits
+- **Shared compute** — one Kubernetes cluster can serve all repositories in an organization
+- **Event-driven by default** — triggers on push, pull request, schedule, issue comment, etc., without extra webhook configuration
+- **No master node to maintain** — GitHub manages the orchestration layer
+- **Cross-repository pipelines** — a workflow in one repo can trigger a workflow in another
+
+### Real-world example
+
+Kubernetes itself (3,000+ contributors, 77+ repositories) uses GitHub Actions. When no pull requests are open, zero compute is consumed. When a PR is submitted, a pod is created, tests run, and the pod is deleted.
+
+---
+
+## Jenkins vs GitHub Actions
+
+| Feature | Jenkins | GitHub Actions |
+|---------|---------|----------------|
+| Infrastructure model | Always-on VMs | Ephemeral containers / pods |
+| Scales to zero | ❌ No | ✅ Yes |
+| Event-driven | Requires webhook config | ✅ Native |
+| Maintenance overhead | High (plugins, OS, nodes) | Low |
+| Cost at idle | High | Zero (GitHub-hosted) |
+| Best for | Legacy on-prem setups | Cloud-native, open source, microservices |
+| Self-hosted option | ✅ Yes | ✅ Yes |
+
+---
+
+## Other CI/CD Tools
+
+| Tool | Notes |
+|------|-------|
+| **GitLab CI/CD** | Built into GitLab; syntax similar to GitHub Actions; pipeline defined in `.gitlab-ci.yml` |
+| **CircleCI** | Cloud-native; strong Docker support |
+| **Travis CI** | Popular for open-source projects; simpler configuration |
+| **Argo CD** | GitOps-based continuous delivery for Kubernetes |
+
+> GitLab CI/CD and GitHub Actions are conceptually very similar. The main differences are syntax and the platform they live on. Knowledge of one transfers easily to the other.
+
+---
+
+## Multi-Stage Deployment (Dev → Staging → Production)
+
+A mature CI/CD pipeline does not deploy directly to production. It promotes the application through multiple environments:
+
+```
+Code Commit
+    ↓
+Dev Environment         ← Simple single-node setup (1 EC2 or 1 Kubernetes node)
+    ↓ (automated approval if tests pass)
+Staging Environment     ← Scaled-down replica (e.g. 3 master + 5 worker Kubernetes nodes)
+    ↓ (manual or automated approval)
+Production Environment  ← Full-scale setup (e.g. 3 master + 30 worker nodes)
+```
+
+### Why multiple environments?
+
+- **Production** mirrors the real customer environment exactly — it is expensive and cannot be used for testing
+- **Staging** replicates production architecture at a smaller scale — cheaper but realistic enough to catch environment-specific bugs
+- **Dev** is the cheapest, simplest environment — used for initial automated testing and QA validation
+
+### Approval gates
+
+- **Dev → Staging:** Can be fully automated if all tests pass
+- **Staging → Production:** Usually requires a manual approval step from a team lead or release manager
+
+---
