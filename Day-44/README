@@ -1,0 +1,411 @@
+# Jenkins Zero to Hero
+
+---
+
+## What We Cover Today
+
+- Install Jenkins on an AWS EC2 instance
+- Expose Jenkins to the outside world
+- Configure Docker as a Jenkins agent (instead of static VM worker nodes)
+- Write a basic pipeline, a multi-stage multi-agent pipeline, and a full CI/CD pipeline that deploys to Kubernetes via Argo CD
+
+---
+
+## Jenkins Architecture
+
+```
+Jenkins Master (EC2 instance)
+    ├── Schedules jobs
+    ├── Manages UI and configurations
+    └── Delegates execution to agents
+
+Agents (Worker Nodes)
+    ├── Worker Node 1  → Team A / Java apps
+    ├── Worker Node 2  → Team B / Node.js apps
+    └── Worker Node 3  → Windows apps
+```
+
+- Jenkins Master should **only be used for scheduling** — not for running pipeline steps directly
+- Each worker node is typically a separate EC2 instance
+- Different teams or application types are mapped to specific worker nodes to avoid dependency conflicts (e.g. one team needs Java 8, another needs Java 17)
+
+---
+
+## Why Docker Agents Over VM Worker Nodes
+
+| Problem with VM Worker Nodes | Solution with Docker Agents |
+|-------------------------------|------------------------------|
+| VMs are always-on, even when idle | Containers are created on demand and destroyed after the job |
+| Upgrading a dependency (e.g. Node 14 → 15) requires logging into the VM | Change one line in the Jenkinsfile (`node:14` → `node:15`) |
+| Dependency conflicts between teams on the same node | Each pipeline stage gets its own isolated container |
+| High maintenance — OS patches, package updates | Just update the Docker image tag |
+| Scaling requires spinning up more EC2 instances | Containers spin up in seconds |
+
+> **Rule of thumb:** Use Docker agents as the default approach for Jenkins pipelines. Only fall back to VM-based agents for workloads that genuinely cannot run in containers (e.g. stateful databases with large persistent data).
+
+---
+
+## Step 1 — Install Jenkins on EC2
+
+> **Prerequisite:** Jenkins is a Java-based application — Java (JDK) must be installed first.  
+> Use an **Ubuntu** EC2 instance so all `apt` commands apply directly.
+
+```bash
+# Update package index
+sudo apt update
+
+# Install Java JDK
+sudo apt install openjdk-17-jre -y
+
+# Verify Java installation
+java -version
+
+# Add Jenkins repository and install Jenkins
+curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2023.key | sudo tee \
+  /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+sudo apt update
+sudo apt install jenkins -y
+
+# Verify Jenkins is running on port 8080
+ps -ef | grep jenkins
+```
+
+---
+
+## Step 2 — Expose Jenkins Port on AWS
+
+By default, AWS EC2 blocks all inbound traffic. Jenkins runs on port **8080** — this port must be opened in the Security Group.
+
+1. Go to the EC2 Console → select the instance → **Security** tab
+2. Click the Security Group → **Edit Inbound Rules**
+3. Add a rule:
+- **Type:** Custom TCP
+- **Port:** 8080
+- **Source:** My IP (recommended) or `0.0.0.0/0` for open access
+4. Save rules
+
+Then access Jenkins at:
+```
+http://<ec2-public-ip>:8080
+```
+
+Retrieve the initial admin password:
+```bash
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+
+On first login:
+- Paste the password
+- Click **Install Suggested Plugins**
+- Create an admin username and password
+
+---
+
+## Step 3 — Install Docker on the Jenkins EC2 Instance
+
+```bash
+# Install Docker
+sudo apt install docker.io -y
+```
+
+---
+
+## Step 4 — Grant Docker Permissions to Jenkins User
+
+By default, the Docker daemon is only accessible to the root user. Jenkins runs as the `jenkins` OS user, so it must be added to the `docker` group.
+
+```bash
+# Switch to root
+sudo su -
+
+# Add jenkins user to the docker group
+usermod -aG docker jenkins
+
+# Add ubuntu user as well (optional but useful)
+usermod -aG docker ubuntu
+
+# Restart Docker daemon
+systemctl restart docker
+```
+
+Verify Docker access as the Jenkins user:
+```bash
+su - jenkins
+docker run hello-world
+```
+
+Then restart Jenkins to pick up the group change:
+```
+http://<ec2-public-ip>:8080/restart
+```
+
+---
+
+## Step 5 — Install the Docker Pipeline Plugin in Jenkins
+
+Jenkins needs the **Docker Pipeline** plugin to be able to run pipeline stages inside Docker containers.
+
+1. Go to **Manage Jenkins → Manage Plugins**
+2. Click the **Available** tab
+3. Search for `Docker Pipeline`
+4. Select it → click **Install without restart**
+5. After install, restart Jenkins again
+
+---
+
+## Writing Jenkins Pipelines
+
+### Freestyle vs Pipeline Projects
+
+| | Freestyle Project | Pipeline Project |
+|-|-------------------|-----------------|
+| Configuration | GUI input boxes | Code (Groovy / Jenkinsfile) |
+| Stored in version control | ❌ No | ✅ Yes (Jenkinsfile in repo) |
+| Peer review / PR workflow | ❌ No | ✅ Yes |
+| Track change history | ❌ Difficult | ✅ Easy (git history) |
+| Recommended | ❌ Legacy only | ✅ Always use this |
+
+> Always use **Pipeline projects**, never Freestyle. Even for simple jobs, the Jenkinsfile-as-code approach pays off immediately.
+
+### Basic Jenkinsfile structure
+
+```groovy
+pipeline {
+    agent { docker { image 'node:16-alpine' } }
+
+    stages {
+        stage('Stage Name') {
+            steps {
+                // commands to execute
+                sh 'node --version'
+            }
+        }
+        stage('Another Stage') {
+            steps {
+                sh 'echo hello'
+                sh 'ls -la'
+            }
+        }
+    }
+}
+```
+
+Key concepts:
+- **`pipeline {}`** — top-level block, required
+- **`agent`** — where to run the pipeline (Docker container, VM, `none` for per-stage agents)
+- **`stages {}`** — contains all stages
+- **`stage('name') {}`** — a named step in the pipeline (shows in the UI)
+- **`steps {}`** — the actual shell commands or plugin calls inside a stage
+
+---
+
+## Pipeline 1 — First Pipeline (Docker Agent Verification)
+
+A minimal pipeline that verifies Docker agent configuration is working by checking the Node.js version inside a container.
+
+```groovy
+pipeline {
+    agent {
+        docker { image 'node:16-alpine' }
+    }
+
+    stages {
+        stage('Test') {
+            steps {
+                sh 'node --version'
+            }
+        }
+    }
+}
+```
+
+**What happens when this runs:**
+1. Jenkins fetches the Jenkinsfile from GitHub
+2. Jenkins requests Docker to create a container from `node:16-alpine`
+3. The `node --version` command runs inside the container
+4. Container is automatically destroyed after the stage completes
+5. `docker ps -a` shows no running containers — zero idle compute
+
+---
+
+## Pipeline 2 — Multi-Stage Multi-Agent Pipeline
+
+Used for multi-tier applications where different stages need different environments (e.g. Java backend + Node.js frontend + MySQL database).
+
+```groovy
+pipeline {
+    agent none   // no global agent; each stage defines its own
+
+    stages {
+        stage('Back-end') {
+            agent {
+                docker { image 'maven:3.8.1-adoptopenjdk-11' }
+            }
+            steps {
+                sh 'mvn --version'
+                // Replace with: sh 'mvn clean install'
+            }
+        }
+
+        stage('Front-end') {
+            agent {
+                docker { image 'node:16-alpine' }
+            }
+            steps {
+                sh 'node --version'
+                // Replace with: sh 'npm install && npm run build'
+            }
+        }
+
+        stage('Database') {
+            agent {
+                docker { image 'mysql:latest' }
+            }
+            steps {
+                sh 'mysql --version'
+                // Replace with actual DB migration scripts
+            }
+        }
+    }
+}
+```
+
+**What happens when this runs:**
+- A dedicated container is created for each stage
+- While the Back-end stage runs, a Maven container is active; it is destroyed before the Front-end container starts
+- No two conflicting dependencies ever exist on the same host simultaneously
+
+---
+
+## Pipeline 3 — End-to-End CI/CD with Kubernetes & Argo CD
+
+This pipeline implements the full flow: code checkout → Docker image build → push to Docker Hub → update Kubernetes manifest → Argo CD detects change and deploys to cluster.
+
+```
+GitHub (code push)
+      ↓
+Jenkins Pipeline
+  ├── Stage 1: Checkout code from GitHub
+  ├── Stage 2: Build Docker image
+  ├── Stage 3: Push image to Docker Hub
+  └── Stage 4: Update deployment.yaml with new image tag → push back to GitHub
+                              ↓
+                         Argo CD (watches GitHub)
+                              ↓
+                    Deploys updated manifest to Kubernetes
+```
+
+### Jenkinsfile skeleton
+
+```groovy
+pipeline {
+    agent {
+        docker { image 'python:3' }
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t <dockerhub-username>/todo-app:${BUILD_NUMBER} .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'docker login -u $DOCKER_USER -p $DOCKER_PASS'
+                    sh 'docker push <dockerhub-username>/todo-app:${BUILD_NUMBER}'
+                }
+            }
+        }
+
+        stage('Update Kubernetes Manifest') {
+            steps {
+                sh """
+                  sed -i 's|image:.*|image: <dockerhub-username>/todo-app:${BUILD_NUMBER}|' \
+                  deployment/deployment.yaml
+                """
+                sh 'git config user.email "jenkins@ci.com"'
+                sh 'git config user.name "Jenkins"'
+                sh 'git add deployment/deployment.yaml'
+                sh 'git commit -m "Update image to build ${BUILD_NUMBER}"'
+                sh 'git push origin main'
+            }
+        }
+    }
+}
+```
+
+### Why Argo CD instead of Ansible for deployment
+
+| | Ansible | Argo CD |
+|-|---------|---------|
+| Primary purpose | Configuration management | Continuous delivery for Kubernetes |
+| Deployment model | Push-based | Pull-based (watches Git) |
+| State reconciliation | ❌ No — just runs tasks | ✅ Yes — constantly syncs cluster to Git state |
+| Kubernetes-native | ❌ No | ✅ Yes — runs as a Kubernetes controller |
+| Drift detection | ❌ No | ✅ Yes — alerts if cluster drifts from Git |
+
+> Argo CD treats **Git as the single source of truth**. If someone manually changes a resource in the cluster, Argo CD detects the drift and corrects it.
+
+---
+
+## Jenkins Pipeline Syntax Helper
+
+Jenkins has a built-in code generator to help write Groovy pipeline steps without memorizing syntax.
+
+1. Inside any Pipeline job → click **Pipeline Syntax**
+2. Select a step from the dropdown (e.g. `git`, `sh`, `withCredentials`)
+3. Fill in the form fields
+4. Click **Generate Pipeline Script**
+5. Copy and paste the generated code into the Jenkinsfile
+
+Example — generate a Git checkout step:
+- Select `git: Git`
+- Enter repository URL and branch
+- Click Generate → get:
+
+```groovy
+git branch: 'main', url: 'https://github.com/org/repo.git'
+```
+
+---
+
+## Common Jenkins Interview Questions
+
+**Q: Explain the CI/CD workflow in your organization.**
+
+Describe each stage: checkout from SCM → build (Maven/npm) → static code analysis (SonarQube) → unit tests → vulnerability scan → artifact storage → deploy to Dev → staging → production via Argo CD.
+
+**Q: How do you handle worker node failures?**
+
+> With a Docker agent setup, there are no persistent worker nodes to fail. Containers are created per job and destroyed after. For VM-based setups: monitor CPU/RAM usage with alerting at 80% threshold, use Auto Scaling Groups, and investigate via thread dumps and system logs.
+
+**Q: Why use Docker agents instead of VM worker nodes?**
+
+> Containers are ephemeral — created on demand and destroyed after use. No idle compute cost. No dependency conflicts. Updating a runtime (e.g. Node 14 → 16) requires changing one line in the Jenkinsfile.
+
+**Q: How do you manage secrets in Jenkins pipelines?**
+
+> Use Jenkins **Credentials Store** (`Manage Jenkins → Credentials`). Reference credentials in the pipeline using `withCredentials()`. Never hard-code passwords or tokens in Jenkinsfiles.
+
+**Q: How do you install and manage Jenkins plugins?**
+
+> Via `Manage Jenkins → Manage Plugins`. Use `Install Suggested Plugins` on first setup. Always restart Jenkins after plugin installation. Pin plugin versions to avoid unexpected breaking changes.
+
+---
