@@ -1,0 +1,335 @@
+# Networking Fundamentals — Part 1: IP Address, Subnet, CIDR & Ports
+
+> **Networking Series — Episode 1** | Topics: IP Addressing (IPv4), Subnets, CIDR Ranges, Public vs Private Subnets, Ports
+
+## 1. IP Address
+
+### Why IP Addresses Are Needed
+
+Consider a **home network** with a router, two people, and four devices all connected to the same Wi-Fi. If one device makes a suspicious payment online, or if a parent wants to block one device (a child's) from accessing certain websites — this is only possible if each device has a **unique identifier**.
+
+Without a unique identifier per device:
+- You cannot track which device performed a specific action.
+- You cannot block, monitor, or manage individual devices.
+- You cannot grant or deny specific access to any single device.
+
+This unique identifier for every device on a network is called an **IP address**.
+
+---
+
+### IPv4 Format
+
+The standard used to represent IP addresses is **IPv4**. An IPv4 address looks like this:
+
+```
+192.168.12.4
+172.16.34.1
+10.1.2.4
+```
+
+**Structure:**
+- Four numbers separated by **dots** (`.`)
+- Each number ranges from **0 to 255**
+- Example: `172.16.34.0` — valid. `172.600.34.0` — **invalid** (600 > 255)
+
+**Why 0–255?**
+
+An IPv4 address is **32 bits** total — made up of **4 bytes**, with each byte being **8 bits**. Each dot-separated section represents one byte:
+
+```
+[byte 1].[byte 2].[byte 3].[byte 4]
+  8 bits   8 bits   8 bits   8 bits  =  32 bits total
+```
+
+The maximum value of 8 bits is:
+```
+2^7 + 2^6 + 2^5 + 2^4 + 2^3 + 2^2 + 2^1 + 2^0
+= 128 + 64 + 32 + 16 + 8 + 4 + 2 + 1
+= 255
+```
+
+So each section can only be **0 to 255**. That is why IPv4 uses this range — it is a direct result of 8-bit binary representation.
+
+---
+
+### How a Computer Represents an IP Address
+
+Computers do not understand decimal numbers — they work in binary (0s and 1s). Each byte of an IP address is stored as 8 binary digits.
+
+**Example: Convert `192` to binary**
+
+```
+Position:  2^7  2^6  2^5  2^4  2^3  2^2  2^1  2^0
+Value:     128   64   32   16    8    4    2    1
+Binary:      1    1    0    0    0    0    0    0
+
+128 + 64 = 192 ✓
+```
+
+**Example: Convert `32` to binary**
+
+```
+Position:  2^7  2^6  2^5  2^4  2^3  2^2  2^1  2^0
+Binary:      0    0    1    0    0    0    0    0
+
+32 = 2^5 ✓
+```
+
+**Full IP address `172.32.16.1` in binary:**
+
+```
+172  →  1 0 1 0 1 1 0 0
+ 32  →  0 0 1 0 0 0 0 0
+ 16  →  0 0 0 1 0 0 0 0
+  1  →  0 0 0 0 0 0 0 1
+```
+
+> Understanding binary representation becomes essential when working with CIDR ranges and subnets.
+
+**Check your device's IP address:**
+
+```bash
+# Linux / Mac
+ip addr show
+ifconfig
+
+# Windows
+ipconfig
+```
+
+---
+
+## 2. Subnet
+
+### Why Subnets Are Needed
+
+Imagine an office network with 65,000 IP addresses and hundreds of employees all connected to a single shared network. One day, an employee visits a malicious website and a hacker gains access to their device. Since all devices are on the **same network**, the hacker can potentially reach **every other device** — including servers storing payroll data, financial records, and sensitive company information.
+
+**Solution: Subnetting**
+
+**Subnetting** (sub-networking) means splitting one large network into smaller, isolated networks called **subnets**. Each subnet is a contained segment — a security breach in one subnet does not automatically expose devices in another.
+
+**Example:**
+
+```
+Office Network (65,000 IPs)
+│
+├── Subnet 1: Finance (secure, restricted access)
+│   └── Only Finance team members can join
+│
+└── Subnet 2: General Office (open, shared access)
+    └── All employees can join
+```
+
+Even if an employee in the General subnet gets hacked, the Finance subnet remains protected.
+
+**Benefits of Subnetting:**
+
+| Benefit | Description |
+|---|---|
+| **Security** | Isolates sensitive systems from general traffic |
+| **Privacy** | Restricts access between different groups |
+| **Isolation** | Limits the blast radius of a security breach |
+
+---
+
+### Private Subnet vs Public Subnet
+
+| Type | Internet Access | Use Case |
+|---|---|---|
+| **Public Subnet** | ✅ Yes | Web servers, load balancers, anything internet-facing |
+| **Private Subnet** | ❌ No | Databases, internal services, sensitive data |
+
+**How to enable internet access for a subnet (AWS example):**
+- Attach a **Route Table** to the subnet.
+- Add a route with destination `0.0.0.0/0` pointing to an **Internet Gateway**.
+- Without this route, the subnet remains private.
+
+---
+
+## 3. CIDR (Classless Inter-Domain Routing)
+
+CIDR defines **how many IP addresses are available in a subnet**. When creating a subnet (on AWS, Azure, or any cloud/on-premises platform), you must provide a CIDR range.
+
+**CIDR notation format:**
+
+```
+<IP address>/<prefix length>
+
+Example: 172.16.3.0/24
+```
+
+---
+
+### How CIDR Works
+
+An IPv4 address has **32 bits** total. The `/` number in CIDR notation tells you how many bits are **fixed** (the network portion). The remaining bits are **variable** (the host portion) and determine how many IP addresses the subnet contains.
+
+```
+172.16.3.0/24
+
+32 bits total
+└── 24 bits fixed (network)
+└──  8 bits variable (host)
+
+Number of IP addresses = 2^(32 - 24) = 2^8 = 256
+```
+
+**Visual:**
+
+```
+[  172  ].[  16  ].[   3  ].[  0-255  ]
+└── 8 bits ──┘└── 8 bits ──┘└── 8 bits ──┘└─── 8 bits (variable) ─┘
+└────────────────── 24 bits fixed ────────────────┘└─── changes ───┘
+```
+
+---
+
+### CIDR Calculation Formula
+
+```
+Number of IP addresses = 2^(32 - prefix)
+```
+
+| CIDR Prefix | Calculation | IP Addresses |
+|---|---|---|
+| `/8` | 2^(32-8) = 2^24 | 16,777,216 |
+| `/16` | 2^(32-16) = 2^16 | 65,536 |
+| `/24` | 2^(32-24) = 2^8 | 256 |
+| `/26` | 2^(32-26) = 2^6 | 64 |
+| `/27` | 2^(32-27) = 2^5 | 32 |
+| `/28` | 2^(32-28) = 2^4 | 16 |
+| `/29` | 2^(32-29) = 2^3 | 8 |
+| `/30` | 2^(32-30) = 2^2 | 4 |
+| `/31` | 2^(32-31) = 2^1 | 2 |
+| `/32` | 2^(32-32) = 2^0 | 1 |
+
+**Quick mental math:**
+- Need 256 IPs? → Use `/24` (32 - 24 = 8, 2^8 = 256)
+- Need 64 IPs? → Use `/26` (32 - 26 = 6, 2^6 = 64)
+- Need 32 IPs? → Use `/27` (32 - 27 = 5, 2^5 = 32)
+
+---
+
+### Common CIDR Classes
+
+| Class | CIDR | IP Count | Typical Use |
+|---|---|---|---|
+| Class A | `/8` | ~16.7 million | Very large networks |
+| Class B | `/16` | ~65,000 | Large office networks, VPCs |
+| Class C | `/24` | 256 | Small subnets, single team |
+
+---
+
+### Private IP Address Ranges
+
+Private subnets always use IP addresses from one of these three reserved ranges. These ranges are **not routable on the public internet**, which prevents conflicts with real public websites.
+
+| Range | CIDR | Notes |
+|---|---|---|
+| `10.0.0.0` | `/8` | Largest private range |
+| `172.16.0.0` – `172.31.0.0` | `/12` | Mid-range private |
+| `192.168.0.0` | `/16` | Most common in home/office networks |
+
+> **Important:** Never assign a public IP address as your subnet range. For example, `8.8.8.8` is Google's public DNS — using it as a private subnet CIDR would cause routing conflicts.
+
+---
+
+### Practice Examples
+
+**Example 1: Create a VPC with a Finance subnet needing only 256 IPs**
+
+```
+VPC CIDR:    192.168.0.0/16  →  65,536 total IPs
+
+Finance Subnet:  192.168.3.0/24  →  256 IPs
+                 (192.168.3.0 to 192.168.3.255)
+
+General Subnet:  192.168.0.0/16  →  remaining IPs
+```
+
+**Example 2: Create a subnet with exactly 64 IPs**
+
+```
+32 - ? = 6   →   ? = 26
+2^6 = 64
+
+CIDR: 192.168.5.0/26
+```
+
+**Assignment — calculate IP count for these CIDRs:**
+
+```
+172.68.3.0/30   →  ?  IPs
+10.0.0.0/8      →  ?  IPs
+```
+
+> Answer: `/30` → 2^(32-30) = 2^2 = **4 IPs** | `/8` → 2^(32-8) = 2^24 = **16,777,216 IPs**
+
+**Use an online CIDR calculator** to verify your calculations: search "CIDR calculator" and experiment with different prefix lengths.
+
+---
+
+## 4. Ports
+
+### What is a Port?
+
+An IP address identifies a **machine** on the network. A port identifies a specific **application** running on that machine.
+
+A single virtual machine can run **many applications simultaneously**. Ports allow incoming network traffic to be directed to the correct application.
+
+```
+Virtual Machine (Public IP: 3.4.5.8)
+├── App A → Port 9000
+├── App B → Port 9191
+└── App C → Port 5162
+```
+
+To access **App B** from the internet:
+
+```
+http://3.4.5.8:9191
+```
+
+To access **App C**:
+
+```
+http://3.4.5.8:5162
+```
+
+**Port range:** `0` to `65535`
+
+---
+
+### Common Port Numbers
+
+| Port | Protocol / Application |
+|---|---|
+| `22` | SSH |
+| `80` | HTTP |
+| `443` | HTTPS |
+| `3306` | MySQL |
+| `5432` | PostgreSQL |
+| `6379` | Redis |
+| `8080` | Jenkins (default), common HTTP alternative |
+| `27017` | MongoDB |
+
+> Avoid using well-known ports (like `3306` or `8080`) for custom applications to prevent conflicts. Use higher ports like `9000`, `9191`, `8500`, etc.
+
+---
+
+## 5. Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| **IP Address** | Unique identifier for each device on a network, represented in IPv4 as 4 bytes (`0–255.0–255.0–255.0–255`) |
+| **IPv4** | 32-bit standard; each of the four sections is one byte (8 bits), allowing values 0–255 only |
+| **Binary representation** | Computers store IP addresses as 32 binary digits; max 8-bit value = 255 |
+| **Subnet** | A smaller isolated network carved from a larger one; provides security, privacy, and isolation |
+| **Private Subnet** | No internet access; used for databases, internal services |
+| **Public Subnet** | Internet access enabled via Internet Gateway + Route Table |
+| **CIDR** | Notation to define IP range of a subnet; formula: `2^(32 - prefix)` = number of IPs |
+| **`/24`** | 256 IP addresses (most common subnet size) |
+| **`/16`** | 65,536 IP addresses (common VPC size) |
+| **Private IP ranges** | Must start with `10.x`, `172.16–31.x`, or `192.168.x` |
+| **Port** | Unique number identifying a specific application on a machine; range `0–65535` |
