@@ -1,0 +1,590 @@
+# Linux Zero to Hero — Sections 7, 8, 9 & 10: Process Management, Monitoring, Networking & Disk Management
+
+## Section 7 — Process Management
+
+### What is a Process?
+
+A **process** is a running instance of any program. Examples:
+- A Python application executing on a server
+- A running shell script
+- A web server (Apache, Nginx) actively serving requests
+- A background cron job
+
+Programs cannot directly interact with hardware (CPU, memory, disk). The **operating system** manages hardware allocation. However, if one process consumes excessive CPU or memory, it starves other processes of resources.
+
+---
+
+### Why Process Management Matters
+
+**Scenario:** A server has one CPU running three programs — a Python ML model (CPU-intensive), a web server, and a cron job.
+
+- The Python ML model consumes **90% CPU** → web server gets only 10% → cron job gets nothing.
+- Similarly, a Java application with many threads might consume **90% memory** → web server throws **Out of Memory** errors.
+
+As a Linux administrator or DevOps engineer, the three core process management activities are:
+
+1. **View / check** running processes
+2. **Kill, stop, or resume** processes
+3. **Prioritize or deprioritize** processes
+
+---
+
+### Viewing Running Processes
+
+```bash
+# List processes for the current session
+ps
+
+# List ALL running processes with details
+ps aux
+
+# Count total number of running processes
+ps aux | nl          # shows line numbers
+ps aux | wc -l       # shows total count
+
+# Alternative listing (without CPU/memory columns)
+ps -ef
+
+# Count using ps -ef
+ps -ef | wc -l
+```
+
+#### Understanding `ps aux` Output Columns
+
+| Column | Meaning |
+|---|---|
+| `USER` | The user who started the process |
+| `PID` | Unique **Process ID** — used to manage the process |
+| `%CPU` | CPU utilization percentage |
+| `%MEM` | Memory utilization percentage |
+| `TTY` | Terminal associated with the process |
+| `START` | Time the process started |
+| `COMMAND` | The command that launched the process |
+
+#### `ps aux` vs `ps -ef`
+
+| Feature | `ps aux` | `ps -ef` |
+|---|---|---|
+| CPU utilization | ✅ Yes | ✅ Yes |
+| Memory utilization | ✅ Yes | ❌ No |
+| Use case | Detailed resource monitoring | General process listing |
+
+> Use `ps aux` when you need both CPU **and** memory utilization data.
+
+#### Filtering for a Specific Process
+
+```bash
+# Find a Java process
+ps aux | grep java
+
+# Exclude the grep command itself from results
+ps aux | grep java | grep -v grep
+```
+
+---
+
+### Killing, Stopping & Resuming Processes
+
+#### Kill a Process
+
+```bash
+# Kill a process by PID (graceful termination)
+kill <PID>
+
+# Force kill a process (when regular kill doesn't work)
+kill -9 <PID>
+
+# Get thread dumps from a Java process (useful for debugging)
+kill -3 <PID>
+```
+
+**`kill` vs `kill -9`:**
+- `kill <PID>` sends a termination signal — the process can handle it gracefully.
+- `kill -9 <PID>` forcefully terminates the process immediately — no cleanup. Use this when a process is completely unresponsive.
+
+#### Stop and Resume a Process
+
+```bash
+# Temporarily stop (pause) a process
+kill -STOP <PID>
+
+# Resume a stopped process
+kill -CONT <PID>
+```
+
+#### Practical Workflow: Kill a Problematic Process
+
+```bash
+# Step 1: Find the process and its PID
+ps aux | grep java | grep -v grep
+
+# Step 2: Kill it
+kill <PID>
+
+# Step 3: If it doesn't die, force kill
+kill -9 <PID>
+```
+
+#### Background & Foreground Processes
+
+```bash
+# Run a command in the background
+command &
+
+# Bring a background process to foreground
+fg
+
+# List background jobs
+jobs
+```
+
+---
+
+### Prioritizing & Deprioritizing Processes
+
+Linux uses a **niceness value** (ranging from **-20 to +19**) to control process priority at the CPU level:
+
+- **Lower niceness value (e.g., -20)** → **Higher CPU priority**
+- **Higher niceness value (e.g., +19)** → **Lower CPU priority**
+
+> **Analogy:** A doctor prioritizes ICU patients. Similarly, the CPU prioritizes processes with lower niceness values. Use `renice` to override this and tell the CPU how important a process actually is.
+
+```bash
+# Deprioritize a process (reduce its CPU priority)
+renice -n 10 -p <PID>
+
+# Increase a process's CPU priority (use with caution)
+renice -n -5 -p <PID>
+```
+
+> ⚠️ Use `renice` carefully. Only modify priorities if you fully understand what processes are running on the server.
+
+---
+
+### Services vs Processes
+
+| Aspect | Process | Service |
+|---|---|---|
+| What it is | Any running program | A special background process |
+| Starts automatically on boot | ❌ No | ✅ Yes |
+| Examples | Python script, shell script | Apache, Nginx, cron, sshd |
+| Management command | `kill`, `ps` | `systemctl` |
+
+**Key distinction:** Services are designed to **survive server restarts**. When a server reboots, services automatically start back up. Regular processes do not.
+
+> Most modern software installers (web servers, databases) automatically register themselves as services so they restart on boot without manual intervention.
+
+---
+
+### Managing Services with systemctl
+
+```bash
+# List all running services
+systemctl list-units --type=service
+
+# Check the status of a specific service
+systemctl status cron
+
+# Stop a service
+systemctl stop cron
+
+# Start a service
+systemctl start cron
+
+# Restart a service
+systemctl restart cron
+
+# Enable a service to start automatically on boot
+systemctl enable cron
+
+# Disable a service from starting on boot
+systemctl disable cron
+```
+
+---
+
+## Section 8 — System Monitoring
+
+### Monitoring CPU, Memory & Disk
+
+#### CPU & Process Monitoring
+
+```bash
+# Real-time process and resource monitor (interactive)
+top
+
+# Enhanced visual version of top (install if needed)
+htop
+```
+
+Both `top` and `htop` display:
+- Real-time CPU and memory utilization per process
+- Total system uptime
+- Number of running tasks
+
+`htop` provides a more visually informative interface with color-coded graphs.
+
+> **Limitation:** `top` and `htop` are interactive — they cannot be used inside shell scripts for automated monitoring.
+
+```bash
+# Check number of CPUs on the machine
+nproc
+```
+
+#### Memory Monitoring
+
+```bash
+# Check memory usage (raw output — good for scripting)
+free
+
+# Check memory in megabytes
+free -m
+
+# Check memory in human-readable format (KB/MB/GB)
+free -h
+
+# Example output:
+#               total    used    free   shared  buff/cache  available
+# Mem:          557MB   360MB   220MB     ...
+```
+
+```bash
+# Report virtual memory statistics (system performance overview)
+vmstat
+```
+
+Use `free -h` for quick checks. Use `vmstat` when debugging slow or underperforming instances — it shows free memory and cache usage.
+
+#### Disk Space Monitoring
+
+```bash
+# Check disk space usage across all partitions (human-readable)
+df -h
+
+# Check disk usage folder by folder
+du -sh /opt/*
+
+# Example: find large folders inside /opt
+cd /opt
+du -sh *
+```
+
+`df -h` shows overall partition utilization. `du -sh` drills into specific directories to find which folders consume the most disk space — useful when debugging "disk full" issues.
+
+---
+
+### Monitoring Commands Summary
+
+| Resource | Quick Check | Scriptable | Real-time |
+|---|---|---|---|
+| **CPU** | `top`, `htop`, `nproc` | `nproc` | `top`, `htop` |
+| **Memory** | `top`, `htop`, `free -h` | `free -h` | `top`, `htop` |
+| **Disk Space** | `df -h` | `df -h` | — |
+| **Disk by Folder** | `du -sh *` | `du -sh` | — |
+| **All Processes** | `ps aux` | `ps aux` | `top` |
+
+---
+
+### Production Approach: Prometheus & Grafana
+
+For production environments, CLI commands are used for quick, ad-hoc troubleshooting. For continuous monitoring with alerting, the standard approach is:
+
+```
+Linux Server
+    ↓ (metrics scraped via Node Exporter)
+Prometheus
+    ↓ (data visualized)
+Grafana Dashboards
+    ↓ (alerts configured)
+Email / Slack Notifications → DevOps / SRE Team
+```
+
+- **Node Exporter** runs on the Linux server and exposes CPU, memory, and disk metrics.
+- **Prometheus** scrapes these metrics at regular intervals.
+- **Grafana** visualizes the data and sends alerts when thresholds are breached.
+
+> In interviews: mention both the CLI commands for quick troubleshooting **and** the Prometheus + Grafana setup for production-grade monitoring.
+
+---
+
+## Section 9 — Linux Networking
+
+Linux networking is a foundational topic covering IP addresses, subnets, private/public networks, and the OSI model.
+
+**Core networking concepts to study:**
+- IP addressing and subnetting
+- Private vs public subnets
+- CIDR notation
+- The OSI model (7 layers) with practical examples
+- Cloud networking (AWS VPC, Azure VNet)
+
+> This section references an external networking fundamentals series for in-depth coverage of these topics.
+
+**Key Linux networking commands for quick reference:**
+
+```bash
+# Check network interfaces and IP addresses
+ip addr show
+# or (older systems)
+ifconfig
+
+# Check network connectivity
+ping google.com
+
+# Trace the route packets take to a destination
+traceroute google.com
+
+# Check open ports and active connections
+netstat -tulnp
+# or (modern replacement)
+ss -tulnp
+
+# DNS lookup
+nslookup google.com
+dig google.com
+
+# Check if a specific port is reachable
+telnet <host> <port>
+curl -v <url>
+
+# Display routing table
+ip route show
+```
+
+---
+
+## Section 10 — Disk Management
+
+### Why Disk Management?
+
+A Linux server starts with a fixed disk size (e.g., 8 GB). Over time:
+- Applications generate log files continuously.
+- More packages and software get installed.
+- Companies archive/compress logs but eventually still run out of space.
+
+When storage is exhausted, adding a new volume is the standard solution. The process involves:
+1. Creating a new volume (e.g., in AWS EBS)
+2. Attaching it to the instance
+3. Formatting it to a usable file system (`ext4` or `xfs`)
+4. Mounting it to a directory on the Linux file system
+
+---
+
+### Viewing Attached Volumes & Partitions
+
+```bash
+# List all block devices attached to the instance
+lsblk
+
+# Example output:
+# NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+# xvda    202:0    0    8G  0 disk
+# ├─xvda1 202:1    0    7G  0 part /
+# └─xvda14 202:14  0    1G  0 part /boot
+# xvdf    202:80   0   10G  0 disk        ← newly attached volume
+
+# Get detailed partition information
+sudo fdisk -l
+```
+
+> `lsblk` entries starting with `loop` are virtual devices used for snapshots/ISO images — ignore them. Focus on `xvda` (primary) and any newly attached volumes like `xvdf`.
+
+**Understanding partitions:**
+- A raw block storage volume (e.g., 8 GB EBS) is split into **partitions**.
+- Each partition is formatted to a file system type (`ext4`, `xfs`) and mounted to a directory (`/`, `/boot`, etc.).
+- `xvda1` → mounted at `/` (root, 7 GB)
+- `xvda14` → mounted at `/boot` (1 GB, used during startup)
+
+---
+
+### Adding & Mounting a New Volume (AWS EC2 Example)
+
+#### Step 1: Create and Attach the Volume in AWS
+
+1. Go to **EC2 → Elastic Block Store → Volumes → Create Volume**.
+2. Set size (e.g., 10 GB).
+3. **Critical:** Select the **same Availability Zone** as the EC2 instance (e.g., `us-east-1c`). Volumes and instances must be in the same AZ to attach.
+4. After creation, click **Actions → Attach Volume** and select the target instance.
+5. Set device name (e.g., `/dev/sdf`).
+
+#### Step 2: Verify the Volume is Visible
+
+```bash
+lsblk
+# You should now see xvdf (10G) listed without a mount point
+```
+
+#### Step 3: Create a Mount Directory
+
+```bash
+mkdir -p /mnt/demo-volume
+```
+
+#### Step 4: Format the Volume
+
+Block storage cannot be used directly by applications. It must be formatted to a file system type first.
+
+```bash
+# Format to ext4 file system
+sudo mkfs -t ext4 /dev/xvdf
+
+# Alternative: format to xfs
+sudo mkfs -t xfs /dev/xvdf
+```
+
+| File System | Notes |
+|---|---|
+| `ext4` | Most widely used Linux file system — good default choice |
+| `xfs` | High-performance, preferred for large files and high throughput |
+
+#### Step 5: Mount the Volume
+
+```bash
+# Mount the formatted volume to the directory
+sudo mount /dev/xvdf /mnt/demo-volume
+
+# Verify the mount
+lsblk
+df -h
+```
+
+#### Step 6: Use the New Storage
+
+```bash
+cd /mnt/demo-volume
+touch testfile
+ls -ltr
+# testfile is created on the new 10 GB volume
+```
+
+#### Making the Mount Persistent (Survives Reboots)
+
+By default, mounts created with `mount` are lost on reboot. To make them permanent, add an entry to `/etc/fstab`:
+
+```bash
+# Get the UUID of the new volume
+sudo blkid /dev/xvdf
+
+# Add to /etc/fstab
+echo "UUID=<your-uuid>  /mnt/demo-volume  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab
+```
+
+#### Unmounting a Volume
+
+```bash
+sudo umount /mnt/demo-volume
+```
+
+---
+
+### Disk Management Commands Summary
+
+| Command | Purpose |
+|---|---|
+| `lsblk` | List all block devices and their mount points |
+| `sudo fdisk -l` | Detailed partition information |
+| `df -h` | Disk space usage by file system partition |
+| `du -sh *` | Disk usage by folder (drill-down) |
+| `mkfs -t ext4 /dev/xvdf` | Format a volume to ext4 file system |
+| `mkfs -t xfs /dev/xvdf` | Format a volume to xfs file system |
+| `mount /dev/xvdf /mnt/dir` | Mount a formatted volume to a directory |
+| `umount /mnt/dir` | Unmount a volume |
+| `blkid /dev/xvdf` | Show UUID and file system type of a volume |
+
+---
+
+## Interview Questions to Remember
+
+**Q1: What is the difference between `ps aux` and `ps -ef`?**
+
+Both list all running processes. `ps aux` includes **CPU and memory utilization** columns, making it better for resource monitoring. `ps -ef` shows a full process listing but does **not** include memory utilization. Use `ps aux` when diagnosing resource consumption.
+
+---
+
+**Q2: What is the difference between `kill` and `kill -9`?**
+
+`kill <PID>` sends a `SIGTERM` signal — a graceful termination request that allows the process to clean up before exiting. `kill -9 <PID>` sends `SIGKILL` — an immediate, forceful termination that cannot be caught or ignored by the process. Use `kill -9` only when a process is unresponsive to a regular kill.
+
+---
+
+**Q3: What is the difference between a process and a service?**
+
+A **process** is any running instance of a program. A **service** is a special type of background process that starts automatically when the server boots. Services are managed with `systemctl`. Web servers (Nginx, Apache) and system daemons (cron, sshd) are services. Regular application scripts are processes.
+
+---
+
+**Q4: How would you troubleshoot a Linux server that is running slow?**
+
+1. Run `top` or `htop` to identify which process is consuming excessive CPU or memory.
+2. Run `free -h` to check available memory — look for low free memory or excessive swap usage.
+3. Run `df -h` to check if disk is full — a full disk causes severe slowdowns.
+4. Run `du -sh *` in key directories to find large files consuming disk space.
+5. Kill or renice the offending process if identified.
+6. In production: check Prometheus/Grafana dashboards for historical trends and triggered alerts.
+
+---
+
+**Q5: Why must a new EBS volume be formatted before use?**
+
+A newly created EBS volume is raw **block storage**. Operating systems and applications cannot read or write to raw block storage — they require a structured **file system** (like `ext4` or `xfs`). Formatting creates this structure. After formatting, the volume must also be **mounted** to a directory before it becomes accessible within the Linux file system.
+
+---
+
+## Full Commands Quick Reference
+
+### Process Management
+
+```bash
+ps aux                          # List all processes with CPU/memory
+ps -ef                          # List all processes (no memory column)
+ps aux | wc -l                  # Count running processes
+ps aux | grep java | grep -v grep  # Find a specific process
+kill <PID>                      # Graceful kill
+kill -9 <PID>                   # Force kill
+kill -3 <PID>                   # Get Java thread dumps
+kill -STOP <PID>                # Pause a process
+kill -CONT <PID>                # Resume a paused process
+renice -n 10 -p <PID>           # Lower CPU priority
+renice -n -5 -p <PID>           # Raise CPU priority
+command &                       # Run in background
+jobs                            # List background jobs
+fg                              # Bring background job to foreground
+```
+
+### Service Management
+
+```bash
+systemctl list-units --type=service   # List all services
+systemctl status <service>             # Check service status
+systemctl start <service>              # Start a service
+systemctl stop <service>               # Stop a service
+systemctl restart <service>            # Restart a service
+systemctl enable <service>             # Auto-start on boot
+systemctl disable <service>            # Disable auto-start
+```
+
+### System Monitoring
+
+```bash
+top                    # Real-time process and resource monitor
+htop                   # Visual real-time monitor
+nproc                  # Number of CPUs
+free -h                # Memory usage (human-readable)
+vmstat                 # Virtual memory and system performance stats
+df -h                  # Disk space by partition
+du -sh *               # Disk usage by folder
+```
+
+### Disk Management
+
+```bash
+lsblk                              # List block devices
+sudo fdisk -l                      # Detailed partition info
+mkfs -t ext4 /dev/xvdf             # Format volume to ext4
+mkfs -t xfs /dev/xvdf              # Format volume to xfs
+mkdir -p /mnt/demo-volume          # Create mount point
+mount /dev/xvdf /mnt/demo-volume   # Mount the volume
+umount /mnt/demo-volume            # Unmount the volume
+blkid /dev/xvdf                    # Show UUID and FS type
+df -h                              # Verify mount and space
+```
