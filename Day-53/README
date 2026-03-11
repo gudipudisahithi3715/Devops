@@ -1,0 +1,302 @@
+# Networking Fundamentals — Episode 2: The OSI Model
+
+## 1. Prerequisites: Before the OSI Model
+
+Before the OSI model even comes into picture, two things happen automatically when a request like `https://www.google.com` is initiated.
+
+---
+
+### Step 1 — DNS Resolution
+
+**DNS (Domain Name System)** is a distributed database that maps human-readable domain names to IP addresses.
+
+**Why it's needed first:**
+- Computers communicate using IP addresses, not domain names.
+- Before any data can be sent, the domain (`www.google.com`) must be resolved to an actual IP address (e.g., `8.8.8.8`).
+- If the domain doesn't exist or isn't mapped, there's no point starting the data journey.
+
+**Resolution process (in order):**
+
+1. Browser/router checks the **local cache** — if the IP was recently resolved, it reuses it.
+2. If not in cache, the request goes to the **Internet Service Provider's (ISP) DNS server**.
+3. The ISP's DNS server has records mapping domain names to IP addresses.
+4. If resolved successfully → proceed to TCP handshake.
+5. If not resolved (e.g., `www.nonexistentdomain.com`) → request stops here.
+
+> **Why this matters:** Skips the costly data journey entirely if the domain doesn't exist.
+
+---
+
+### Step 2 — TCP Three-Way Handshake
+
+Before sending actual data, the client and server verify that both sides are ready and willing to communicate. This is called the **three-way handshake**.
+
+```
+Client (Laptop)          Server (Google)
+      |                        |
+      |------- SYN ----------->|   "Hi, are you there?"
+      |                        |
+      |<------ SYN-ACK --------|   "Yes, I'm ready."
+      |                        |
+      |------- ACK ----------->|   "Acknowledged. Let's go."
+      |                        |
+         Connection established
+```
+
+| Step | Message | Meaning |
+|---|---|---|
+| 1 | **SYN** | Client says: "I want to connect" |
+| 2 | **SYN-ACK** | Server says: "I acknowledge and I'm ready" |
+| 3 | **ACK** | Client says: "Confirmed. Starting communication" |
+
+> This is called a **three-way handshake**. Other variants (two-way, four-way) exist but TCP three-way is the most widely used standard.
+
+Only after both DNS resolution and the TCP handshake succeed does the actual data request begin — and this is where the OSI model takes over.
+
+---
+
+## 2. The OSI Model — Overview
+
+**OSI (Open Systems Interconnection)** model is a conceptual framework that describes how data travels from one device to another across a network. It breaks the journey into **7 distinct layers**.
+
+```
+Sending Device (Laptop)          Receiving Device (Server)
+┌─────────────────────┐          ┌─────────────────────┐
+│  Layer 7 Application│          │  Layer 7 Application│
+│  Layer 6 Presentation│         │  Layer 6 Presentation│
+│  Layer 5 Session    │          │  Layer 5 Session    │
+│  Layer 4 Transport  │          │  Layer 4 Transport  │
+│  Layer 3 Network    │          │  Layer 3 Network    │
+│  Layer 2 Data Link  │          │  Layer 2 Data Link  │
+│  Layer 1 Physical   │          │  Layer 1 Physical   │
+└─────────┬───────────┘          └─────────┬───────────┘
+          │                                │
+          └──── travels through internet ──┘
+               (multiple hops/routers)
+```
+
+- **Sending:** Data flows **L7 → L1** (top to bottom)
+- **Receiving:** Data flows **L1 → L7** (bottom to top)
+
+---
+
+## 3. The 7 Layers Explained
+
+---
+
+### Layer 7 — Application Layer
+
+- **Where it happens:** Browser (Chrome, Firefox, etc.)
+- **What it does:** Defines the **type of request** — HTTP, HTTPS, FTP, etc.
+- **Example:** When `https://www.google.com` is entered, the browser identifies this as an HTTPS request and prepares accordingly.
+- Headers, authentication information, and request metadata are added here.
+
+> **Key point:** The type of protocol used (HTTP, FTP, etc.) is determined by what you request.
+
+---
+
+### Layer 6 — Presentation Layer
+
+- **Where it happens:** Browser
+- **What it does:** **Data encryption and formatting**
+- **Example:** For HTTPS, data is encrypted at this layer using SSL/TLS so that even if intercepted by a router along the way, it cannot be read.
+
+> **Why encryption here?** Data passes through many routers between your laptop and Google's server. Encrypting at this layer ensures the data is unreadable to any intermediate node.
+
+---
+
+### Layer 5 — Session Layer
+
+- **Where it happens:** Browser
+- **What it does:** Creates and manages a **session** between the client and server.
+- **Example:** When logged into Facebook, navigating to `facebook.com/profile` 20 minutes later doesn't require re-authentication — the session is still active.
+
+> **Practical proof:** Go to browser settings → clear cookies and cache → Facebook will ask you to log in again. Cookies store the session. Clearing them destroys the session.
+
+> **Layers 7, 6, and 5** are all handled entirely by the **browser** — the request hasn't even left the laptop yet.
+
+---
+
+### Layer 4 — Transport Layer
+
+- **Where it happens:** Operating System
+- **What it does:**
+1. **Segmentation** — Large data is split into smaller chunks (segments) for efficient transmission.
+2. **Protocol identification** — Defines whether to use **TCP** or **UDP**.
+
+| Protocol | Use Case | Characteristic |
+|---|---|---|
+| **TCP** (Transmission Control Protocol) | HTTP, HTTPS, file transfer | Reliable, ordered, connection-based |
+| **UDP** (User Datagram Protocol) | DNS, video streaming, gaming | Faster, no guarantee of delivery |
+
+- HTTP → uses **TCP**
+- DNS → uses **UDP**
+
+> **Why segmentation?** Sending a 10 GB file as one block is inefficient. Splitting it into segments allows parallel transmission and easier error recovery.
+
+---
+
+### Layer 3 — Network Layer
+
+- **Where it happens:** Router
+- **What it does:** Adds **source and destination IP addresses** to each segment, turning them into **packets**. Determines the **best path** for data to travel.
+
+**Analogy:** Traveling from Delhi to Mumbai — you know your source and destination, and you pick the shortest path. Similarly, the router adds IP addresses to each packet and decides the optimal route through multiple hops across the internet.
+
+```
+Segment → [Source IP + Destination IP added] → Packet
+```
+
+- The router decides which intermediate routers (hops) the packet should travel through to reach the destination fastest.
+- This layer is why the internet can route data across continents efficiently.
+
+---
+
+### Layer 2 — Data Link Layer
+
+- **Where it happens:** Switch (and network interface cards)
+- **What it does:** Converts packets into **frames** and adds **MAC (Media Access Control) addresses**.
+
+**Why the format changes:**
+- Routers work with **packets** (IP-based).
+- Switches work with **frames** (MAC-based).
+- When data moves from a router to a switch (local network segment), it must be reformatted.
+
+```
+Packet → [MAC address added] → Frame
+```
+
+- MAC addresses identify physical devices within a local network.
+- Switches use MAC addresses to direct frames to the correct device on the local network.
+
+---
+
+### Layer 1 — Physical Layer
+
+- **Where it happens:** Optical cables, fiber, electrical cables, Wi-Fi signals
+- **What it does:** Converts frames into **electronic signals (binary: 0s and 1s)** and physically transmits them through cables or wireless media.
+
+```
+Frame → [Converted to electronic signals] → Transmitted via optical cable
+```
+
+> This is the actual physical transmission of data. Optical cables transmit these signals at extremely high speeds.
+
+---
+
+## 4. End-to-End Data Journey: google.com Example
+
+### Sending the Request (L7 → L1)
+
+```
+Browser on Laptop
+        │
+        ▼
+L7 – Application    → Browser initiates HTTPS request
+        │
+        ▼
+L6 – Presentation   → Data is encrypted (SSL/TLS)
+        │
+        ▼
+L5 – Session        → Session created with Google's server
+        │
+        ▼
+L4 – Transport      → Data segmented; TCP protocol selected
+        │
+        ▼
+L3 – Network        → Router adds source/destination IP → Packets created
+        │
+        ▼
+L2 – Data Link      → Switch adds MAC address → Frames created
+        │
+        ▼
+L1 – Physical       → Frames converted to electronic signals → Sent via cable
+        │
+        ▼
+   [Travels through multiple routers/hops across the internet]
+        │
+        ▼
+   Google's Server
+```
+
+---
+
+### Receiving on the Server (L1 → L7)
+
+When data arrives at Google's server, the OSI model is traversed in **reverse** — bottom to top:
+
+```
+L1 – Physical       → Electronic signals received from cable
+        │
+        ▼
+L2 – Data Link      → Signals reassembled into frames
+        │
+        ▼
+L3 – Network        → Frames → Packets; routing info processed
+        │
+        ▼
+L4 – Transport      → Packets reassembled; TCP protocol handled
+        │
+        ▼
+L5 – Session        → Session validated
+        │
+        ▼
+L6 – Presentation   → Data decrypted
+        │
+        ▼
+L7 – Application    → Google's application processes the request
+                       → Generates and returns an HTML response page
+```
+
+---
+
+### Sending the Response Back
+
+The HTML response page travels back through L7 → L1 from Google's server, crosses the internet through multiple hops, and arrives at the client laptop via L1 → L7 — ultimately rendered by the browser as the Google homepage.
+
+---
+
+## 5. OSI Model vs TCP/IP Model
+
+The **TCP/IP model** is a practical implementation model derived from OSI. The key difference:
+
+| OSI Model | TCP/IP Model | Notes |
+|---|---|---|
+| Layer 7 – Application | Application Layer | Combined into one layer in TCP/IP |
+| Layer 6 – Presentation | ↑ (same) | All three handled by the browser |
+| Layer 5 – Session | ↑ (same) | All three handled by the browser |
+| Layer 4 – Transport | Transport Layer | Same |
+| Layer 3 – Network | Internet Layer | Same concept |
+| Layer 2 – Data Link | Network Access Layer | Combined in TCP/IP |
+| Layer 1 – Physical | ↑ (same) | Combined in TCP/IP |
+
+> L7, L6, and L5 are merged in TCP/IP because they are all handled by the same component (the browser). OSI keeps them separate for conceptual clarity.
+
+**Why learn OSI instead of TCP/IP?**
+OSI is the **standard reference model**. Understanding OSI means you understand the foundation of all networking models, including TCP/IP. Any new model is ultimately based on OSI principles.
+
+---
+
+## 6. OSI Model — Quick Reference Table
+
+| Layer | Name | Key Action | Data Unit | Component |
+|---|---|---|---|---|
+| **7** | Application | Define protocol (HTTP, FTP) | Data | Browser |
+| **6** | Presentation | Encrypt / format data | Data | Browser |
+| **5** | Session | Create & manage session | Data | Browser |
+| **4** | Transport | Segment data; select TCP/UDP | Segments | OS |
+| **3** | Network | Add IP addresses; routing | Packets | Router |
+| **2** | Data Link | Add MAC addresses | Frames | Switch |
+| **1** | Physical | Convert to electronic signals | Bits | Cable / Wi-Fi |
+
+---
+
+## 7. Key Takeaways for DevOps Engineers
+
+- OSI model is **good-to-know** knowledge for DevOps. Most of the networking in modern infrastructure is automated and standardized.
+- In practice, deep knowledge of Layer 2/3 protocols is only required if working in **core networking** roles or companies.
+- For DevOps/SRE purposes, understanding the **high-level flow** — how a request travels from a client to a server and back — is sufficient for troubleshooting connectivity issues, debugging latency, and designing secure architectures.
+- Understanding DNS resolution and the TCP handshake is directly applicable to diagnosing real-world issues like:
+- "Why can't my application reach the database?" → check DNS, check firewall rules (L3/L4)
+- "Why is my HTTPS connection failing?" → check SSL certificates (L6)
+- "Why does the user keep getting logged out?" → check session configuration (L5)
