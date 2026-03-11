@@ -1,0 +1,216 @@
+# AWS Zero to Hero — Day 0: Complete Course Roadmap
+
+## 1. Course Overview
+
+This is a **30-day AWS course** focused entirely on the **DevOps engineering perspective**. The goal is not certification prep — it is **job readiness**. Each day covers:
+
+- Core theory and concepts
+- Hands-on practicals and live projects
+- Real-world DevOps use cases
+- Interview questions and answers
+
+The course covers the AWS services that DevOps engineers interact with most frequently on the job — compute, networking, security, CI/CD pipelines, monitoring, containers, and infrastructure as code.
+
+---
+
+## 2. Full 30-Day Curriculum
+
+---
+
+### Week 1 — Foundations (Days 1–7)
+
+#### Day 1 — Introduction to AWS & Cloud Computing
+- What is private cloud vs public cloud
+- Differences between private and public cloud
+- Why organizations move to the cloud (and when they should)
+- Creating an AWS account
+- Navigating the AWS Management Console
+
+#### Day 2 — IAM (Identity and Access Management)
+- What is IAM and why it is critical
+- Creating users and groups on AWS
+- Writing and attaching IAM policies
+- Restricting access with least-privilege principles
+- Zero-access / zero-privilege best practices
+
+#### Day 3 — EC2 (Elastic Compute Cloud)
+- What is an EC2 instance and why it is widely used
+- Different types of EC2 instances
+- Launching and configuring EC2 instances
+- **Project:** Deploy a web application (e.g., Jenkins) on EC2 and expose it to the internet
+
+#### Day 4 — AWS Networking & VPC (Virtual Private Cloud)
+- VPC concepts and architecture
+- Public and private subnets
+- Route tables and internet gateways
+- Networking infrastructure design for applications
+
+#### Day 5 — AWS Security
+- Network ACLs (Access Control Lists)
+- Security Groups
+- IAM policies for access restriction
+- Preventing unauthorized external access to applications
+- Core principle: security concepts transfer across clouds and on-premises environments
+
+#### Day 6 — AWS Route 53 (DNS)
+- What Route 53 is and how DNS works on AWS
+- Registering and managing domains
+- Creating DNS records
+- Advanced features: health checks and routing policies
+
+#### Day 7 — Project: Full Stack Deployment on AWS
+- **Integrates:** IAM + EC2 + VPC + Security Groups + Route 53
+- Deploy a real application as a DevOps engineer would on the job
+- Configure networking, security, DNS, and compute end-to-end
+- Goal: mirror a real-world production environment setup
+
+---
+
+### Week 2 — Storage, IaC & CI/CD (Days 8–14)
+
+#### Day 8 — Amazon S3 (Simple Storage Service)
+- What S3 is and its wide range of use cases beyond simple file storage
+- Storage classes and lifecycle policies
+- **Project:** Host a static website on S3 with CDN integration
+
+#### Day 9 — AWS CloudFormation (Infrastructure as Code)
+- What infrastructure as code (IaC) means
+- Writing CloudFormation templates
+- Automating the provisioning of all resources covered so far (IAM, EC2, VPC, Route 53)
+- **Project:** Deploy infrastructure using CloudFormation templates
+
+#### Day 10 — AWS CLI (Command Line Interface)
+- Introduction to the AWS CLI
+- Common CLI commands for managing AWS resources
+- How CLI relates to and complements CloudFormation
+
+#### Day 10/11 — AWS Elastic Beanstalk
+- What Elastic Beanstalk is (fully managed deployment and scaling service)
+- When and why to use it
+- **Project:** Deploy an application using Elastic Beanstalk
+
+#### Day 11 — AWS CodeCommit
+- What CodeCommit is (AWS-managed Git repository)
+- Setting up and using CodeCommit for source control
+
+#### Day 12 — AWS CodePipeline
+- Building an automated CI/CD pipeline on AWS
+- **Project:** Create a CodePipeline that triggers on code changes
+
+#### Day 13 — AWS CodeBuild
+- What CodeBuild is (managed build service)
+- Configuring build environments and build specifications
+- **Project:** Build and test code using CodeBuild
+
+#### Day 14 — AWS CodeDeploy
+- What CodeDeploy is and deployment strategies it supports
+- Deploying applications to EC2 instances
+- **Project:** End-to-end CI/CD pipeline using CodeCommit + CodePipeline + CodeBuild + CodeDeploy
+
+---
+
+### Week 3 — Monitoring, Serverless & Databases (Days 15–21)
+
+#### Day 15 — AWS CloudWatch (Monitoring)
+- What CloudWatch is and why monitoring matters
+- Collecting metrics from AWS resources
+- Creating alarms and notification triggers
+- CloudWatch dashboards
+
+#### Day 16 — AWS Lambda (Serverless Computing)
+- What serverless computing means
+- Writing Lambda functions in Python
+- Triggering Lambda functions based on events
+- Use cases for DevOps engineers
+
+#### Day 17 — AWS CloudWatch Events & EventBridge
+- Event-driven architecture concepts
+- Combining CloudWatch and Lambda for automated workflows
+- **Project:** Serverless event-driven pipeline using EventBridge
+- This is a high-value interview project — real-world companies use this pattern extensively
+
+#### Day 18 — AWS CloudTrail & AWS Config
+- What CloudTrail is (API activity logging)
+- Auditing and tracking changes to AWS resources
+- AWS Config rules for enforcing compliance policies
+
+#### Day 19 — AWS DynamoDB
+- What DynamoDB is (fully managed NoSQL database)
+- DevOps-specific use case: **Terraform state locking** with DynamoDB
+- Basic CRUD operations on DynamoDB tables
+- Scope kept to DevOps engineering relevance
+
+#### Day 20 — AWS ECS (Elastic Container Service)
+- Overview of ECS for container orchestration
+- Brief project to understand the basics
+
+#### Day 21 — AWS ECR + EKS (Elastic Kubernetes Service)
+- What ECR (Elastic Container Registry) is
+- Why EKS is preferred over ECS for most real-world DevOps roles
+- Deploying containerized applications to EKS
+- **Note:** Watch the containers/Kubernetes fundamentals series before this day
+
+---
+
+### Week 4 — Scaling, Migration & Best Practices (Days 22–30)
+
+#### Day 23 — AWS Systems Manager
+- Managing secrets, credentials, and API keys
+- Parameter Store and Secrets Manager use cases
+- How DevOps engineers use Systems Manager in production
+- **Project:** Integrate Systems Manager into a DevOps workflow
+
+#### Day 25 — AWS Auto Scaling
+- What Auto Scaling is and when to use it
+- Types of scaling supported by AWS:
+- Manual scaling
+- Scheduled scaling
+- Dynamic / reactive scaling
+- Predictive scaling
+- Real-world use case: scale up for peak traffic (e.g., holiday seasons), scale down when load drops
+- Which scaling type fits which scenario
+
+#### Day 26 — AWS RDS (Relational Database Service)
+- Overview of RDS and managed database options
+- DevOps-scoped coverage: provisioning, backups, and integration with applications
+
+#### Day 27 — AWS Elastic Load Balancer (ELB)
+- History and evolution of load balancers
+- Types of load balancers on AWS:
+
+| Load Balancer | Layer | Best For |
+|---|---|---|
+| Classic Load Balancer | L4/L7 | Legacy workloads |
+| Network Load Balancer (NLB) | L4 | High-performance, low-latency traffic |
+| Application Load Balancer (ALB) | L7 | HTTP/HTTPS routing, microservices |
+
+- High availability, fault tolerance, and scalability concepts
+- When to choose ALB vs NLB
+
+#### Day 29 — AWS Cloud Migration
+- Cloud migration strategies (the 6 R's: Rehost, Replatform, Refactor, Repurchase, Retire, Retain)
+- Migration tools available in the AWS ecosystem
+- **Interview focus:** How to explain a cloud migration strategy confidently
+- After this session, the goal is to answer "Walk me through a cloud migration you've done or would approach" convincingly in an interview
+
+#### Day 30 — AWS Best Practices & Career Prep
+- AWS best practices for DevOps engineers
+- How to continue building projects on AWS after the course
+- Resources for deepening AWS knowledge
+- Interview preparation guidance for AWS DevOps roles
+
+---
+
+## 3. Learning Approach
+
+### Focus: DevOps Engineering, Not Certifications
+The course deliberately excludes AWS services primarily used for ML, AI Ops, and data engineering. Every topic covered is something a DevOps engineer encounters regularly on the job.
+
+### Each Day Includes
+- **Theory** — concept explained from first principles
+- **Practical demo** — hands-on in the AWS console or CLI
+- **Project** — a realistic deliverable that can be referenced in interviews
+- **Interview questions** — where relevant, specific Q&A to prepare for hiring rounds
+
+### Cross-Cloud Portability
+Networking and security concepts are taught in a way that transfers across AWS, Azure, GCP, and on-premises environments. Learning the fundamentals once means adapting to any cloud is much faster.
