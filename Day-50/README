@@ -1,0 +1,385 @@
+# Linux Zero to Hero — Section 6: File Permissions
+
+---
+
+## 1. Why File Permissions?
+
+User management allows multiple users to share a Linux server, but without file permissions, every user would have unrestricted access to every file and folder on the system. This creates serious problems:
+
+- A user could accidentally (or maliciously) **delete critical system directories** like `/sbin`, corrupting the entire server.
+- A user could **delete or modify files belonging to another user**, disrupting their work.
+
+**File permissions solve this** by controlling exactly what each user (or group of users) can do with each file and directory. Linux applies **default permissions automatically** to every file and folder at the time of creation. These defaults can be customized using `chmod` and `chown`.
+
+---
+
+## 2. Understanding the Permission String
+
+When running `ls -ltr`, each file/directory shows a permission string at the far left:
+
+```
+-rw-rw-r-- 1 developer developer 45 Jan 10 10:00 hello-world.sh
+drwxr-x--- 2 developer developer 4096 Jan 10 09:00 testdir
+```
+
+The permission string has **10 characters**:
+
+```
+- r w - r w - r - -
+│ └───┬───┘ └───┬───┘ └───┬───┘
+│   User     Group     Others
+│
+└── File type: '-' = file, 'd' = directory
+```
+
+| Position | Meaning |
+|---|---|
+| Character 1 | File type: `-` = regular file, `d` = directory |
+| Characters 2–4 | Permissions for the **User** (owner) |
+| Characters 5–7 | Permissions for the **Group** |
+| Characters 8–10 | Permissions for **Others** |
+
+---
+
+## 3. The Three Parties: User, Group, Others
+
+| Party | Symbol | Who They Are |
+|---|---|---|
+| **User** | `u` | The person who created the file (the owner) |
+| **Group** | `g` | All users belonging to the owner's group |
+| **Others** | `o` | Every other user on the system not in the group |
+
+**Example:**
+- Developer creates `hello-world.sh` → **User = developer**
+- Developer belongs to the `dev` group → **Group = dev** (all developers)
+- QE engineer is not in the `dev` group → **Other**
+
+---
+
+## 4. The Three Permission Types: Read, Write, Execute
+
+Within each party's three-character set:
+
+| Character | Permission | Meaning |
+|---|---|---|
+| `r` | **Read** | View/read the file contents |
+| `w` | **Write** | Modify or update the file |
+| `x` | **Execute** | Run the file as a script/program |
+| `-` | **None** | That permission is not granted |
+
+### Reading a Full Permission String
+
+```
+rw- rw- r--
+```
+
+| Set | Characters | Meaning |
+|---|---|---|
+| User | `rw-` | Can read and write, but **cannot execute** |
+| Group | `rw-` | Can read and write, but **cannot execute** |
+| Others | `r--` | Can **only read** — no write, no execute |
+
+---
+
+## 5. Default Permissions in Action
+
+### Demonstration Setup
+
+```bash
+# Create two users
+adduser developer
+adduser qe
+
+# Switch to developer user and create a script in /tmp
+su - developer
+cd /tmp
+vim hello-world.sh
+```
+
+```bash
+#!/bin/bash
+echo "Hello World"
+```
+
+```bash
+# Save and exit vim (:wq!)
+
+# Check the file's default permissions
+ls -ltr /tmp/hello-world.sh
+# Output: -rw-rw-r-- developer developer hello-world.sh
+```
+
+### What the Defaults Allow
+
+| User | Read | Write | Execute |
+|---|---|---|---|
+| `developer` (owner) | ✅ | ✅ | ❌ |
+| `developer` group | ✅ | ✅ | ❌ |
+| `qe` (others) | ✅ | ❌ | ❌ |
+
+```bash
+# Switch to qe user
+su - qe
+cd /tmp
+
+# Read the file — ALLOWED by default
+cat hello-world.sh       # ✅ works
+
+# Try to write to the file — DENIED
+vim hello-world.sh       # ❌ "can't open file for writing"
+
+# Try to delete the file — DENIED
+rm hello-world.sh        # ❌ "Operation not permitted"
+```
+
+---
+
+## 6. Changing Permissions with `chmod`
+
+`chmod` (change mode) modifies the permissions on a file or directory. It supports two formats: **symbolic** (alphabetical) and **numeric** (octal).
+
+---
+
+### Alphabetical (Symbolic) Format
+
+```bash
+# Syntax: chmod <party>=<permissions> <filename>
+# Parties: u (user), g (group), o (others)
+# Permissions: r, w, x (or blank to remove)
+
+# Grant user read, write, execute
+chmod u=rwx hello-world.sh
+
+# Grant group read and write only
+chmod g=rw hello-world.sh
+
+# Grant others read only
+chmod o=r hello-world.sh
+
+# Set all three at once using commas
+chmod u=rwx,g=rw,o=r hello-world.sh
+
+# Remove all permissions from others
+chmod o= hello-world.sh
+```
+
+---
+
+### Numeric (Octal) Format
+
+Each permission type maps to a number:
+
+| Permission | Value |
+|---|---|
+| `r` (read) | `4` |
+| `w` (write) | `2` |
+| `x` (execute) | `1` |
+| `-` (none) | `0` |
+
+To get the number for a set, **add the values together**:
+
+| Combination | Calculation | Octal Value |
+|---|---|---|
+| `rwx` | 4+2+1 | **7** |
+| `rw-` | 4+2+0 | **6** |
+| `r-x` | 4+0+1 | **5** |
+| `r--` | 4+0+0 | **4** |
+| `---` | 0+0+0 | **0** |
+
+The full `chmod` command takes **three digits**: one for User, one for Group, one for Others.
+
+```bash
+# chmod <user><group><others> <filename>
+
+# Everyone has full access (rwx rwx rwx)
+chmod 777 hello-world.sh
+
+# Owner full, group read+write, others read only (rwx rw- r--)
+chmod 764 hello-world.sh
+
+# Owner read+write, group read+write, others read only (rw- rw- r--)
+chmod 664 hello-world.sh
+
+# Owner read only, no one else has any access (r-- --- ---)
+chmod 400 hello-world.sh
+
+# Owner full access, no one else has any access (rwx --- ---)
+chmod 700 hello-world.sh
+```
+
+---
+
+### Common Permission Examples
+
+| `chmod` Value | User | Group | Others | Typical Use Case |
+|---|---|---|---|---|
+| `777` | rwx | rwx | rwx | Fully open (rarely used, unsafe) |
+| `755` | rwx | r-x | r-x | Executable scripts, public directories |
+| `764` | rwx | rw- | r-- | Owner full, group edit, others read |
+| `664` | rw- | rw- | r-- | Shared editable files |
+| `644` | rw- | r-- | r-- | Default for most files |
+| `700` | rwx | --- | --- | Private executable (owner only) |
+| `400` | r-- | --- | --- | Read-only for owner, no one else |
+| `000` | --- | --- | --- | No access for anyone |
+
+### Practical Example
+
+```bash
+# Grant developer user execute permission
+chmod u=rwx hello-world.sh
+
+# Now execute the script as developer
+./hello-world.sh
+# Output: Hello World
+
+# Remove execute from user
+chmod u=rw hello-world.sh
+
+# Try to execute again
+./hello-world.sh
+# Output: Permission denied
+
+# Grant others full access
+chmod o=rwx hello-world.sh
+
+# QE user can now execute, write, and read the file
+```
+
+---
+
+## 7. Changing Ownership with `chown`
+
+`chown` (change owner) transfers ownership of a file or directory from one user to another. **Only root can run `chown`.**
+
+```bash
+# Syntax: chown <new-owner>:<new-group> <filename>
+
+# Check current ownership
+ls -ltr /tmp/test.sh
+# Output: -rw-r--r-- developer developer test.sh
+
+# Change ownership to qe user and qe group
+chown qe:qe test.sh
+
+# Verify
+ls -ltr /tmp/test.sh
+# Output: -rw-r--r-- qe qe test.sh
+```
+
+### `chmod` vs `chown`
+
+| Command | Purpose | Who Can Run It |
+|---|---|---|
+| `chmod` | Change **permissions** (read/write/execute) on a file | File owner or root |
+| `chown` | Change **ownership** (which user/group owns the file) | Root only |
+
+---
+
+## 8. Folder vs File Permissions — Priority Rule
+
+When a file is inside a directory, **both** the folder and the file have their own permissions. The critical question is: **which one takes priority?**
+
+### The Bank and Locker Analogy
+
+> Think of the **directory as a bank** and the **file as a locker inside the bank**.
+>
+> - To access the locker, you must **first be allowed into the bank**.
+> - If you're denied entry to the bank, it doesn't matter what access you have to the locker — you can never reach it.
+> - If you can enter the bank but not the locker, you get in but can't open it.
+
+**Directory permissions are always checked first.** A user must have execute (`x`) permission on a directory to enter it, and read (`r`) permission to list its contents.
+
+### Demonstration
+
+```bash
+# Restrict tmp so only root can access it
+chmod 700 /tmp
+
+# Create a file inside /tmp and give it full open permissions
+vim /tmp/demo
+chmod 777 /tmp/demo
+
+# Now as qe user, try to access the file
+su - qe
+cat /tmp/demo
+# Output: Permission denied
+```
+
+Even though `demo` has `777` permissions, the `qe` user cannot access it because they have no permission to enter `/tmp` (which is `700` — root only).
+
+### Rule to Remember
+
+```
+To access a file at /folder/file:
+  Step 1 → Check if you have execute (x) on /folder
+  Step 2 → If yes, check permissions on /file
+  Step 3 → If no access to /folder → access to /file is irrelevant
+```
+
+---
+
+## 9. Interview Questions to Remember
+
+**Q1: A file has `777` permissions but a user still can't access it. Why?**
+
+The parent directory may have restrictive permissions. The user needs **execute (`x`) permission on the directory** to enter it before the file permissions even matter. Always check the folder permissions first.
+
+---
+
+**Q2: What is the difference between `chmod` and `chown`?**
+
+`chmod` modifies the **permission bits** (read/write/execute) on a file for user, group, and others. `chown` changes the **ownership** — who the file belongs to. `chown` can only be run by the root user.
+
+---
+
+**Q3: What does `chmod 750 script.sh` mean?**
+
+- User (owner): `7` = `rwx` → full access
+- Group: `5` = `r-x` → read and execute, no write
+- Others: `0` = `---` → no access at all
+
+---
+
+**Q4: A developer is leaving the organization. What should be done with their files?**
+
+Use `chown` to transfer ownership of the files to another user or group. This ensures the files remain accessible and manageable without deleting them.
+
+---
+
+## 10. Commands Quick Reference
+
+```bash
+# View permissions on files and directories
+ls -ltr
+
+# Change permissions — symbolic format
+chmod u=rwx,g=rw,o=r filename
+
+# Change permissions — numeric format
+chmod 755 filename
+chmod 644 filename
+chmod 777 filename     # full open
+chmod 700 filename     # owner only
+chmod 400 filename     # read-only owner
+
+# Change ownership
+chown newuser:newgroup filename
+
+# Change ownership (user only, keep group)
+chown newuser filename
+
+# Apply permissions recursively to a directory and all its contents
+chmod -R 755 /path/to/directory
+chown -R newuser:newgroup /path/to/directory
+```
+
+### Numeric Permission Cheat Sheet
+
+```
+r = 4
+w = 2
+x = 1
+
+rwx = 7   rw- = 6   r-x = 5   r-- = 4
+-wx = 3   -w- = 2   --x = 1   --- = 0
+```
