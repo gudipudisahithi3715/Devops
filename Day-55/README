@@ -1,0 +1,254 @@
+# AWS Zero to Hero — Day 1: Introduction to Cloud Computing & AWS
+
+## 1. What is Cloud Computing?
+
+Cloud computing is the delivery of computing resources — servers, storage, databases, networking, and more — **over the internet, on demand**, by a third-party provider. Users request resources without knowing or managing the physical infrastructure behind them.
+
+The term "cloud" reflects the fact that resources are **interconnected and location-agnostic** — you request a server and get one, without needing to know its physical location.
+
+---
+
+## 2. The Problem Before Cloud: On-Premises Data Centers
+
+Before cloud computing, organizations purchased physical servers from vendors like IBM or HP and built their own **data centers**.
+
+### What a Data Center Required
+
+- Physical servers (expensive hardware)
+- Network cabling and configuration
+- Temperature control systems
+- Power redundancy
+- A dedicated team for 24×7 maintenance, patching, and security
+
+### The Core Problem: Resource Waste
+
+A typical physical server might have **100 GB RAM and 100 CPUs**. If a single application only uses **1 GB RAM and 1 CPU**, the remaining 99 GB and 99 CPUs sit idle — a massive waste of expensive hardware.
+
+As the organization grew, the pattern repeated:
+- New application needed → buy a new server
+- 200 servers → need a dedicated infrastructure team
+- Constant upgrades, patches, and security monitoring required
+
+This was **costly, inefficient, and operationally heavy** for organizations of all sizes.
+
+---
+
+## 3. Virtualization — The Enabling Technology
+
+**Virtualization** solved the hardware waste problem by allowing multiple **virtual machines (VMs)** to run on a single physical server.
+
+```
+Physical Server (100 CPU, 100 GB RAM)
+┌────────────────────────────────────────┐
+│  VM 1 (2 CPU, 4 GB) → App A           │
+│  VM 2 (2 CPU, 4 GB) → App B           │
+│  VM 3 (4 CPU, 8 GB) → App C           │
+│  VM 4 (1 CPU, 2 GB) → App D           │
+│  ... up to N virtual machines          │
+└────────────────────────────────────────┘
+```
+
+- Instead of buying 15 servers for 15 applications, one powerful server can host all 15 as virtual machines.
+- Each VM gets its own allocated resources (CPU, RAM, storage).
+- Resources are shared efficiently rather than wasted.
+
+This concept of virtualization at an organizational scale — where a DevOps or sysadmin team creates and manages VMs internally and shares them with developers — became known as **Private Cloud**.
+
+---
+
+## 4. Private Cloud vs Public Cloud
+
+### Private Cloud
+
+- The organization **owns and manages** all the physical hardware and virtualization infrastructure.
+- Only people within the organization can request and use resources.
+- Tools used: **OpenStack**, **VMware**, **Xen**
+- Common in: **banking, government, and organizations with strict data sovereignty or compliance requirements**
+
+### Public Cloud
+
+- A third-party provider (**AWS, Azure, GCP**) owns and manages the data centers.
+- Anyone with an account can request resources from anywhere in the world.
+- You choose the region (e.g., US, India, Europe) but don't manage the underlying hardware.
+- **Pay-as-you-go** model — pay only for what you use.
+
+### Comparison Table
+
+| Aspect | Private Cloud | Public Cloud |
+|---|---|---|
+| Infrastructure owner | Your organization | Cloud provider (AWS, Azure, GCP) |
+| Who can use it | Internal employees only | Anyone with an account |
+| Setup & maintenance | Your team's responsibility | Provider's responsibility |
+| Upfront cost | High (servers, data center) | None |
+| Billing model | Fixed (own hardware) | Pay-as-you-go |
+| Examples | OpenStack, VMware | AWS, Azure, GCP |
+| Best for | High-security / compliance orgs | Startups, mid-scale, enterprises |
+
+### Security Concern: Public Cloud Isolation
+
+A common concern is: *"If AWS hosts multiple organizations on shared infrastructure, is my data safe?"*
+
+AWS (and other providers) address this through **Virtual Private Clouds (VPCs)** — logically isolated network environments within the public cloud. Each organization's resources are isolated from others at the network level. This is covered in depth in later sessions.
+
+---
+
+## 5. Why Public Cloud is So Popular
+
+Two main reasons drive public cloud adoption:
+
+### 1. Elimination of Maintenance Overhead
+
+For a **startup with 50–100 people**, building and maintaining a private data center requires:
+- Physical space
+- Server hardware procurement
+- Network engineers and sysadmins (5–15 dedicated people)
+- 24×7 monitoring for power, cooling, security, and hardware failures
+
+This overhead is impractical and expensive for small to mid-size companies. Public cloud eliminates all of it — just create an account and start using services.
+
+### 2. Cost Efficiency (Pay-as-You-Go)
+
+- No upfront capital expenditure on hardware.
+- Only pay for what you consume.
+- Scale up during peak demand, scale down when not needed.
+- No wasted idle hardware sitting in a data center.
+
+### Growth of Cloud Services
+
+Cloud providers continuously expand their service catalog based on market demand:
+
+- Started with basic: **virtual machines, object storage, block storage**
+- Expanded to: **databases, Kubernetes clusters, AI/ML services, CDN, IoT**
+- AWS today offers **200+ services**
+
+When a new technology becomes popular (e.g., Kubernetes), AWS creates a managed service for it (e.g., **EKS — Elastic Kubernetes Service**), removing the complexity of self-managing it.
+
+---
+
+## 6. Why AWS Over Other Cloud Platforms?
+
+### Market Share (2024)
+
+```
+AWS     → ~32% market share  (largest)
+Azure   → ~22% market share
+GCP     → ~11% market share
+Others  → remaining
+```
+
+### Reasons AWS Leads
+
+1. **First-Mover Advantage** — AWS was the pioneer of public cloud. Many companies started their cloud journey on AWS 10–15 years ago and continue using it.
+
+2. **Largest Ecosystem** — Most tools, third-party integrations, and community resources are built with AWS in mind first.
+
+3. **Most Job Opportunities** — Because more companies use AWS, there are more job openings requiring AWS knowledge compared to other platforms.
+
+4. **Widest Service Catalog** — 200+ services covering virtually every infrastructure need.
+
+### Does Learning AWS Limit You?
+
+No. **Cloud concepts are transferable.** The core ideas (virtual machines, networking, storage, IAM) are similar across AWS, Azure, and GCP. The differences are mainly in:
+- Service naming conventions
+- Console UI and workflows
+- Some platform-specific features
+
+Learning AWS first gives a strong foundation to pick up Azure or GCP quickly if needed.
+
+---
+
+## 7. Cloud Repatriation — Moving Back to On-Premises
+
+**Cloud repatriation** refers to organizations moving workloads **from public cloud back to private/on-premises infrastructure**.
+
+### Is This a Real Trend?
+
+Yes, but it is **very limited in scale**:
+- Only **1–2% or less** of cloud users are moving back to on-premises.
+- The vast majority of organizations are still migrating **to** the cloud.
+
+### Why Some Organizations Move Back
+
+- **Security concerns** — highly sensitive data in regulated industries
+- **Cost** — large-scale predictable workloads may be cheaper on owned hardware at scale
+- **Compliance** — certain government or financial regulations require on-premises data
+
+### Conclusion
+
+Cloud repatriation is real but rare. The **net flow is still heavily toward public cloud**, especially as more startups, mid-size companies, and even enterprises continue adopting it. This is not a signal to avoid learning cloud — the opposite is true.
+
+---
+
+## 8. Creating an AWS Account
+
+An AWS account is required to practice all hands-on topics in this series. The same account will be used for all 30 days.
+
+### Step-by-Step Account Creation
+
+1. Go to [https://aws.amazon.com](https://aws.amazon.com) and click **Create a new AWS account**.
+
+2. **Step 1 — Email & Account Name:**
+- Enter a **root user email address**.
+- Provide an **AWS account name** (this can be changed later).
+- Click **Verify email address**.
+- Enter the **verification code** sent to your email.
+- Create a **strong password**.
+
+3. **Step 2 — Contact Information:**
+- Select **Personal** (for learning/personal projects).
+- Enter your full name, phone number, country/region, and address.
+- This information is used for billing and account verification.
+
+4. **Step 3 — Payment Information:**
+- A valid **debit or credit card** is required.
+- AWS performs a **small temporary charge** (approx. $1 USD or equivalent in local currency) to verify the card — this is refunded.
+- AWS **does not auto-debit** your card for usage charges without billing thresholds being set up.
+- If you stay within **AWS Free Tier limits**, you will not be charged for usage.
+
+5. **Step 4 — Identity Verification:**
+- AWS may ask for a phone number to send an OTP.
+- Some regions may also request tax identification (e.g., PAN card in India).
+
+6. **Step 5 — Support Plan:**
+- Select **Basic Support (Free)** — sufficient for learning purposes.
+
+7. After completing all steps, your AWS account is active and ready to use.
+
+### Important Notes on Billing
+
+- The AWS **Free Tier** provides limited free usage for 12 months after account creation (e.g., 750 hours/month of t2.micro EC2 instances).
+- Always **stop or terminate resources** after practice sessions to avoid unexpected charges.
+- Set up a **billing alert** in AWS after account creation to notify you if charges exceed a threshold.
+
+---
+
+## 9. Key Terms & Concepts
+
+| Term | Definition |
+|---|---|
+| **Data Center** | A physical facility housing servers, networking equipment, and storage |
+| **Virtualization** | Technology that creates multiple virtual machines on a single physical server |
+| **Virtual Machine (VM)** | A software-based emulation of a physical computer |
+| **Private Cloud** | Cloud infrastructure owned and managed by an organization for internal use |
+| **Public Cloud** | Cloud infrastructure managed by a provider (AWS, Azure, GCP) and available to anyone |
+| **EC2 Instance** | AWS term for a virtual machine (Elastic Compute Cloud) |
+| **Pay-as-you-go** | Billing model where you only pay for resources consumed |
+| **Cloud Repatriation** | Moving workloads from public cloud back to on-premises/private cloud |
+| **Free Tier** | AWS's offering of limited free resource usage for 12 months after account creation |
+| **Root User** | The initial admin account created when setting up an AWS account — has unrestricted access |
+| **VPC** | Virtual Private Cloud — a logically isolated network within AWS |
+
+---
+
+## 10. Summary
+
+| Topic | Key Takeaway |
+|---|---|
+| Cloud definition | On-demand computing resources delivered over the internet by a third-party provider |
+| Before cloud | Organizations bought servers, built data centers, managed everything — expensive and complex |
+| Virtualization | Enabled running multiple VMs on one server, solving resource waste — foundation of cloud |
+| Private cloud | Org-managed virtualization; secure but high maintenance overhead |
+| Public cloud | Provider-managed; pay-as-you-go; no setup overhead — ideal for startups and mid-scale orgs |
+| Why AWS | First mover, largest market share, most job opportunities, 200+ services |
+| Cloud repatriation | Real but affects only ~1-2% of users — not a reason to avoid learning cloud |
+| AWS Free Tier | 12 months of limited free usage — sufficient for learning this series |
