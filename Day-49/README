@@ -1,0 +1,494 @@
+# Linux Zero to Hero — Sections 3, 4 & 5: User Management, File Management & Vi Shortcuts
+
+---
+
+## Section 3 — User Management
+
+### Why User Management?
+
+On a personal laptop, a single admin user is fine — accountability is clear. But on a **production Linux server** shared by an entire organization (developers, QA, DevOps, management), sharing the `root` user across everyone creates serious problems:
+
+- If a developer accidentally deletes `/sbin` (system binaries), the server is corrupted.
+- With a shared root account, **there is no way to trace who did it** — this is called **lack of accountability**.
+- There is no way to restrict what each person can or cannot do.
+
+**Solution:** Create individual user accounts and groups, and grant permissions based on roles.
+
+| Role | Typical Access |
+|---|---|
+| DevOps Engineer | Admin / elevated privileges |
+| Developer | Read/write to app dirs; no access to `/sbin` |
+| Manager | Read-only access |
+| QA Engineer | Access to logs and test environments |
+
+---
+
+### Creating Users
+
+#### `useradd` — Quick User Creation
+
+```bash
+# Create a user (no home directory, no prompts)
+useradd avirala
+
+# Verify the user was created
+cat /etc/passwd
+```
+
+The `/etc/passwd` file stores all user account information. An entry in this file confirms the user exists.
+
+#### `adduser` — Interactive User Creation (Recommended)
+
+```bash
+# Create a user with home directory and full details
+adduser avirala
+```
+
+`adduser` prompts for:
+- Password
+- Full name
+- Room number, work phone, home phone (optional — can be skipped)
+
+It also **automatically creates a home directory** at `/home/avirala`.
+
+```bash
+# Verify home directory was created
+ls /home
+```
+
+---
+
+### Setting & Managing Passwords
+
+```bash
+# Set or change a user's password (run as root/admin)
+passwd avirala
+```
+
+The encrypted password is stored in `/etc/shadow`:
+
+```bash
+cat /etc/shadow
+```
+
+> **Important:** Passwords in `/etc/shadow` use **one-way SHA-256 hashing**. Decryption is **not possible**. If a user forgets their password, the old password **cannot be restored** — a new one must be set.
+
+#### Password Expiry Policy
+
+```bash
+# Force password change every 90 days
+chage -M 90 avirala
+```
+
+---
+
+### Deleting Users
+
+```bash
+# Delete a user
+userdel avirala
+
+# Confirm the user no longer exists
+cat /etc/passwd
+```
+
+---
+
+### `useradd` vs `adduser` — Key Difference
+
+| Feature | `useradd` | `adduser` |
+|---|---|---|
+| Home directory created | ❌ No | ✅ Yes |
+| Prompts for user details | ❌ No | ✅ Yes |
+| Best used for | Shell scripts / automation | Interactive user creation |
+
+> **Why use `useradd` at all?** In **shell scripts**, you need non-interactive commands. `useradd` creates a user and moves immediately to the next line — no prompts, no pauses. `adduser` is interactive and unsuitable for scripting.
+
+---
+
+### Locking & Unlocking User Accounts
+
+```bash
+# Lock a user account (e.g., suspicious activity)
+usermod -L avirala
+
+# Unlock the user account
+usermod -U avirala
+```
+
+Use locking when an account needs to be temporarily suspended without deleting it.
+
+---
+
+### Group Management
+
+#### Why Groups?
+
+Managing permissions for 500+ individual users is impractical. Instead, users are placed in **groups**, and permissions are applied at the group level. When a permission changes, updating the group automatically affects all members.
+
+```
+Organization (500 users)
+├── dev     (250 developers)
+├── qa      (200 QA engineers)
+├── devops  (30 DevOps engineers)
+└── mgmt    (10 managers)
+```
+
+#### Creating a Group
+
+```bash
+groupadd devops
+
+# Verify the group was created
+cat /etc/group
+```
+
+#### Adding a User to a Group
+
+```bash
+# usermod -aG <groupname> <username>
+usermod -aG devops avirala
+
+# Verify user is in the group
+cat /etc/group
+```
+
+The `-aG` flags mean: `-a` (append, don't remove from other groups) and `-G` (specify group name).
+
+#### Key Group Files
+
+| File | Purpose |
+|---|---|
+| `/etc/group` | Lists all groups and their members |
+| `/etc/passwd` | Lists all users |
+| `/etc/shadow` | Stores encrypted user passwords |
+
+---
+
+### Connecting to a Remote Linux Server via SSH
+
+In a real organization, a Linux administrator creates a user on the server and shares the IP address, username, and password. You then connect using **SSH**.
+
+#### How SSH Works
+
+- Every Linux server runs a background process called **`sshd`** (SSH daemon) that listens for incoming connections.
+- On your local machine (Windows/Mac), you use an **SSH client** to connect.
+- **Windows:** Git Bash or WSL
+- **Mac:** Terminal (built-in) or iTerm2
+
+#### Connecting via SSH
+
+```bash
+# ssh <username>@<server-ip>
+ssh avirala@172.31.87.187
+# Enter the password when prompted
+```
+
+```bash
+# Confirm who you are after logging in
+whoami
+
+# Check system details
+uname -a
+```
+
+#### Enabling / Disabling Password Authentication
+
+Cloud providers often **disable password authentication by default** for security. To enable it:
+
+```bash
+# Edit the SSH config file
+vim /etc/ssh/sshd_config.d/<config-file>
+
+# Change this line:
+PasswordAuthentication yes   # (set to 'no' to disable)
+```
+
+```bash
+# Restart the SSH service to apply changes
+systemctl restart ssh
+```
+
+> If password authentication is disabled, login is done using **PEM key files** (SSH key pairs) — covered in a later section.
+
+---
+
+## Section 4 — File Management
+
+### Navigating the File System
+
+```bash
+# List files and directories in current location
+ls
+
+# List with details (permissions, size, date)
+ls -ltr
+
+# Change into a directory
+cd /tmp
+
+# Go up one level (parent directory)
+cd ..
+
+# Go up two levels
+cd ../..
+
+# Go to the root of the file system
+cd /
+
+# Show current working directory
+pwd
+```
+
+---
+
+### Creating Files & Directories
+
+```bash
+# Create an empty file
+touch abfile
+
+# Create a directory
+mkdir avirala
+
+# Verify
+ls -ltr
+```
+
+> In `ls -ltr` output, entries starting with `d` are directories; others are files.
+
+---
+
+### Deleting Files & Directories
+
+```bash
+# Delete a file
+rm abfile
+
+# Delete an empty directory
+rmdir avirala
+
+# Delete a directory and all its contents (force recursive)
+rm -rf avirala
+```
+
+> ⚠️ `rm -rf` is irreversible. Always double-check the path before running it.
+
+---
+
+### Copying & Renaming Files
+
+```bash
+# Copy a file (creates a duplicate with a new name)
+cp ab viraala
+
+# Rename / move a file
+mv ab viraala
+
+# Move a file to a different directory
+mv abfile /tmp/
+```
+
+---
+
+### Reading File Contents
+
+| Command | Purpose |
+|---|---|
+| `cat filename` | Print entire file content to terminal |
+| `less filename` | Open file in scrollable interactive view (press `q` to quit) |
+| `head -n 10 filename` | Print the first 10 lines |
+| `tail -n 20 filename` | Print the last 20 lines |
+| `tac filename` | Print file in reverse order (novelty, rarely used) |
+
+```bash
+# Install less if not available
+apt install less
+
+# Examples
+cat demofile.txt
+less demofile.txt
+head -10 demofile.txt
+tail -20 demofile.txt
+```
+
+---
+
+### Writing to Files with `echo`
+
+`echo` is the print statement of the shell. Combined with redirection operators, it writes to files.
+
+```bash
+# Overwrite a file with new content (ALL previous content is deleted)
+echo "Hello World" > demofile.txt
+
+# Append content to an existing file (preserves existing content)
+echo "Hello" >> demofile.txt
+echo "World" >> demofile.txt
+
+# View result
+cat demofile.txt
+```
+
+> **Critical distinction:**
+> - `>` — **overwrites** the file completely
+> - `>>` — **appends** to the file without deleting existing content
+
+---
+
+## Section 5 — Vi / Vim Editor & Shortcuts
+
+Vim (Vi Improved) is the standard text editor for Linux. It is used to create and edit files directly on the server — no GUI required.
+
+```bash
+# Install vim
+apt install vim
+
+# Open an existing file or create a new one
+vim abfile
+```
+
+---
+
+### The Three Modes of Vim
+
+```
+┌──────────────────────────────────────────────────────┐
+│                    VIM MODES                         │
+│                                                      │
+│  NORMAL MODE       INSERT MODE       COMMAND MODE    │
+│  (default)    →i→  (write/edit)  →ESC→  (:commands) │
+│  navigation        type content       save / quit    │
+└──────────────────────────────────────────────────────┘
+```
+
+| Mode | How to Enter | What You Can Do |
+|---|---|---|
+| **Normal Mode** | Default when file opens / press `Esc` | Navigate — scroll up, down, left, right |
+| **Insert Mode** | Press `i` in Normal Mode | Type and edit content (see `-- INSERT --` at bottom) |
+| **Command Mode** | Press `Esc` then `:` | Run save/quit/search instructions |
+
+---
+
+### Opening and Writing to a File
+
+1. Open a file with `vim abfile`
+2. Press `i` to enter **Insert Mode** — you will see `-- INSERT --` at the bottom
+3. Type your content freely
+4. Press `Esc` to exit Insert Mode and return to Normal Mode
+
+---
+
+### Saving and Quitting
+
+All save/quit commands are entered in **Command Mode** (press `Esc` then `:`):
+
+| Command | Action |
+|---|---|
+| `:wq!` | Save and quit |
+| `:w` | Save without quitting |
+| `:q!` | Quit without saving (discard changes) |
+
+```
+# Workflow:
+vim abfile        → opens the file
+i                 → enter Insert Mode
+(type content)
+Esc               → return to Normal Mode
+:wq!              → save and quit
+```
+
+```bash
+# Verify saved content
+cat abfile
+```
+
+---
+
+### Navigation Shortcuts
+
+These shortcuts work in **Normal Mode** (press `Esc` first):
+
+| Shortcut | Action |
+|---|---|
+| Arrow keys (`↑` `↓` `←` `→`) | Move cursor line by line / character by character |
+| `:0` | Jump to the **first line** of the file |
+| `:<n>` | Jump to **line number `n`** (e.g., `:500` goes to line 500) |
+| `Shift + G` | Jump to the **last line** of the file |
+| `Shift + O` | Insert a **new line above** the cursor |
+| `u` | **Undo** the last change |
+| `/searchterm` | **Search** for a word in the file (press `n` for next match) |
+
+```bash
+# Example: open a 1000-line file and jump to line 500
+vim demofile.txt
+# Press Esc, then type:
+:500
+```
+
+> For a complete reference of all Vim shortcuts (insert, navigation, search & replace), refer to the course GitHub repository `vi-shortcuts.md`.
+
+---
+
+## Important Files Reference
+
+| File | Purpose |
+|---|---|
+| `/etc/passwd` | All user accounts on the system |
+| `/etc/shadow` | Encrypted passwords for all users |
+| `/etc/group` | All groups and their members |
+| `/etc/ssh/sshd_config` | SSH server configuration (enable/disable password auth) |
+
+---
+
+## Interview Questions to Remember
+
+**Q1: What is the difference between `useradd` and `adduser`?**
+
+`useradd` is a low-level command that creates a user quickly without prompts and **does not create a home directory**. It is preferred in **shell scripts** for non-interactive automation. `adduser` is a higher-level command that prompts for user details and **automatically creates a home directory**. It is preferred for manual, interactive user creation.
+
+---
+
+**Q2: Can you restore a forgotten Linux user password?**
+
+**No.** Passwords are stored in `/etc/shadow` as a **one-way SHA-256 hash**. Hashing is irreversible — decryption is not possible. If a user forgets their password, the administrator must **set a new password** using `passwd <username>`. The original password cannot be recovered.
+
+---
+
+**Q3: Why are groups used in Linux?**
+
+Groups allow administrators to manage permissions for large numbers of users efficiently. Instead of modifying permissions for each of 250 developers individually, a single group permission change applies to all members simultaneously. Groups make access control scalable.
+
+---
+
+## Section Summary
+
+| Command | Purpose |
+|---|---|
+| `useradd <name>` | Create user (no home dir, no prompts — for scripts) |
+| `adduser <name>` | Create user with home dir and details (interactive) |
+| `passwd <name>` | Set or change a user's password |
+| `userdel <name>` | Delete a user |
+| `usermod -L <name>` | Lock a user account |
+| `usermod -U <name>` | Unlock a user account |
+| `chage -M 90 <name>` | Set password expiry to 90 days |
+| `groupadd <name>` | Create a new group |
+| `usermod -aG <group> <user>` | Add a user to a group |
+| `ssh <user>@<ip>` | Connect to a remote Linux server |
+| `ls` / `ls -ltr` | List files and directories |
+| `cd <dir>` | Change directory |
+| `pwd` | Print current working directory |
+| `mkdir <name>` | Create a directory |
+| `touch <name>` | Create an empty file |
+| `rm <file>` | Delete a file |
+| `rmdir <dir>` | Delete an empty directory |
+| `rm -rf <dir>` | Force delete directory and all contents |
+| `cp <src> <dst>` | Copy a file |
+| `mv <src> <dst>` | Move or rename a file |
+| `cat <file>` | Print file contents to terminal |
+| `less <file>` | View file in scrollable mode |
+| `head -n <file>` | Print first n lines |
+| `tail -n <file>` | Print last n lines |
+| `echo "text" > file` | Overwrite file with text |
+| `echo "text" >> file` | Append text to file |
+| `vim <file>` | Open file in Vim editor |
