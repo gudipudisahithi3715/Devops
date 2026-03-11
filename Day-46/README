@@ -1,0 +1,314 @@
+# Jenkins & CI/CD — Interview Questions & Learning Notes
+
+## 1. What is the CI/CD Process?
+
+This question tests my understanding of how CI/CD works end-to-end in a real organization. The answer should be tailored to the tech stack and tools actually used — not a generic definition.
+
+### Example Answer (Java-based project)
+
+- **Source Code Repository:** GitHub — developers commit code here.
+- **Orchestrator:** Jenkins — automatically triggers a pipeline on each commit.
+- **Build Tool:** Maven — compiles and packages the Java application.
+- **Code Quality & Security:**
+- Static code analysis using a tool like **SonarQube**
+- Security scanning using **AppScan** (SAST/DAST)
+- **Deployment:**
+- **Argo CD** (declarative GitOps continuous delivery) monitors the Git repository for changes to Kubernetes manifests.
+- When a new Docker image tag is pushed, Argo CD detects the change and deploys using **Helm charts** to the target **Kubernetes cluster**.
+
+### Simplified GitOps Flow
+
+```
+Developer commits code
+        ↓
+Jenkins pipeline triggered (via webhook)
+        ↓
+Code checkout → Maven build → SonarQube → AppScan
+        ↓
+Docker image built & pushed
+        ↓
+Deployment manifest updated in Git (new image tag)
+        ↓
+Argo CD detects change → deploys to Kubernetes via Helm
+```
+
+> **Note:** If the organization hasn't migrated to Kubernetes, replace the Argo CD/Kubernetes part with EC2 instance deployment.
+
+---
+
+## 2. Different Ways to Trigger Jenkins Pipelines
+
+Since Jenkins and GitHub are separate tools, Jenkins needs a mechanism to know when code has changed. There are three approaches:
+
+### Option 1: Polling SCM
+- Jenkins periodically checks the GitHub repository for changes using `git fetch`.
+- **Drawback:** Very resource-intensive; Jenkins constantly polls even when there are no changes.
+
+### Option 2: Build Triggers (Cron-based)
+- A scheduled Cron job triggers the pipeline at fixed intervals.
+- **Drawback:** Introduces lag — if a developer commits at 6:00 AM and the Cron runs at 11:00 AM, there's a 5-hour delay.
+
+### Option 3: Webhooks ✅ (Recommended)
+- GitHub sends a JSON payload to Jenkins the moment a developer makes a code change.
+- The payload contains metadata: committer info, PR number, assignee, etc.
+- Configured in GitHub repository **Settings → Webhooks**.
+- Jenkins receives the notification via its API and immediately triggers the pipeline.
+
+**Why webhooks are best:** Real-time, no wasted compute, no polling overhead.
+
+---
+
+## 3. How to Back Up Jenkins
+
+Jenkins stores all its configuration, jobs, logs, and plugin data in the `.jenkins` hidden directory located in the home directory of the user under which Jenkins is installed.
+
+### Primary Backup Method
+
+```bash
+# Sync the .jenkins folder to a backup destination
+rsync -av ~/.jenkins/ /path/to/backup/destination/
+```
+
+- The destination can be an **EBS volume**, a **snapshot**, or any configured backup system.
+
+### Additional Backup Considerations
+
+| What to Back Up | When Needed |
+|---|---|
+| `.jenkins` folder | Always — contains jobs, configs, logs |
+| External database | If Jenkins is configured to use one (large-scale setups) |
+| Plugins | To restore the exact plugin environment |
+| User content/credentials | If custom user data is stored outside `.jenkins` |
+
+---
+
+## 4. How to Handle Secrets in Jenkins
+
+Leaking sensitive information (passwords, API keys, certificates) through logs or the UI is a serious security risk. Jenkins provides multiple ways to manage secrets.
+
+### Recommended Approach: HashiCorp Vault
+
+- **HashiCorp Vault** is the industry-standard secrets management tool.
+- It integrates with Jenkins, Terraform, Ansible, Azure DevOps, and more.
+- Secrets are stored securely in Vault and referenced in the pipeline at runtime — they are **never hardcoded**.
+
+### How it works in a Jenkins pipeline:
+
+```groovy
+stage('Deploy') {
+    steps {
+        withVault(configuration: [vaultUrl: 'https://vault.example.com'],
+                  vaultSecrets: [[path: 'secret/myapp', secretValues: [
+                      [envVar: 'DB_PASSWORD', vaultKey: 'password']
+                  ]]]) {
+            sh 'echo "Deploying with secret from Vault"'
+        }
+    }
+}
+```
+
+### Alternative (Built-in): Jenkins Credentials Plugin
+- Jenkins has a built-in credentials store via the **Credentials Plugin**.
+- Suitable for simpler setups, but HashiCorp Vault is preferred for enterprise environments.
+
+---
+
+## 5. Latest Version of Jenkins
+
+- I should always stay updated on the current Jenkins version if I'm actively using it.
+- Interviewers use this to gauge whether I'm using Jenkins day-to-day.
+- Not knowing the version may signal a lack of hands-on, recent experience.
+
+**Tip:** Before any Jenkins-focused interview, check [https://www.jenkins.io/changelog/](https://www.jenkins.io/changelog/) for the latest stable release.
+
+---
+
+## 6. What Are Shared Modules / Shared Libraries?
+
+Shared Libraries allow a DevOps engineer to write a pipeline once and reuse it across multiple teams, avoiding duplication.
+
+### Use Case
+
+- **Team A**, **Team B**, and **Team C** all deploy Java apps to EC2.
+- Instead of writing three identical pipelines, I write one reusable pipeline as a **Shared Library** and all teams reference it.
+
+### Key Concepts
+
+- Stored in a separate Git repository.
+- Defined using Groovy.
+- Loaded in a `Jenkinsfile` using `@Library('my-shared-library')`.
+
+```groovy
+@Library('my-shared-library') _
+
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                buildApp()  // function defined in the shared library
+            }
+        }
+    }
+}
+```
+
+---
+
+## 7. Building Multi-Language Applications with Jenkins
+
+A three-tier application might use:
+- **Frontend:** Node.js / React
+- **Backend:** Java
+- **Microservice:** Python
+
+Jenkins can handle all of them in a single pipeline using **Docker agents per stage** — no need to pre-install all runtimes on the worker node.
+
+### Example: Multi-stage Pipeline with Docker Agents
+
+```groovy
+pipeline {
+    agent none
+    stages {
+        stage('Build Frontend') {
+            agent { docker { image 'node:18' } }
+            steps {
+                sh 'npm install && npm run build'
+            }
+        }
+        stage('Build Backend') {
+            agent { docker { image 'maven:3.9-eclipse-temurin-17' } }
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        stage('Build Python Service') {
+            agent { docker { image 'python:3.11' } }
+            steps {
+                sh 'pip install -r requirements.txt'
+            }
+        }
+    }
+}
+```
+
+**Benefits:**
+- No dependencies installed on the worker node.
+- Docker containers are spun up per stage and destroyed after — no resource waste.
+- Minimal maintenance overhead.
+
+---
+
+## 8. Setting Up Auto Scaling Groups for Jenkins
+
+### Problem
+- During peak periods (e.g., holidays, major releases), Jenkins needs more worker nodes.
+- Keeping those extra nodes running year-round wastes money.
+
+### Solution: AWS Auto Scaling Groups (ASG)
+- Jenkins master runs on a dedicated EC2 instance.
+- Worker nodes are part of an **Auto Scaling Group**.
+- ASG automatically provisions more EC2 worker nodes under high load and terminates them when load drops.
+- Supports **predictive scaling** and other scaling policies.
+
+**Steps (high-level):**
+1. Create an EC2 launch template for Jenkins agents.
+2. Create an Auto Scaling Group using that template.
+3. Install the **Amazon EC2 Plugin** in Jenkins.
+4. Configure Jenkins to use the ASG for dynamic agent provisioning.
+
+---
+
+## 9. How to Add a New Worker Node
+
+### Via UI
+
+1. Go to **Manage Jenkins → Manage Nodes and Clouds** (or just *Manage Nodes* in older versions).
+2. Click **New Node**.
+3. Provide:
+- Node name
+- IP address of the worker machine
+- SSH credentials (public key or password)
+4. Set as a **Permanent Agent**.
+5. Click **Launch** — the node connects and is ready.
+
+> To add a **Docker-based cloud agent**, use the **Clouds** section instead of New Node.
+
+---
+
+## 10. How to Install Plugins
+
+### Via UI
+1. Go to **Manage Jenkins → Manage Plugins**.
+2. Click the **Available** tab.
+3. Search for the desired plugin.
+4. Check the box and click **Install without restart** (or **Download now and install after restart**).
+
+### Via CLI (Recommended for bulk installs)
+
+```bash
+java -jar jenkins-cli.jar \
+  -s http://localhost:8080/ \
+  install-plugin <plugin-name> -deploy
+```
+
+- Write a shell script to install multiple plugins at once.
+- If a plugin is not in the available list, download the `.hpi`/`.jpi` file and upload it manually via **Manage Plugins → Advanced → Upload Plugin**.
+
+---
+
+## 11. What is JNLP and Why is it Used?
+
+**JNLP (Java Network Launch Protocol)** is the mechanism that allows Jenkins worker/agent nodes to communicate with the Jenkins master.
+
+### How it works:
+1. Download the `agent.jar` (JNLP jar) from the Jenkins master UI.
+2. Run it on the worker node:
+
+```bash
+java -jar agent.jar \
+  -jnlpUrl http://<jenkins-master>:8080/computer/<node-name>/slave-agent.jnlp \
+  -secret <secret-key>
+```
+
+3. The agent connects to the Jenkins master and starts receiving build tasks.
+
+**Use case:** Useful when the worker node is behind a firewall and cannot accept inbound SSH connections — the agent initiates the connection outward to the master.
+
+---
+
+## 12. Common Jenkins Plugins
+
+| Plugin | Purpose |
+|---|---|
+| **Git Plugin** | Integrates Jenkins with Git repositories |
+| **Maven Integration Plugin** | Builds Java Maven projects |
+| **Docker Pipeline Plugin** | Enables Docker agents in pipelines |
+| **Kubernetes Plugin** | Runs agents as Kubernetes pods |
+| **SonarQube Scanner** | Static code quality analysis |
+| **Credentials Plugin** | Manages secrets and credentials securely |
+| **Pipeline Plugin** | Enables declarative/scripted pipelines via `Jenkinsfile` |
+| **Blue Ocean** | Modern UI for Jenkins pipeline visualization |
+| **Amazon EC2 Plugin** | Dynamically provisions EC2 instances as agents |
+| **Slack Notification Plugin** | Sends build status notifications to Slack |
+| **HashiCorp Vault Plugin** | Fetches secrets from Vault during pipeline execution |
+
+> **Tip:** When installing Jenkins fresh, pay attention to which plugins are auto-installed via *Install Suggested Plugins* — that list is a solid foundation for interview answers.
+
+---
+
+## Summary
+
+| Topic | Key Takeaway |
+|---|---|
+| CI/CD Process | Explain end-to-end with real tools (GitHub → Jenkins → Maven → SonarQube → Argo CD → K8s) |
+| Pipeline Triggers | Webhooks are the most efficient; avoid polling |
+| Backup | Backup `.jenkins` folder using `rsync`; also backup external DBs if used |
+| Secrets | Use HashiCorp Vault for enterprise-grade secret management |
+| Jenkins Version | Always stay updated — signals active usage |
+| Shared Libraries | Write once, reuse across teams |
+| Multi-language Builds | Use Docker agents per stage |
+| Auto Scaling | Use AWS ASG for dynamic worker node provisioning |
+| Worker Nodes | Add via UI (Manage Nodes) or configure Docker cloud agents |
+| Plugins | Install via UI or CLI; know the common ones by name |
+| JNLP | Protocol for agent-to-master communication; useful behind firewalls |
