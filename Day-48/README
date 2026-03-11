@@ -1,0 +1,511 @@
+# Linux Zero to Hero — Section 2: Linux Folder Structure
+
+---
+
+## 1. Understanding the Terminal Prompt
+
+When logging into a Linux environment, the terminal prompt contains useful information:
+
+```
+root@hostname:/# 
+```
+
+| Part | Meaning |
+|---|---|
+| `root` | The currently logged-in user |
+| `@hostname` | The name/identity of the host machine |
+| `:` | Separator (no functional meaning) |
+| `/` | The current working directory (present location in file system) |
+| `#` | Indicates root/admin user (regular users show `$`) |
+
+### Root User vs Regular Users
+
+- **`root`** is the administrative (superuser) account on Linux — full system access.
+- In real organizations, individual users are created for each person (e.g., `abi`, `santos`). Their permissions are restricted based on their role.
+- When using a Docker container, the default login is as `root`.
+- When using an AWS EC2 instance, the default login is as `ubuntu` (a less privileged user, for security).
+
+### The Tilde `~` Symbol
+
+- `~` (tilde) represents the **home directory** of the currently logged-in user.
+- For user `ubuntu` → `~` means `/home/ubuntu`
+- For user `abi` → `~` means `/home/abi`
+- **Exception:** For `root`, `~` means `/root` (not `/home/root`)
+
+---
+
+## 2. The Root File System `/`
+
+The **root of the file system** is represented by `/` (forward slash). It is the top-level parent directory — everything in Linux lives under it.
+
+Think of it like Google Drive: there is one top-level folder, and all other folders and files are nested within it.
+
+```bash
+# Navigate to the root of the file system
+cd /
+
+# List all top-level directories
+ls -ltr
+```
+
+---
+
+## 3. Linux Directory Overview
+
+```
+/
+├── sbin        → System binaries (admin commands)
+├── bin         → User binaries (general commands)
+├── usr/        → Parent directory for binaries and libraries
+│   ├── bin     → (actual location of user binaries)
+│   ├── sbin    → (actual location of system binaries)
+│   └── lib     → (actual location of libraries)
+├── lib         → Symlink → /usr/lib
+├── boot        → Files required during system startup
+├── etc         → System configuration files
+├── home/       → Home directories for all users
+│   ├── ubuntu/
+│   └── abishek/
+├── root        → Home directory of the root user
+├── opt         → Third-party / optional software
+├── var/        → Variable data (logs, caches)
+│   └── log/
+├── tmp         → Temporary files (auto-cleared)
+├── mnt         → Mount point for additional volumes
+├── srv         → Server-related data
+├── data        → Shared organizational data
+├── run         → Runtime process data
+├── proc        → Virtual filesystem for process info
+├── dev         → Device files
+├── sys         → Virtual filesystem for kernel/system info
+└── media       → Removable media (USB, CD-ROM)
+```
+
+---
+
+## 4. Directory Deep Dive
+
+---
+
+### `/sbin` — System Binaries
+
+- Stores **administrative commands** — only system administrators should execute these.
+- Contains binaries for tasks like creating users, managing groups, mounting filesystems, checking CPU/memory.
+
+```bash
+ls /sbin
+```
+
+**Examples of commands inside `/sbin`:**
+
+| Command | Purpose |
+|---|---|
+| `useradd` | Create a new user |
+| `groupadd` | Create a new group |
+| `userdel` | Delete a user |
+| `mount` | Mount a filesystem |
+
+```bash
+# Create a user using a system binary from /sbin
+useradd abi
+
+# Switch to that user
+su abi
+```
+
+> Access to `/sbin` should be **restricted to admins only**. Granting regular users access to these commands could compromise system integrity.
+
+---
+
+### `/bin` — User Binaries
+
+- Stores **non-administrative commands** that regular users can use safely.
+- These are everyday commands — listing files, comparing files, checking date/time, etc.
+
+```bash
+ls /bin
+```
+
+**Examples of commands inside `/bin`:**
+
+| Command | Purpose |
+|---|---|
+| `ls` | List files and directories |
+| `date` | Print current date and time |
+| `diff` | Compare two files |
+| `sed` | Stream editor for modifying file content |
+
+```bash
+# Non-admin command — safe for any user
+date
+```
+
+> **Key difference:** `/sbin` → admin-only commands. `/bin` → commands accessible to all users.
+
+---
+
+### `/usr` — User Directory (Parent)
+
+- The **actual storage location** for binaries and libraries.
+- `/bin`, `/sbin`, and `/lib` at the root level are **symbolic links (shortcuts)** pointing to their counterparts inside `/usr`.
+
+```bash
+ls /usr
+# Output includes: bin  lib  sbin  share  src
+```
+
+| Symlink at root | Actual location |
+|---|---|
+| `/bin` | `/usr/bin` |
+| `/sbin` | `/usr/sbin` |
+| `/lib` | `/usr/lib` |
+
+**Analogy:** Like a Windows shortcut — the shortcut lives on the desktop but the actual file is deep in `C:\Program Files`. Executing the shortcut runs the real file. Linux achieves this with `ln` (symbolic links).
+
+```bash
+# Verify: ls is in /usr/bin
+which ls
+# Output: /usr/bin/ls
+```
+
+---
+
+### `/lib` — Libraries
+
+- Contains **shared libraries** used by the Linux kernel and system binaries to make system calls to hardware.
+- These are not used directly by end users — they are internal dependencies of the kernel and system programs.
+
+```bash
+ls /lib
+```
+
+---
+
+### `/boot` — Boot Files
+
+- Contains files required to **start (boot) the Linux machine** — kernel images, bootloader configuration, etc.
+- On a Docker container, this directory will be empty because containers don't go through a full boot process.
+- On a real VM or EC2 instance, this directory contains active content used during startup/restart.
+
+```bash
+ls /boot
+# Empty on Docker containers
+# Contains boot files on EC2/VMs
+```
+
+---
+
+### `/etc` — System Configuration
+
+> One of the **most important directories** on a Linux system.
+
+- Stores all **system-wide configuration files** — similar to the Settings app on a phone or the `C:\Windows\System32` config area on Windows.
+- Modifying files here changes system behaviour.
+
+```bash
+ls /etc
+```
+
+**Key files inside `/etc`:**
+
+| File | Purpose |
+|---|---|
+| `/etc/passwd` | Stores user account information |
+| `/etc/hosts` | Local DNS mapping (hostname → IP) |
+| `/etc/os-release` | OS version and distribution details |
+| `/etc/rc*` | Startup executable priority scripts |
+
+```bash
+# View OS details
+cat /etc/os-release
+
+# View local DNS entries
+cat /etc/hosts
+
+# View user account list
+cat /etc/passwd
+```
+
+---
+
+### `/home` — User Home Directories
+
+- Every non-root user on the system gets a personal directory under `/home`.
+- These directories are **private** to each user — files here are not accessible to other users by default.
+- Created automatically when a new user is added.
+
+```bash
+ls /home
+# Output: ubuntu  abishek
+
+# Create a new user (auto-creates /home/abishek1)
+adduser abishek1
+
+# Verify
+ls /home
+# Output: ubuntu  abishek  abishek1
+```
+
+---
+
+### `/root` — Root User's Home
+
+- The home directory specifically for the `root` user.
+- **Exception to the rule:** All other users have their home under `/home/<username>`, but root's home is `/root`.
+
+```bash
+# Navigate to root's home directory
+cd /root
+# or
+cd ~   # (when logged in as root)
+```
+
+---
+
+### `/opt` — Optional / Third-Party Software
+
+- The **standard location for installing third-party tools and custom software** that is not managed by the system package manager.
+- Accessible to all users in the organization (unlike `/home/<user>` which is user-specific).
+- Keeps third-party software organized and separate from system binaries.
+
+```bash
+# Install a custom tool into /opt
+cd /opt
+mkdir custom-tool
+cd custom-tool
+# Place executables, scripts, and config files here
+```
+
+**Why use `/opt` instead of the user's home directory?**
+- Files in `/home/ubuntu` are private to the `ubuntu` user.
+- Files in `/opt` can be made accessible organization-wide.
+- It is the **Linux convention** for third-party software installation.
+
+> Randomly installing tools in `/tmp` or a custom directory is bad practice. Always use `/opt` for third-party dependencies.
+
+---
+
+### `/var` — Variable Data & Logs
+
+- Stores **data that changes frequently** — primarily **log files**.
+- When applications like Apache or Nginx are installed, they write their logs under `/var/log/<app-name>/`.
+
+```bash
+ls /var
+# Output: log  lib  cache  ...
+
+ls /var/log
+# System logs and application log directories
+```
+
+**Common subdirectories:**
+
+| Path | Purpose |
+|---|---|
+| `/var/log` | Log files (system + application) |
+| `/var/lib` | Persistent application state data |
+| `/var/cache` | Cached application data |
+
+---
+
+### `/tmp` — Temporary Files
+
+- Used to store **temporary files** that do not need to persist long-term.
+- The Linux system **automatically clears `/tmp`** after a set period (similar to "Recently Deleted" on a phone).
+- Use `/tmp` in scripts that generate log files or intermediate output that should be auto-cleaned.
+
+```bash
+# Create a temporary directory
+cd /tmp
+mkdir abi
+# This will be automatically cleared by the system over time
+```
+
+---
+
+### `/mnt` — Mount Point
+
+- Used by system administrators to **temporarily mount new storage volumes (disks)** before adding them permanently to the file system.
+- When a Linux machine runs out of disk space and a new disk is added, it is first mounted at `/mnt`.
+
+```bash
+# Example: mount a new disk to /mnt
+mount /dev/sdb1 /mnt
+```
+
+> Disk management and mounting is covered in detail in **Episode 5 (Section 10)**.
+
+---
+
+### `/srv` — Server Data
+
+- Stores **data served by web or FTP servers**.
+- When web server software (e.g., Apache, Nginx) is installed, it may store served files under `/srv`.
+- Empty by default unless a server application populates it.
+
+```bash
+ls /srv
+# Empty unless a web server is configured
+```
+
+---
+
+### `/data` — Shared Data
+
+- A general-purpose directory for **shared organizational data** (e.g., billing info, cost reports, team datasets).
+- Access is controlled through Linux file permissions.
+- Not present on all distributions by default — created as needed.
+
+---
+
+### `/run` — Runtime Data
+
+- Stores **transient runtime data** for running processes — data that exists only while the process is active.
+- Cleared on every reboot.
+
+```bash
+ls /run
+```
+
+---
+
+### `/proc`, `/dev`, `/sys` — Virtual/Volatile Directories
+
+These are **virtual filesystems** — they don't store data on disk. They are generated dynamically by the kernel.
+
+| Directory | Purpose |
+|---|---|
+| `/proc` | Virtual filesystem exposing process and system information |
+| `/dev` | Device files representing hardware (disks, terminals, etc.) |
+| `/sys` | Virtual filesystem for kernel and hardware configuration |
+
+> These will be explored further in later sections when working with shell scripts and process management.
+
+---
+
+### `/media` — Removable Media
+
+- Used to **auto-mount removable devices** like USB drives or CD-ROMs.
+- Primarily relevant for desktop Linux users, not for server/DevOps use cases.
+
+---
+
+## 5. The PATH Environment Variable
+
+### The Problem
+
+When the `ls` command is typed into the terminal, how does Linux know where to find it? The full path `/usr/bin/ls` was never specified.
+
+```bash
+# Both of these produce the same output:
+ls
+/usr/bin/ls
+```
+
+### The Solution: PATH
+
+`PATH` is an **environment variable** that tells the Linux kernel which directories to search when a command is entered. If the command's binary exists in any of those directories, it is executed automatically.
+
+```bash
+# View the current PATH
+echo $PATH
+# Output: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+```
+
+- Directories in `PATH` are separated by `:`.
+- When `ls` is typed, the kernel scans each directory in `PATH` left to right until it finds `ls`.
+- It finds it at `/usr/bin/ls` → executes it.
+
+```bash
+# Confirm the exact location of a command
+which ls
+# Output: /usr/bin/ls
+```
+
+### What Happens When a Command is NOT in PATH?
+
+```bash
+abishek
+# Output: bash: abishek: command not found
+```
+
+There is no binary called `abishek` in any of the `PATH` directories — so the kernel cannot find or execute it.
+
+### Adding Custom Directories to PATH
+
+```bash
+# Temporarily add a new directory to PATH
+export PATH=$PATH:/opt/custom-tool/bin
+```
+
+> Permanently modifying PATH is covered in a later section on environment variables and shell configuration.
+
+---
+
+## 6. Directory Categories — Quick Reference
+
+### System Binaries & Libraries
+
+| Directory | Purpose |
+|---|---|
+| `/sbin` | Admin-only system binaries |
+| `/bin` | General-use user binaries |
+| `/usr/bin` | Actual location of user binaries |
+| `/usr/sbin` | Actual location of system binaries |
+| `/lib` | Kernel and system shared libraries |
+| `/usr/lib` | Actual location of libraries |
+
+### Important System Directories
+
+| Directory | Purpose |
+|---|---|
+| `/etc` | System configuration files |
+| `/boot` | Boot/startup files |
+
+### Application & User Directories
+
+| Directory | Purpose |
+|---|---|
+| `/home` | Home directories for all non-root users |
+| `/root` | Home directory of the root user |
+| `/opt` | Third-party and custom software |
+| `/srv` | Data served by web/FTP servers |
+
+### Temporary & Volatile Directories
+
+| Directory | Purpose |
+|---|---|
+| `/tmp` | Temporary files (auto-cleared) |
+| `/run` | Runtime process data (cleared on reboot) |
+| `/proc` | Virtual FS — process and system info |
+| `/dev` | Virtual FS — device files |
+| `/sys` | Virtual FS — kernel/hardware info |
+
+### Mount & Storage Directories
+
+| Directory | Purpose |
+|---|---|
+| `/mnt` | Temporary mount point for new disks |
+| `/media` | Auto-mount point for removable media |
+| `/data` | Shared organizational data |
+| `/var` | Variable data — primarily logs |
+
+---
+
+## 7. Section Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| Terminal prompt | Shows current user, hostname, and working directory |
+| `/` (root) | Top-level parent of the entire Linux file system |
+| `/sbin` vs `/bin` | Admin commands vs general-user commands |
+| `/usr` | Actual storage for binaries and libraries; `/bin`, `/sbin`, `/lib` are symlinks to it |
+| `/etc` | Most important config directory — system settings live here |
+| `/home` | Per-user private directories; auto-created with each new user |
+| `/root` | Exception: root user's home is `/root`, not `/home/root` |
+| `/opt` | Correct place to install third-party tools (not `/tmp` or random dirs) |
+| `/var/log` | Where application and system logs are stored |
+| `/tmp` | Temporary files — auto-cleared by the system |
+| `/mnt` | Used to mount new disks before adding to file system |
+| `PATH` | Environment variable that tells the kernel where to find commands |
+| `which <cmd>` | Shows the full path of where a command binary lives |
