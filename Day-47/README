@@ -1,0 +1,275 @@
+# Linux Zero to Hero — Section 1: Fundamentals of Linux
+
+## 1. Course Overview
+
+The complete Linux course is structured into **10 sections**, covered across **5 episodes**. Some episodes cover a single section, others cover multiple — depending on complexity.
+
+| Section | Topic |
+|---|---|
+| 1 | Getting Started — OS Fundamentals, Linux Structure, Distributions, Setup, Package Managers |
+| 2 | Folder Structure |
+| 3 | User Management |
+| 4 | File Management |
+| 5 | Vi Editor & Shortcuts |
+| 6 | File Permissions |
+| 7 | Process Management |
+| 8 | System Monitoring |
+| 9 | Linux Networking |
+| 10 | Disk Management |
+
+---
+
+## 2. Why Operating Systems?
+
+### The Hardware Problem
+
+The physical components of a computer — **CPU, memory, storage, motherboard, and network interfaces** — make up what we call **hardware**.
+
+There are two actors that need to interact with hardware:
+- **Users** — to create files, manage folders, check system resources, etc.
+- **Software Applications** — e.g., a video streaming app needs CPU, memory, and display.
+
+### Why Neither Can Interact Directly
+
+- **Applications:** When writing a Python "Hello World" program, I don't write instructions for how to allocate CPU or memory. The application has no built-in knowledge of hardware resources.
+- **Users:** Users cannot touch physical components directly. They need either a **Graphical User Interface (GUI)** or a **Command Line Interface (CLI)** — neither of which is provided by the hardware itself.
+
+This is the core reason an intermediate layer is needed — the **Operating System**.
+
+---
+
+## 3. What is an Operating System?
+
+> An **Operating System (OS)** is an intermediate software layer that acts as a bridge between software applications (or users) and the hardware.
+
+### Responsibilities of an OS
+
+- **Process Management** — controls which programs run and how CPU time is allocated
+- **Memory Management** — allocates and frees RAM for running programs
+- **Device Management** — manages hardware peripherals
+- **Network Management** — handles network communication
+
+### How the Layers Connect
+
+```
+Users / Applications
+        ↓
+  Operating System  ←→  CLI / GUI  (for users)
+        ↓
+      Hardware
+  (CPU, Memory, Storage, Network)
+```
+
+- Applications (software) talk to the OS, and the OS allocates hardware resources on their behalf.
+- Users interact with the OS through CLI or GUI.
+- **Windows** provides a rich GUI. **Linux** provides a rich CLI.
+
+---
+
+## 4. History of Operating Systems
+
+| Decade | Event |
+|---|---|
+| **1960s** | **Unix** — the first operating system, solved the problem of hardware interaction for application developers. Became popular very quickly and was open-source. |
+| **1970s** | **Minix** — built on Unix concepts. Partially open-source (not fully). |
+| **1980s** | **Windows** — released by Microsoft with a rich **Graphical User Interface (GUI)**, making hardware interaction accessible to non-technical users without needing to know commands. |
+| **1990s** | **Linux kernel** — developed as the first popular fully open-source OS, competitive with Windows and surpassing it in many areas. |
+
+### Why Linux Dominates Today (2025)
+
+- **90% of production workloads** — servers, mobile software, cloud infrastructure — run on Linux.
+- **Not just because it's free** — the bigger reason is that Linux is **open-source**.
+- Open-source means it is backed by a **large, active community of developers** (not a single company), which ensures rapid security patches and continuous improvements.
+- Companies get something that is both **free and highly secure** — a rare combination.
+
+---
+
+## 5. Structure of Linux
+
+Linux operating system is made up of four layers:
+
+```
+┌──────────────────────────────────┐
+│       CLI / GUI (Shell)          │  ← User interaction layer
+├──────────────────────────────────┤
+│   System Utilities & Libraries   │  ← Built-in commands, common libraries
+├──────────────────────────────────┤
+│         Linux Kernel             │  ← Core engine: process, memory,
+│                                  │    filesystem, network management
+├──────────────────────────────────┤
+│           Hardware               │  ← CPU, RAM, Storage, Network
+└──────────────────────────────────┘
+```
+
+### Layer Breakdown
+
+- **Hardware** — the physical components.
+- **Linux Kernel** — the engine of Linux; handles all hardware interaction (process, memory, filesystem, network management). This is the most critical component.
+- **System Utilities & Libraries** — pre-installed packages and libraries that make Linux feature-rich and secure out of the box.
+- **Shell (CLI)** — the mandatory interface for users to interact with the OS. Linux can technically run with just the kernel, but the shell is essential for usability.
+
+> The **Linux kernel** is the most important component. Without it, there is no Linux.
+
+---
+
+## 6. Linux Distributions
+
+### What is a Distribution?
+
+Since Linux is open-source, any company or individual can take the Linux source code, add features, customizations, or wrappers on top of it, and release it as their own product. These releases are called **Linux distributions (distros)**.
+
+### Popular Distributions
+
+| Distribution | Maintained By | Notes |
+|---|---|---|
+| **Ubuntu** | Canonical | Most popular, beginner-friendly, rich package support |
+| **Red Hat** | Red Hat (IBM) | Enterprise-focused |
+| **Debian** | Community | Stable, widely used base |
+| **Fedora** | Community (Red Hat-sponsored) | Cutting-edge features |
+| **Alpine** | Community | Minimal, used heavily in containers |
+
+### Why Scripts Work Across Distros
+
+All Linux distributions share the same underlying Linux kernel and core system libraries. A shell script written for Ubuntu will typically also run on Red Hat or Debian — because the foundation is the same. This does **not** apply across operating systems (e.g., a Linux shell script will not run natively on Windows).
+
+### Which One to Start With?
+
+**Ubuntu** — it comes with the most required system packages and libraries pre-installed, making it the most hassle-free option for beginners.
+
+---
+
+## 7. Setting Up a Linux Environment
+
+I don't need a cloud instance (AWS EC2, Azure VM, etc.) to learn Linux. There are free, local options.
+
+---
+
+### Option 1: WSL — Windows Subsystem for Linux (Recommended for Windows)
+
+WSL creates a Linux-like environment directly on a Windows machine — not a full virtual machine, but fully functional for learning.
+
+**Steps:**
+
+1. Open **PowerShell** or **Command Prompt** on Windows.
+2. Run:
+
+```powershell
+wsl --install
+```
+
+3. Restart the machine after installation.
+4. Open Command Prompt and run:
+
+```powershell
+wsl
+```
+
+Ubuntu is now running and accessible from within Windows.
+
+---
+
+### Option 2: Docker Container (Windows or Mac)
+
+If WSL is not available, a Docker container can simulate a Linux machine. The command below creates an Ubuntu container with local storage mounted into it.
+
+**Steps:**
+
+1. Create a local folder to bind as storage for the container.
+
+- On **Windows:** Create a folder at `C:\Ubuntu-data`
+- On **Mac/Linux:** Run:
+
+```bash
+mkdir -p /tmp/ubuntu-data
+```
+
+2. Run the Docker container:
+
+```bash
+docker run -it \
+  --name ubuntu-linux-learning \
+  -v /tmp/ubuntu-data:/data \
+  ubuntu:latest
+```
+
+> For Windows, replace `/tmp/ubuntu-data` with `C:\Ubuntu-data`.
+
+3. If the container already exists and needs to be re-entered:
+
+```bash
+docker exec -it <container-id> /bin/bash
+```
+
+This drops into a full Ubuntu environment. Process management, shell scripting, file navigation — everything in the 10 sections can be practiced here.
+
+---
+
+### Option 3: Cloud Instance (Last Resort)
+
+Only use this if WSL and Docker both fail. Create an EC2 instance on AWS or a VM on Azure. Note that cloud instances incur costs if left running.
+
+---
+
+## 8. Package Managers
+
+### What is a Package Manager?
+
+When working on Linux, packages like Python, Java, or Git are installed using a **package manager**. Package managers:
+
+- **Install** packages from a trusted central repository
+- **Upgrade** packages to newer versions
+- **Remove** packages
+- **List and search** available packages
+
+Each Linux distribution ships with its own package manager. For **Ubuntu**, the package manager is **`apt`**.
+
+---
+
+### Common `apt` Commands
+
+```bash
+# Update the package index (always run before installing anything)
+apt update
+
+# List all installed and available packages
+apt list
+
+# Search for a specific package
+apt search python3
+
+# Install a package
+apt install python3
+
+# Remove a package
+apt remove python3
+```
+
+> **Important:** Always run `apt update` before `apt install`. Linux machine images are packaged at a point in time — running `apt update` ensures the package index is current before installing anything.
+
+### How Package Installation Works
+
+When running `apt install python3`:
+
+1. `apt` connects to the Ubuntu central repository (e.g., `archive.ubuntu.com`).
+2. It downloads the requested package from that trusted location.
+3. The package is installed on the machine.
+
+### What if a Package is Not in `apt`?
+
+Some packages are not available through the default package manager. In those cases, `curl` or `wget` commands are used to download packages directly from the internet — covered in a later section.
+
+---
+
+## 9. Section Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| **Operating System** | Intermediate software layer bridging users/apps and hardware; handles process, memory, device, and network management |
+| **Linux vs Windows** | Linux is open-source, free, and highly secure; powers 90% of production workloads |
+| **Linux Kernel** | The core engine of Linux — most critical component |
+| **Linux Structure** | Hardware → Kernel → System Utilities & Libraries → Shell (CLI) |
+| **Linux Distributions** | Ubuntu, Red Hat, Debian, Fedora, Alpine — all built on the same Linux core with added wrappers |
+| **Recommended Distro** | Ubuntu — most beginner-friendly with pre-installed packages |
+| **Local Setup** | Use WSL (Windows) or Docker container — no cloud instance needed |
+| **Package Manager** | `apt` on Ubuntu — used to install, upgrade, search, and remove packages |
+| **First command to run** | `apt update` — always before installing anything |
