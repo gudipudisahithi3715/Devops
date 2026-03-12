@@ -1,0 +1,334 @@
+# AWS CloudFormation Templates (CFT)
+
+## What is CloudFormation (CFT)?
+
+**AWS CloudFormation** is an AWS-native service that allows infrastructure to be created, managed, and updated on AWS by submitting declarative templates — instead of clicking through the console or running individual CLI commands.
+
+- CFT implements the principles of **Infrastructure as Code (IaC)**.
+- It supports **YAML** and **JSON** template formats.
+- It targets **AWS only** — it does not support other cloud providers.
+- Templates are submitted to CloudFormation via **Stacks**.
+
+---
+
+## What is Infrastructure as Code (IaC)?
+
+**IaC** is the practice of defining and managing infrastructure (servers, networks, storage, etc.) through code/configuration files, rather than through manual processes or UIs.
+
+**Core IaC principles:**
+
+1. **Declarative** — the template describes *what* the end state should be, not *how* to get there. What you read in the template is exactly what exists in your infrastructure. Any team member can review the template and immediately understand what resources are deployed.
+
+2. **Versioned** — templates are plain text files (YAML/JSON) that can be stored in Git repositories or S3. Changes are tracked over time, allowing rollbacks, code reviews, and audit trails — just like application code.
+
+3. **Acts as a middleman** — an IaC tool accepts a template from the user, translates it into API calls that the cloud provider understands, and provisions the requested resources.
+
+**Popular IaC tools comparison:**
+
+| Tool | Cloud Support | Template Format |
+|---|---|---|
+| **CloudFormation (CFT)** | AWS only | YAML / JSON |
+| **Azure Resource Manager** | Azure only | JSON |
+| **Terraform** | Multi-cloud | HCL (HashiCorp Language) |
+| **Crossplane** | Multi-cloud | YAML (Kubernetes-native) |
+
+---
+
+## How CFT Works
+
+```
+User writes YAML/JSON template
+        │
+        ▼
+AWS CloudFormation Service (Stack)
+        │  Reads the template
+        │  Translates to AWS API calls
+        ▼
+AWS Resources are created/updated/deleted
+```
+
+The CloudFormation service is available directly in the AWS Console, via the CLI, or triggered from CI/CD pipelines.
+
+---
+
+## CFT vs AWS CLI — When to Use Which
+
+| Scenario | Recommended Tool |
+|---|---|
+| Quick lookup — list S3 buckets, check instance status | **AWS CLI** |
+| One-off, fast, interactive actions | **AWS CLI** |
+| Creating a full infrastructure stack (VPC + EC2 + LB + S3) | **CFT** |
+| Team-based infrastructure with code reviews | **CFT** |
+| Version-controlled, auditable infrastructure changes | **CFT** |
+| Resources that need drift detection and compliance tracking | **CFT** |
+
+> **Rule of thumb:** CLI for speed and quick tasks. CFT for structured, repeatable, reviewable infrastructure management.
+
+---
+
+## CFT vs Terraform
+
+| Feature | CloudFormation (CFT) | Terraform |
+|---|---|---|
+| Cloud support | AWS only | Multi-cloud (AWS, Azure, GCP, on-prem) |
+| Template format | YAML / JSON | HCL |
+| Native AWS integration | Deep (automatic drift detection, etc.) | Good (via AWS provider) |
+| Multi-cloud portability | No | Yes |
+| Industry adoption trend | Stable | Growing rapidly |
+
+**When to use CFT:**
+- Organisation is exclusively on AWS with no plans to migrate or use other clouds.
+- Team is already deeply invested in the AWS ecosystem.
+
+**When to use Terraform:**
+- Organisation uses multiple cloud providers (AWS + Azure, AWS + on-premises, etc.).
+- Team wants a single IaC tool across all infrastructure.
+- Future-proofing for potential cloud migrations.
+
+> **Interview tip:** If asked why you use CFT, the correct answer is: *"Our organisation is exclusively on AWS and has been for several years with no plans to change, so CFT provides the deepest native integration."* If your org uses multiple clouds, always choose Terraform.
+
+---
+
+## YAML vs JSON for CFT
+
+CFT supports both, but **YAML is strongly recommended**:
+
+| Feature | YAML | JSON |
+|---|---|---|
+| Comments | ✅ Supported | ❌ Not supported |
+| Readability | High (indentation-based) | Lower (bracket-heavy) |
+| Industry usage in DevOps | Very common (Kubernetes, Ansible) | Less common for config |
+| Complexity | Low | Higher |
+
+> Use YAML unless the team has a strong existing reason to use JSON.
+
+---
+
+## CFT Template Structure
+
+A CloudFormation template is a YAML (or JSON) file with the following sections. **Only `Resources` is mandatory** — all others are optional but recommended for team environments.
+
+```yaml
+AWSTemplateFormatVersion: "2010-09-09"   # Standard — never changes
+
+Description: >
+  Brief description of what this template creates.
+  Include team name, project, and purpose.
+
+Metadata:
+  # Author, project, team info
+  Author: DevOps Team
+  Project: payments-app
+
+Parameters:
+  # Runtime variables passed to the template
+  # Example: instance type, bucket name, environment
+  InstanceType:
+    Type: String
+    Default: t2.micro
+
+Rules:
+  # Validation rules for parameters
+  # Example: enforce naming conventions, restrict instance sizes
+
+Mappings:
+  # Map parameters to specific values
+  # Example: map environment name to AMI ID
+
+Conditions:
+  # Conditional logic
+  # Example: only create a resource if environment is "prod"
+
+Resources:                          # ← MANDATORY — the only required section
+  MyS3Bucket:                       # Logical name (can be anything)
+    Type: AWS::S3::Bucket           # Resource type — this is what CFT reads
+    Properties:
+      BucketName: my-unique-bucket-name
+      VersioningConfiguration:
+        Status: Enabled
+
+Outputs:
+  # What information to return after stack creation
+  # Example: EC2 instance ID, public IP, S3 bucket ARN
+  BucketName:
+    Value: !Ref MyS3Bucket
+    Description: Name of the created S3 bucket
+```
+
+**Key rule about the `Resources` section:**
+
+- Each entry under `Resources` starts with a **logical name** (e.g., `MyS3Bucket`, `AppEC2Instance`) — this is just a label and can be anything.
+- The **`Type` field** is what CloudFormation actually reads to determine what AWS resource to create.
+- Multiple resources can be defined in one template:
+
+```yaml
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: app1-payments-prod-example.com
+
+  AppEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c02fb55956c7d316
+      InstanceType: t2.micro
+      KeyName: my-key-pair
+      SecurityGroups:
+- my-security-group
+```
+
+---
+
+## Key CFT Features
+
+### Stacks
+
+A **Stack** is the CloudFormation entity that holds a template and manages the lifecycle of the resources it creates.
+
+- When a template is submitted, it is submitted as a **Stack**.
+- All resources created by the stack are tracked together.
+- Deleting a stack deletes all the resources it created (unless explicitly retained).
+- Stacks can be updated by submitting a modified template.
+
+### Drift Detection
+
+**Drift** occurs when someone manually modifies an AWS resource that was originally created by CloudFormation — through the console, CLI, or otherwise — without updating the template.
+
+**Why drift detection matters:**
+
+As a DevOps engineer managing hundreds or thousands of resources, it is impossible to manually verify that every resource still matches its original configuration. Drift detection automates this.
+
+**How to detect drift:**
+
+1. Go to **CloudFormation → Stacks → select your stack**.
+2. Click **Stack Actions → Detect Stack Drift**.
+3. After detection completes, click **View Drift Results**.
+4. CloudFormation will show which resources have drifted and exactly what changed (expected value vs. actual value).
+
+**Example drift result:**
+
+| Property | Expected (Template) | Actual (AWS) |
+|---|---|---|
+| VersioningConfiguration.Status | Enabled | Suspended |
+
+Once drift is identified, the DevOps engineer can investigate who made the change, revert it, and revoke permissions if necessary.
+
+---
+
+## Practical Walkthrough
+
+### Step 1: Write a CFT Template (S3 Bucket with Versioning)
+
+Create a file called `template.yaml` locally:
+
+```yaml
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Creates an S3 bucket with versioning enabled.
+  Used for demonstrating CFT drift detection.
+
+Resources:
+  DemoS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: demo-aws-abb-example.com
+      VersioningConfiguration:
+        Status: Enabled
+```
+
+> Find the full list of S3 bucket properties in the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html).
+
+---
+
+### Step 2: Create a Stack via the AWS Console
+
+1. Go to **AWS Console → CloudFormation**.
+2. Click **Create Stack → With new resources (standard)**.
+3. Select **Template is ready → Upload a template file**.
+4. Upload `template.yaml` → Click **Next**.
+5. Enter a **Stack Name** (e.g., `test-s3-bucket-drift-detection`) → Click **Next**.
+6. Skip through optional settings → Click **Submit**.
+
+CloudFormation will show real-time events as it creates each resource. Wait for **CREATE_COMPLETE** status.
+
+---
+
+### Step 3: Verify Resource Creation
+
+1. Go to **S3** in the AWS Console.
+2. Confirm the bucket `demo-aws-abb-example.com` exists.
+3. Click on the bucket → **Properties** → verify **Bucket Versioning: Enabled**.
+
+---
+
+### Step 4: Manually Change a Resource and Detect Drift
+
+**Simulate a manual configuration change:**
+
+1. Go to **S3 → Bucket → Properties → Bucket Versioning → Edit**.
+2. Change status to **Suspended** → Save changes.
+
+**Detect the drift:**
+
+1. Go to **CloudFormation → Stacks → select your stack**.
+2. Click **Stack Actions → Detect Stack Drift**.
+3. Wait for detection to complete.
+4. Click **View Drift Results → View Drift Details**.
+
+**Expected output:**
+
+```
+Resource: DemoS3Bucket
+Status: DRIFTED
+
+Property Path              Expected         Actual
+-----------------------------------------------------------
+VersioningConfiguration    Enabled          Suspended
+```
+
+CloudFormation has identified the exact property that was manually changed. Corrective actions: revert the change, investigate who made it, or adjust permissions.
+
+---
+
+## Writing CFT Efficiently — VS Code Plugins
+
+Two VS Code plugins significantly speed up writing CloudFormation templates:
+
+**1. YAML (by Red Hat)**
+- Validates YAML indentation and syntax in real time.
+- Highlights errors before submitting to CloudFormation.
+- Search for `YAML` in VS Code Extensions → install the Red Hat version.
+
+**2. AWS Toolkit**
+- Provides CloudFormation resource type autocomplete.
+- Type `AWS::` and get a list of all resource types.
+- Type property names and get suggestions without opening the documentation.
+- Has additional features for interacting with AWS services directly from VS Code.
+- Search for `AWS Toolkit` in VS Code Extensions.
+
+**Writing a template with autocomplete:**
+
+```
+Type: AWS::    ← autocomplete shows all resource types
+Type: AWS::EC2::    ← narrows to EC2 resources
+Type: AWS::EC2::Instance    ← selects EC2 instance
+```
+
+Under `Properties`, typing partial property names triggers suggestions — reducing reliance on documentation for known resources.
+
+---
+
+## Key Takeaways
+
+- **CloudFormation (CFT)** is AWS's native IaC service — it creates, manages, and updates AWS resources from declarative YAML or JSON templates.
+- **IaC principles** — declarative (what you see is what you have) and versioned (templates stored in Git/S3 with full change history).
+- The **only mandatory section** in a CFT template is `Resources` — all other sections (Parameters, Conditions, Mappings, etc.) are optional but recommended for team-based work.
+- **Stacks** are the execution unit — a stack holds a template and tracks all resources created from it.
+- **Drift detection** identifies when someone manually modifies a resource that was created by CloudFormation — critical for maintaining compliance and consistency at scale.
+- Use **YAML over JSON** for CloudFormation templates — it supports comments, is more readable, and aligns with other DevOps tooling (Kubernetes, Ansible).
+- **VS Code plugins** (YAML by Red Hat + AWS Toolkit) dramatically speed up writing templates with autocomplete and real-time validation.
+- Use **CFT when your organisation is AWS-only**. Use **Terraform** when working in a multi-cloud or mixed environment.
+
+---
