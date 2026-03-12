@@ -1,0 +1,288 @@
+# AWS CLI — Command Line Interface
+
+## The Problem with the AWS UI
+
+From Day 0 to Day 9, every resource (VPC, EC2, S3, etc.) was created using the **AWS Management Console (UI)**. While the UI is great for learning, it has a critical limitation:
+
+> **The AWS UI is not automation-friendly.**
+
+As a DevOps engineer, common daily requests include:
+- Create 10 VPCs with specific configurations
+- Provision 20 S3 buckets
+- Launch 15 EC2 instances across multiple regions
+
+Doing each of these tasks manually through the UI — clicking through pages, filling forms — is time-consuming, error-prone, and impossible to scale. This is the core problem that **automation tools** solve.
+
+---
+
+## What is an API?
+
+**API** stands for **Application Programming Interface**.
+
+Instead of interacting with AWS through a browser (UI), an API allows programs to interact with AWS **programmatically** — by sending structured HTTP requests directly to AWS endpoints.
+
+**Conceptual example — creating an S3 bucket via API:**
+
+```
+POST https://api.aws.com/s3/create
+Body: { "bucket_name": "my-bucket", "versioning": true }
+```
+
+AWS receives this request, creates the bucket, and returns the result as JSON.
+
+Using APIs, any task that takes minutes in the UI can be scripted and executed in seconds — and repeated reliably thousands of times.
+
+---
+
+## Infrastructure Automation Tools on AWS
+
+AWS exposes its API and several tools have been built on top of it to make automation accessible:
+
+| Tool | Category | Best For |
+|---|---|---|
+| **AWS CLI** | Command Line | Quick tasks, scripting, day-to-day ops |
+| **CloudFormation (CFT)** | IaC | AWS-native declarative infrastructure stacks |
+| **Terraform** | IaC | Multi-cloud declarative infrastructure |
+| **AWS CDK** | IaC (code-first) | Infrastructure defined in programming languages |
+
+> **IaC** = Infrastructure as Code — defining and managing infrastructure through code/configuration files rather than manual processes.
+
+All of these tools ultimately translate their inputs into **AWS API calls**. The difference is the abstraction layer they provide and the use cases they best serve.
+
+---
+
+## What is AWS CLI?
+
+**AWS CLI (Command Line Interface)** is a Python-based utility developed and maintained by AWS itself. It acts as an abstraction layer between the user and the AWS API.
+
+```
+User Command  →  AWS CLI  →  AWS API Call  →  AWS Resource Created
+```
+
+- No need to write Python code or understand HTTP request formatting.
+- Simply install the CLI, read the documentation, and pass commands with parameters.
+- AWS CLI translates those commands into the correct API calls automatically.
+
+**How it simplifies API interaction:**
+
+Instead of writing a Python script with imports, HTTP methods, and JSON payloads to create an S3 bucket, the CLI reduces it to:
+
+```bash
+aws s3 mb s3://my-new-bucket
+```
+
+---
+
+## When to Use CLI vs IaC Tools
+
+| Scenario | Recommended Tool |
+|---|---|
+| Quick lookup — list S3 buckets, check EC2 status | **AWS CLI** |
+| One-off resource creation or deletion | **AWS CLI** |
+| Creating a full infrastructure stack (VPC + subnets + EC2 + LB) | **Terraform / CloudFormation** |
+| Reproducible, version-controlled infrastructure | **Terraform / CloudFormation** |
+| Reviewing infrastructure changes in a PR/code review | **Terraform / CloudFormation** |
+
+> **Rule of thumb:** Use CLI for fast, simple, interactive tasks. Use IaC tools when building or managing complex, repeatable infrastructure.
+
+---
+
+## Practical Walkthrough
+
+### Step 1: Install AWS CLI
+
+> **Windows users:** Install [Oracle VirtualBox](https://www.virtualbox.org/) with a Linux VM, or use [Git Bash](https://git-scm.com/downloads) as a terminal alternative.
+
+Go to the official AWS CLI documentation:
+```
+https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+```
+
+Select the installer for your OS and follow the instructions.
+
+**macOS (command line installer):**
+
+```bash
+curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+sudo installer -pkg AWSCLIV2.pkg -target /
+```
+
+**Verify installation:**
+
+```bash
+aws --version
+# Expected output: aws-cli/2.x.x Python/3.x.x ...
+```
+
+> Always install **AWS CLI v2** (version starts with `2.`). AWS CLI v1 is outdated.
+
+---
+
+### Step 2: Create an Access Key
+
+AWS CLI needs credentials to authenticate to your AWS account — analogous to a username and password for UI login.
+
+1. Log in to the **AWS Console**.
+2. Click on your account name (top right) → **Security Credentials**.
+3. Scroll down to **Access Keys** → **Create Access Key**.
+4. If using the root account, acknowledge the warning → **Proceed**.
+5. Copy the **Access Key ID** and **Secret Access Key**.
+
+> ⚠️ **Never share your Secret Access Key.** Anyone with this key can access your AWS account. Delete unused access keys immediately after use.
+
+> In organisations, always use **IAM user credentials** (not root) to generate access keys.
+
+---
+
+### Step 3: Configure AWS CLI
+
+Run the configuration command and provide the credentials:
+
+```bash
+aws configure
+```
+
+You will be prompted for:
+
+```
+AWS Access Key ID [None]: <your-access-key-id>
+AWS Secret Access Key [None]: <your-secret-access-key>
+Default region name [None]: us-east-1
+Default output format [None]: json
+```
+
+| Field | Description |
+|---|---|
+| Access Key ID | From Step 2 |
+| Secret Access Key | From Step 2 |
+| Default region | The AWS region to target by default (e.g., `us-east-1`) |
+| Output format | `json` is recommended — structured, readable output |
+
+---
+
+### Step 4: Verify Configuration
+
+Run a simple command to confirm the CLI is authenticated and talking to the correct account:
+
+```bash
+aws s3 ls
+```
+
+This should return a list of all S3 buckets in your account. If the output matches what you see in the AWS Console, the configuration is working correctly.
+
+---
+
+### Step 5: List S3 Buckets
+
+```bash
+aws s3 ls
+```
+
+**Example output:**
+
+```
+2024-06-06 10:22:34 app1-payments-prod-example.com
+```
+
+This confirms the CLI is connected to the correct AWS account and region.
+
+---
+
+### Step 6: Create an EC2 Instance via CLI
+
+The following command creates an EC2 instance using the CLI. Replace the placeholder values with actual IDs from your AWS account:
+
+```bash
+aws ec2 run-instances \
+  --image-id ami-0c02fb55956c7d316 \
+  --instance-type t2.micro \
+  --subnet-id subnet-xxxxxxxx \
+  --security-group-ids sg-xxxxxxxx \
+  --key-name your-key-pair-name \
+  --count 1
+```
+
+| Parameter | Description |
+|---|---|
+| `--image-id` | AMI ID of the OS image (Ubuntu, Amazon Linux, etc.) |
+| `--instance-type` | Instance size (e.g., `t2.micro` for Free Tier) |
+| `--subnet-id` | Subnet where the instance will be placed |
+| `--security-group-ids` | Security Group to attach |
+| `--key-name` | Name of the key pair for SSH access |
+| `--count` | Number of instances to launch |
+
+**Output** (abbreviated JSON):
+
+```json
+{
+  "Instances": [
+    {
+      "InstanceId": "i-0abcd1234efgh5678",
+      "PrivateIpAddress": "172.31.103.118",
+      "State": { "Name": "pending" },
+      ...
+    }
+  ]
+}
+```
+
+Verify in the AWS Console under **EC2 → Instances** — the private IP in the JSON output should match the instance shown.
+
+**Error handling example:**
+
+If a required parameter like `--image-id` is missing, the CLI returns a clear error:
+
+```
+An error occurred (MissingParameter) when calling the RunInstances operation:
+The request must contain the parameter ImageId
+```
+
+The error message directly identifies the missing field — read it, check the docs, and correct the command.
+
+---
+
+## How to Read the AWS CLI Reference Docs
+
+The AWS CLI reference documentation covers every available command, parameter, and option.
+
+**Finding a command:**
+
+1. Search for `AWS CLI reference <service>` in a browser (e.g., `AWS CLI reference S3`).
+2. Navigate to the service documentation page.
+3. Review the available commands in the **Synopsis** section.
+
+**Common S3 CLI commands:**
+
+| Command | Description |
+|---|---|
+| `aws s3 ls` | List all S3 buckets |
+| `aws s3 mb s3://bucket-name` | Create (make) a new bucket |
+| `aws s3 cp file.txt s3://bucket-name/` | Copy a file to a bucket |
+| `aws s3 rm s3://bucket-name/file.txt` | Remove an object from a bucket |
+| `aws s3 sync ./local-dir s3://bucket-name/` | Sync a local directory to a bucket |
+
+**Common EC2 CLI commands:**
+
+| Command | Description |
+|---|---|
+| `aws ec2 describe-instances` | List all EC2 instances |
+| `aws ec2 run-instances ...` | Launch a new EC2 instance |
+| `aws ec2 stop-instances --instance-ids i-xxxx` | Stop an instance |
+| `aws ec2 terminate-instances --instance-ids i-xxxx` | Terminate an instance |
+
+> For any unfamiliar command, look it up in the [AWS CLI Command Reference](https://docs.aws.amazon.com/cli/latest/reference/) — each command page lists all parameters with descriptions and example usage.
+
+---
+
+## Key Takeaways
+
+- The **AWS UI is not automation-friendly** — using it for repeated or large-scale infrastructure tasks is slow and error-prone.
+- **APIs** allow programmatic interaction with AWS — tools like the AWS CLI, Terraform, and CloudFormation are built on top of these APIs.
+- **AWS CLI** is a Python utility that translates human-readable commands into AWS API calls — no programming knowledge required.
+- **Access Keys** (Access Key ID + Secret Access Key) are the CLI equivalent of a username/password — never share them.
+- Use `aws configure` to authenticate the CLI to an AWS account.
+- The **AWS CLI reference documentation** is the single source of truth for all commands and parameters.
+- **Use CLI for:** quick lookups, simple one-off tasks, day-to-day operations.
+- **Use IaC tools (Terraform/CloudFormation) for:** creating full infrastructure stacks that need to be version-controlled and repeatable.
+
+---
