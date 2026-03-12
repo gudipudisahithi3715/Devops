@@ -1,0 +1,291 @@
+# AWS Scenario-Based Interview Questions
+
+## Q1: Design a VPC for a Highly Available and Scalable Two-Tier Application
+
+**Question:** Your organization needs a VPC architecture for a two-tier application. The application must be highly available and scalable. How would you design this?
+
+**Answer:**
+
+A two-tier application consists of a frontend/application layer and a backend layer (without a database tier). The architecture is built as follows:
+
+**High Availability** → Deploy across **two Availability Zones** (e.g., `us-east-1a` and `us-east-1b`). If one AZ goes down, the other continues to serve traffic uninterrupted.
+
+**Scalability** → Use an **Auto Scaling Group (ASG)** for the application servers. The ASG automatically launches new EC2 instances when traffic increases and terminates them when traffic drops.
+
+**VPC Design:**
+
+```
+VPC
+├── Public Subnet (AZ-1a)    ← Load Balancer
+├── Public Subnet (AZ-1b)    ← Load Balancer
+├── Private Subnet (AZ-1a)   ← App Servers (via ASG)
+└── Private Subnet (AZ-1b)   ← App Servers (via ASG)
+```
+
+- The **Load Balancer** lives in the public subnets — it must be internet-accessible.
+- **Application servers** live in private subnets — they are not directly exposed to the internet.
+- Traffic flows: `Internet → Internet Gateway → Load Balancer → App Servers`.
+
+---
+
+## Q2: Restrict Outbound Internet Access for a Specific Subnet
+
+**Question:** Your VPC has multiple subnets. You need to block outbound internet access for one subnet but allow it for another. How do you achieve this?
+
+**Answer:**
+
+The most efficient approach is to **modify the Route Table** of the subnet that should be restricted.
+
+- Every public subnet has a route table entry that points all outbound traffic (`0.0.0.0/0`) to the **Internet Gateway (IGW)**.
+- Removing this route entry from the route table of the target subnet effectively cuts off all outbound internet access for every resource in that subnet.
+- The other subnet retains its route table entry pointing to the IGW and continues to have internet access.
+
+**Steps:**
+
+1. Go to **VPC → Route Tables**.
+2. Identify and select the route table associated with the subnet to be restricted.
+3. Delete the route with destination `0.0.0.0/0` pointing to the Internet Gateway.
+4. Save changes.
+
+> Without an IGW route, no outbound internet traffic can leave the subnet — and no inbound internet traffic can enter either.
+
+---
+
+## Q3: Allow Internet Access for Instances in a Private Subnet
+
+**Question:** Instances in a private subnet need internet access for software updates. How do you allow this without exposing the instances to the internet?
+
+**Answer:**
+
+Use a **NAT Gateway** (Network Address Translation Gateway).
+
+- Place the NAT Gateway in the **public subnet** (it must be publicly accessible to relay internet requests).
+- Update the **private subnet's route table** to send outbound traffic (`0.0.0.0/0`) to the NAT Gateway.
+
+**How it works:**
+
+1. A private instance sends an outbound request (e.g., to download a package).
+2. The NAT Gateway receives the request and **replaces the private IP with its own public Elastic IP**.
+3. The request reaches the internet destination with the NAT Gateway's IP — the private instance's IP is never exposed.
+4. The response is returned to the NAT Gateway and forwarded back to the private instance.
+
+**Benefits:**
+- Private instances can access the internet for updates or third-party APIs.
+- The private instance's IP address remains hidden from the external world.
+- Even if the external destination is compromised, it cannot initiate inbound connections to the private instance.
+
+---
+
+## Q4: Enable Private IP Communication Between EC2 Instances
+
+**Question:** You have launched two EC2 instances (`foo` and `bar`) in your VPC. You want them to communicate using private IP addresses. What steps do you take?
+
+**Answer:**
+
+For two EC2 instances to communicate using private IP addresses:
+
+**Option 1 — Same Subnet:**
+- Place both instances in the **same subnet** within the same VPC.
+- Instances in the same subnet share the same CIDR block and can communicate directly using private IPs with no additional configuration.
+
+**Option 2 — Different Subnets, Same VPC:**
+- If the instances are in different subnets but the same VPC, they can still communicate using private IPs as long as the **route tables** allow inter-subnet routing (which is typically enabled by default within a VPC).
+
+**Option 3 — Different VPCs:**
+- If the instances are in separate VPCs, use **VPC Peering**.
+- VPC Peering creates a private network link between two VPCs.
+- Update the **route table** in each VPC to point traffic destined for the other VPC's CIDR block to the peering connection.
+
+> Best practice: Keep tightly coupled services in the same VPC and subnet to minimise latency and configuration complexity.
+
+---
+
+## Q5: Implement Strict Network Access Control in a VPC
+
+**Question:** Your organization wants to implement strict network-level access control within a VPC. How do you achieve this?
+
+**Answer:**
+
+Use **NACLs (Network Access Control Lists)** at the subnet level for organisation-wide control, combined with **Security Groups** at the instance level for per-instance control.
+
+**NACLs provide:**
+- Subnet-level traffic filtering — rules apply to all instances in the subnet automatically.
+- Both **allow** and **deny** rules — can explicitly block specific IP ranges or ports.
+- Rule evaluation in **ascending numerical order** — the first matching rule is applied.
+
+**Example strict NACL configuration:**
+
+| Rule # | Type | Port | Source | Action |
+|---|---|---|---|---|
+| 100 | Custom TCP | 443 | 0.0.0.0/0 | ALLOW |
+| 200 | Custom TCP | 80 | 0.0.0.0/0 | ALLOW |
+| 300 | All Traffic | All | 203.0.113.0/24 | DENY |
+| * | All Traffic | All | 0.0.0.0/0 | DENY |
+
+**Security Groups provide:**
+- Instance-level traffic filtering.
+- Only **allow** rules (no explicit deny).
+- Stateful — return traffic is automatically permitted.
+
+Using **both together** provides defence-in-depth: NACLs act as the subnet-level gate and Security Groups act as the per-instance door.
+
+---
+
+## Q6: Set Up an Isolated Environment for Sensitive Workloads
+
+**Question:** Your organisation needs an isolated environment within a VPC to run sensitive workloads. How do you set this up?
+
+**Answer:**
+
+Create a dedicated **private subnet** within the VPC with no internet access:
+
+1. Create a new **private subnet** with its own CIDR block (a sub-range of the VPC's IP range).
+2. Attach a **route table** that has **no route** to the Internet Gateway or NAT Gateway.
+3. Apply a **restrictive NACL** that only allows required internal traffic.
+4. Apply **Security Groups** to each instance that allow only the minimum necessary ports from authorised sources.
+
+This subnet will be completely isolated — no inbound or outbound internet traffic, accessible only from within the VPC through explicitly defined internal routes.
+
+> For the most sensitive workloads, do not even provide Bastion Host access unless absolutely necessary. All access should be logged and audited.
+
+---
+
+## Q7: Securely Access AWS Services (e.g. S3) from Within a VPC
+
+**Question:** An application running inside a VPC needs to access AWS services like S3 or DynamoDB securely without routing traffic over the public internet. How do you achieve this?
+
+**Answer:**
+
+Use **VPC Endpoints**.
+
+- A VPC Endpoint creates a **private connection** between the VPC and the target AWS service (e.g., S3, DynamoDB).
+- Traffic between the VPC and the service stays within the **AWS network** — it never traverses the public internet.
+- No Internet Gateway, NAT Gateway, or VPN is required.
+
+**Types of VPC Endpoints:**
+
+| Type | Used For |
+|---|---|
+| **Gateway Endpoint** | S3 and DynamoDB |
+| **Interface Endpoint** | Most other AWS services (uses PrivateLink) |
+
+**How to configure:**
+1. Go to **VPC → Endpoints → Create Endpoint**.
+2. Select the service (e.g., `com.amazonaws.us-east-1.s3`).
+3. Associate it with the relevant VPC and route table.
+4. Update the **route table** of the private subnet to route S3-bound traffic through the endpoint.
+
+> VPC Endpoints will be covered in detail in the S3 session.
+
+---
+
+## Q8: Difference Between NACLs and Security Groups
+
+**Question:** What is the difference between NACLs and Security Groups? When would you use each?
+
+**Answer:**
+
+| Feature | Security Group | NACL |
+|---|---|---|
+| Applied at | EC2 instance level | Subnet level |
+| Rule types | Allow only | Allow and Deny |
+| Statefulness | **Stateful** | **Stateless** |
+| Scope | Single instance | All instances in the subnet |
+| Default behaviour | Deny all inbound, allow all outbound | Allow all inbound and outbound |
+
+**Stateful vs Stateless explained:**
+
+- **Security Groups are stateful:** If an instance sends a request outbound, the inbound response is automatically allowed — no separate inbound rule is needed for the return traffic.
+- **NACLs are stateless:** Both the outbound request and the inbound response must have explicit matching rules. If an instance sends a request to `google.com` on port 80, a separate inbound rule must explicitly allow the return traffic on the ephemeral port range.
+
+**When to use each:**
+
+- Use **Security Groups** for per-instance access control — open only the specific ports required by that application.
+- Use **NACLs** for subnet-wide policies — block entire IP ranges, enforce org-level rules, or add an extra layer of defence above Security Groups.
+- In production, **always use both** — they provide complementary layers of defence.
+
+---
+
+## Q9: Difference Between IAM Users, Groups, Roles, and Policies
+
+**Question:** Explain the difference between IAM Users, Groups, Roles, and Policies and when you would use each.
+
+**Answer:**
+
+**IAM Users**
+- Represent an individual person who needs access to the AWS account.
+- Solves the **authentication** problem — gives a person a username and password to log in.
+- Created whenever a new team member requires AWS access.
+
+**IAM Policies**
+- JSON documents that define **what actions** are allowed or denied on which AWS resources.
+- Solve the **authorisation** problem — without a policy, a user can log in but cannot do anything.
+- Example: `AmazonS3FullAccess`, `AmazonEC2ReadOnlyAccess`.
+
+**IAM Groups**
+- A collection of IAM users. Policies are attached to the group and inherited by all users in it.
+- Solve the **scale problem** — instead of attaching policies to 500 individual developers, attach them once to a `developers` group and add users to it.
+- If all developers need a new permission, update the group policy once — all 500 users get the update instantly.
+
+**IAM Roles**
+- Similar to users but intended for **AWS services or applications**, not humans.
+- Used when a service (e.g., an EC2 instance or Lambda function) needs permission to access another AWS resource (e.g., an S3 bucket or RDS database).
+- Roles use **temporary credentials** — more secure than embedding long-lived access keys in application code.
+
+**Summary table:**
+
+| Component | Purpose | Used For |
+|---|---|---|
+| User | Authentication | Individual humans |
+| Policy | Authorisation | Defining permissions |
+| Group | Organising users | Managing permissions at scale |
+| Role | Service-level access | AWS services and applications |
+
+---
+
+## Q10: Set Up a Bastion Host to Access Private Subnet Instances
+
+**Question:** You have EC2 instances deployed in a private subnet with no direct internet access. You need to SSH into these instances for administrative purposes. How do you set this up using a Bastion Host?
+
+**Answer:**
+
+A **Bastion Host** (also called a Jump Host) is a dedicated EC2 instance in the **public subnet** that acts as a secure SSH gateway into the private subnet.
+
+**Architecture:**
+
+```
+Local Machine → SSH → Bastion Host (Public Subnet) → SSH → Private EC2 Instance
+```
+
+**Setup Steps:**
+
+1. **Launch a Bastion Host EC2 instance** in the public subnet of the VPC.
+- Assign a public IP address.
+- Attach a Security Group that allows **SSH (port 22)** inbound from your IP or office IP range only.
+
+2. **Copy the PEM key to the Bastion Host** so it can SSH into the private instance:
+   ```bash
+   scp -i ~/Downloads/key.pem ~/Downloads/key.pem ubuntu@<BASTION_PUBLIC_IP>:~
+   ```
+
+3. **SSH into the Bastion Host:**
+   ```bash
+   ssh -i ~/Downloads/key.pem ubuntu@<BASTION_PUBLIC_IP>
+   ```
+
+4. **From the Bastion Host, SSH into the private instance using its private IP:**
+   ```bash
+   ssh -i ~/key.pem ubuntu@<PRIVATE_INSTANCE_PRIVATE_IP>
+   ```
+
+**Why Bastion Hosts are preferred:**
+
+- Private instances never need a public IP — they remain fully isolated.
+- All administrative access is funnelled through one controlled point.
+- Access activity can be **logged and audited** at the Bastion Host level.
+- Additional security rules, scripts, and monitoring can be applied on the Bastion Host.
+- For Windows instances, use **RDP** instead of SSH through the Bastion.
+
+> In production, restrict Bastion Host SSH access to specific IP addresses (e.g., the office VPN range) rather than `0.0.0.0/0` to further reduce the attack surface.
+
+---
