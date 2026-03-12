@@ -1,0 +1,171 @@
+# AWS Route 53 — DNS as a Service
+
+## What is Route 53?
+
+**AWS Route 53** is AWS's managed **DNS (Domain Name System) as a service**.
+
+Just as AWS provides:
+- Compute as a service → EC2
+- Kubernetes as a service → EKS
+
+AWS provides:
+- DNS as a service → **Route 53**
+
+Route 53 handles the resolution of human-readable domain names (like `amazon.com`) to machine-readable IP addresses (like `3.6.10.171`), so users never need to know or memorise the underlying IP of an application.
+
+---
+
+## What is DNS?
+
+**DNS (Domain Name System)** is the system that maps domain names to IP addresses.
+
+Every application or load balancer deployed on AWS (or anywhere) is assigned an IP address. But users never directly interact with IP addresses — they use domain names. DNS is what bridges the two.
+
+```
+User types:  amazon.com
+     │
+     ▼
+DNS resolves:  amazon.com  →  3.6.10.171  (Load Balancer IP)
+     │
+     ▼
+Request reaches the Load Balancer → Application
+```
+
+DNS maintains **records** — a mapping of domain names to IP addresses — on dedicated DNS servers distributed across the internet.
+
+---
+
+## Why Domain Names Instead of IP Addresses?
+
+There are two primary reasons domain names are used in the real world instead of raw IP addresses:
+
+**1. Memorability**
+
+An IP address like `3.6.10.171` is impossible to remember at scale. A domain name like `amazon.com` is intuitive, brandable, and easy to share with users.
+
+**2. IP Addresses Can Change**
+
+IP addresses are not always static. They can change when:
+- A load balancer or server is restarted without a static IP assigned.
+- Infrastructure is scaled or replaced.
+- A home or development server restarts and gets a new DHCP-assigned address.
+
+By pointing a domain name to an IP address, the domain stays constant even if the underlying IP changes — only the DNS record needs to be updated, not every user who accesses the application.
+
+---
+
+## How Route 53 Fits into the VPC Architecture
+
+Before Route 53, the architecture looked like this:
+
+```
+User → Internet Gateway → Public Subnet (Load Balancer) → Private Subnet (App)
+```
+
+With Route 53 added:
+
+```
+User (types amazon.com)
+    │
+    ▼
+Route 53
+    │  Resolves domain name → Load Balancer IP
+    ▼
+Internet Gateway
+    │
+    ▼
+Public Subnet → Load Balancer
+    │
+    ▼
+Private Subnet → Application
+```
+
+Route 53 intercepts every incoming request, looks up its DNS records, resolves the domain name to the appropriate IP address (usually the load balancer), and then forwards the request into the VPC pipeline.
+
+---
+
+## Route 53 Core Components
+
+### 1. Domain Registration
+
+Before any DNS resolution can happen, a domain name must be **registered** (purchased).
+
+Traditionally this was done through third-party registrars like GoDaddy or Namecheap. Route 53 offers this directly within AWS:
+
+- **Buy a domain through Route 53** — AWS handles registration, renewal, and integration automatically.
+- **Use an existing domain bought elsewhere** — Route 53 can integrate with externally registered domains. The domain's nameservers just need to be pointed to the Route 53 nameservers provided after creating a hosted zone.
+
+> Domain registration is a **one-time upfront cost** — not a pay-as-you-go service like most AWS resources.
+
+---
+
+### 2. Hosted Zones
+
+A **Hosted Zone** is where DNS records are stored and managed in Route 53. It is the configuration layer that tells Route 53 how to resolve domain names.
+
+There are two types of hosted zones:
+
+| Type | Description |
+|---|---|
+| **Public Hosted Zone** | Resolves DNS queries from the public internet (e.g., `amazon.com`) |
+| **Private Hosted Zone** | Resolves DNS queries only within a specific VPC (internal service-to-service communication) |
+
+**Inside a hosted zone, DNS records are created**, such as:
+
+| Record Type | Purpose | Example |
+|---|---|---|
+| **A Record** | Maps a domain to an IPv4 address | `myapp.com → 3.6.10.171` |
+| **CNAME** | Maps a domain to another domain name | `www.myapp.com → myapp.com` |
+| **Alias** | AWS-specific — maps domain to AWS resources like ELB or CloudFront | `myapp.com → my-elb.amazonaws.com` |
+
+**Workflow — how a request is resolved:**
+
+```
+1. User requests:  myapp.com
+2. Route 53 checks: Is this domain registered or hosted here?
+3. Route 53 looks up the DNS records in the Hosted Zone
+4. Record found:   myapp.com → 3.6.10.171 (Load Balancer)
+5. Route 53 returns the IP address to the user's browser
+6. Browser connects to 3.6.10.171 → request enters the VPC
+```
+
+**Setup path depending on where the domain was purchased:**
+
+- Domain bought from Route 53 → Hosted Zone is auto-created and linked.
+- Domain bought from GoDaddy or similar → Manually create a Hosted Zone in Route 53, copy the Route 53 nameservers, and update them in the registrar's DNS settings.
+
+---
+
+### 3. Health Checks
+
+Route 53 can continuously monitor the health of web servers or application endpoints.
+
+- Route 53 sends periodic requests (e.g., every 1 or 5 minutes) to the registered endpoints.
+- If an endpoint fails to respond, Route 53 marks it as **unhealthy**.
+- Route 53 can be configured to **stop routing traffic** to unhealthy endpoints and redirect it to healthy ones.
+
+**Example scenario:**
+
+An application is deployed across two availability zones — AZ-1 and AZ-2.
+
+```
+Route 53 Health Check:
+    ├── AZ-1 server → Healthy ✓  → Route traffic here
+    └── AZ-2 server → Unhealthy ✗ → Do not route traffic here
+```
+
+This enables **automatic failover** — if one availability zone or server goes down, Route 53 automatically routes all traffic to the remaining healthy instance, improving availability without manual intervention.
+
+---
+
+## Key Takeaways
+
+- **Route 53** is AWS's DNS service — it resolves domain names to IP addresses for applications hosted on AWS.
+- **DNS** translates human-readable domain names into IP addresses, making applications accessible without requiring users to know or memorise IPs.
+- Domain names are preferred over IP addresses for two reasons: IPs are hard to remember, and they can change.
+- Route 53 sits in front of the Internet Gateway in the VPC architecture and intercepts all incoming domain-based requests.
+- **Domain Registration** in Route 53 allows purchasing and managing domain names directly within AWS.
+- **Hosted Zones** store the DNS records that map domain names to IP addresses or AWS resource endpoints. They can be public (internet-facing) or private (VPC-internal).
+- **Health Checks** in Route 53 monitor application endpoints and enable automatic traffic failover to healthy instances.
+
+---
