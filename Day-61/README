@@ -1,0 +1,380 @@
+# AWS VPC — Production-Grade Public/Private Subnet Project
+
+## Project Overview
+
+This project demonstrates how to deploy an application securely inside an AWS VPC using the **public/private subnet architecture** — the most commonly used and AWS-recommended approach for production deployments.
+
+**What is implemented:**
+
+- A VPC with public and private subnets across **two availability zones** for high availability.
+- Applications deployed inside **private subnets** using an Auto Scaling Group.
+- A **NAT Gateway** in the public subnet to allow private instances to make outbound internet requests without exposing their IP.
+- An **Application Load Balancer** in the public subnet to receive and distribute incoming internet traffic to the private instances.
+- A **Bastion Host** in the public subnet for secure SSH access to private instances.
+
+---
+
+## Architecture Diagram
+
+```
+                        Internet
+                            │
+                            ▼
+                    Internet Gateway
+                            │
+                    ┌───────▼────────────────────────────────────┐
+                    │              VPC (prod-vpc)                 │
+                    │                                             │
+                    │  ┌─────────────────────────────────────┐   │
+                    │  │           Public Subnet              │   │
+                    │  │  ┌──────────┐   ┌────────────────┐  │   │
+                    │  │  │  Bastion │   │  NAT Gateway   │  │   │
+                    │  │  │   Host   │   │ (Elastic IP)   │  │   │
+                    │  │  └──────────┘   └────────────────┘  │   │
+                    │  │  ┌──────────────────────────────┐   │   │
+                    │  │  │   Application Load Balancer  │   │   │
+                    │  │  └──────────────────────────────┘   │   │
+                    │  └─────────────────────────────────────┘   │
+                    │                                             │
+                    │  ┌──────────────┐  ┌──────────────────┐   │
+                    │  │Private Subnet│  │  Private Subnet  │   │
+                    │  │  (AZ-1a)     │  │   (AZ-1b)        │   │
+                    │  │  EC2 (App1)  │  │  EC2 (App2)      │   │
+                    │  └──────────────┘  └──────────────────┘   │
+                    └────────────────────────────────────────────┘
+```
+
+---
+
+## Concepts to Know Before Starting
+
+### Auto Scaling Group (ASG)
+
+An **Auto Scaling Group** automatically manages a fleet of EC2 instances.
+
+- It ensures a minimum number of instances are always running (e.g., 2).
+- If traffic spikes and current instances are overwhelmed, ASG automatically launches new instances (scales out).
+- When traffic drops, ASG terminates excess instances (scales in).
+- Instances can be distributed across multiple availability zones for resilience.
+
+### Load Balancer
+
+A **Load Balancer** sits in the public subnet and distributes incoming traffic across multiple EC2 instances in the private subnet.
+
+- Prevents any single instance from being overwhelmed.
+- Supports path-based and host-based routing.
+- Works with a **Target Group** — a logical grouping of EC2 instances it routes traffic to.
+- The **Application Load Balancer (ALB)** operates at Layer 7 (HTTP/HTTPS).
+
+### Bastion Host / Jump Host
+
+A **Bastion Host** is a dedicated EC2 instance in the public subnet used as a secure SSH gateway into the private subnet.
+
+- Private subnet instances have no public IP, so they cannot be SSH'd into directly from the internet.
+- The Bastion Host acts as the entry point: SSH into Bastion first, then SSH from Bastion into the private instance.
+- Provides centralised access logging and auditing for all SSH activity into private resources.
+
+### Elastic IP Address
+
+An **Elastic IP (EIP)** is a static public IP address that persists even if an instance or NAT Gateway is stopped or restarted.
+
+- Normal EC2/NAT Gateway IPs can change on restart.
+- Elastic IPs are attached to NAT Gateways so their public IP stays consistent for outbound traffic masking.
+
+---
+
+## Implementation Walkthrough
+
+### Step 1: Create a Custom VPC
+
+1. Go to **AWS Console → VPC → Create VPC**.
+2. Select **VPC and more** (auto-creates subnets, route tables, IGW, and NAT Gateway).
+3. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `aws-prod-example` |
+| IPv4 CIDR | `10.0.0.0/16` |
+| Availability Zones | 2 |
+| Public Subnets | 2 (one per AZ) |
+| Private Subnets | 2 (one per AZ) |
+| NAT Gateways | 1 per AZ |
+| VPC Endpoints | None |
+
+4. Click **Create VPC**.
+
+AWS automatically provisions:
+- 2 public subnets (with route tables pointing to Internet Gateway)
+- 2 private subnets (with route tables pointing to NAT Gateway)
+- Internet Gateway
+- NAT Gateways (with Elastic IPs)
+
+> If you hit an "Elastic IP limit reached" error, go to **EC2 → Elastic IPs**, release any unused IPs, then retry.
+
+---
+
+### Step 2: Create a Launch Template
+
+A Launch Template defines the EC2 configuration that the Auto Scaling Group will use.
+
+1. Go to **EC2 → Auto Scaling Groups → Create Auto Scaling Group → Create Launch Template**.
+2. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `aws-prod-example` |
+| AMI | Ubuntu (Free Tier eligible) |
+| Instance Type | `t2.micro` |
+| Key Pair | Your existing `.pem` key |
+| VPC | `aws-prod-example` VPC |
+| Security Group | Create new — allow SSH (port 22) and app port (port 8000) |
+
+Security Group inbound rules for the launch template:
+
+| Type | Port | Source |
+|---|---|---|
+| SSH | 22 | 0.0.0.0/0 |
+| Custom TCP | 8000 | 0.0.0.0/0 |
+
+3. Click **Create Launch Template**.
+
+---
+
+### Step 3: Create an Auto Scaling Group
+
+1. Go to **EC2 → Auto Scaling Groups → Create Auto Scaling Group**.
+2. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `aws-prod-example` |
+| Launch Template | `aws-prod-example` |
+| VPC | `aws-prod-example` |
+| Subnets | Select both **private subnets** (AZ-1a and AZ-1b) |
+| Desired Capacity | 2 |
+| Minimum Capacity | 2 |
+| Maximum Capacity | 4 |
+| Load Balancer | Skip for now (will attach manually) |
+| Scaling Policy | None (configure in advanced sessions) |
+
+3. Click through and **Create Auto Scaling Group**.
+
+After creation, verify in **EC2 → Instances** that two instances are running:
+- One in `us-east-1a`
+- One in `us-east-1b`
+
+Both instances will have **no public IP address** — this is expected and correct for private subnet instances.
+
+---
+
+### Step 4: Create a Bastion Host
+
+1. Go to **EC2 → Launch Instance**.
+2. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `bastion-host` |
+| AMI | Ubuntu |
+| Instance Type | `t2.micro` |
+| Key Pair | Same `.pem` key |
+| VPC | `aws-prod-example` |
+| Subnet | **Public subnet** |
+| Auto-assign Public IP | **Enable** |
+| Security Group | Allow SSH (port 22) |
+
+3. Click **Launch Instance**.
+
+> The Bastion Host must be in the **same VPC** as the private subnet instances, otherwise it cannot reach them.
+
+---
+
+### Step 5: Copy PEM Key to Bastion and SSH into Private Instance
+
+The private EC2 instances can only be accessed using the `.pem` key. Since the key lives on the local machine, it must be copied to the Bastion Host first.
+
+**Copy the PEM file from local machine to Bastion Host:**
+
+```bash
+scp -i ~/Downloads/aws-login.pem ~/Downloads/aws-login.pem ubuntu@<BASTION_PUBLIC_IP>:~
+```
+
+**SSH into the Bastion Host:**
+
+```bash
+ssh -i ~/Downloads/aws-login.pem ubuntu@<BASTION_PUBLIC_IP>
+```
+
+**Verify the PEM file was copied:**
+
+```bash
+ls
+# aws-login.pem should be listed
+```
+
+**From the Bastion Host, SSH into a private EC2 instance using its private IP:**
+
+```bash
+ssh -i ~/aws-login.pem ubuntu@<PRIVATE_INSTANCE_IP>
+```
+
+> Private IP addresses are visible in the EC2 console under each instance's details.
+
+---
+
+### Step 6: Deploy the Application on the Private EC2 Instance
+
+Once inside the private EC2 instance:
+
+**Create a simple HTML page:**
+
+```bash
+vi index.html
+```
+
+Add content:
+
+```html
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>My First AWS Project</h1>
+  <p>Demonstrating apps deployed in a private subnet.</p>
+</body>
+</html>
+```
+
+**Run a Python HTTP server on port 8000:**
+
+```bash
+python3 -m http.server 8000
+```
+
+> Intentionally leave the second private instance without an application to demonstrate load balancer health checks routing traffic only to the healthy instance.
+
+---
+
+### Step 7: Create a Target Group
+
+A Target Group tells the Load Balancer which instances to send traffic to, and on which port.
+
+1. Go to **EC2 → Target Groups → Create Target Group**.
+2. Configure:
+
+| Field | Value |
+|---|---|
+| Target Type | Instances |
+| Name | `aws-prod-example` |
+| Protocol | HTTP |
+| Port | 8000 |
+| VPC | `aws-prod-example` |
+| Health Check Protocol | HTTP |
+
+3. On the next page, select both private EC2 instances → **Include as pending**.
+4. Click **Create Target Group**.
+
+---
+
+### Step 8: Create an Application Load Balancer
+
+1. Go to **EC2 → Load Balancers → Create Load Balancer → Application Load Balancer**.
+2. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `aws-prod-example` |
+| Scheme | Internet-facing |
+| IP Type | IPv4 |
+| VPC | `aws-prod-example` |
+| Availability Zones | Both AZs — select **public subnets** |
+| Security Group | Existing Security Group (will fix port 80 next) |
+| Listener | HTTP : 80 |
+| Default Action | Forward to Target Group `aws-prod-example` |
+
+3. Click **Create Load Balancer**.
+
+---
+
+### Step 9: Fix the Security Group for the Load Balancer
+
+By default, the Load Balancer's Security Group may not allow inbound traffic on Port 80. Fix this:
+
+1. Go to **EC2 → Security Groups** → select the Security Group attached to the Load Balancer.
+2. Click **Inbound Rules → Edit inbound rules → Add rule**:
+
+| Type | Port | Source |
+|---|---|---|
+| HTTP | 80 | 0.0.0.0/0 |
+
+3. Click **Save rules**.
+
+Wait 1–2 minutes for the Load Balancer status to become **Active**.
+
+---
+
+### Step 10: Access the Application from the Internet
+
+1. Go to **EC2 → Load Balancers** → copy the **DNS name** of the Load Balancer.
+2. Open a browser and navigate to:
+
+```
+http://<LOAD_BALANCER_DNS_NAME>
+```
+
+**Expected result:** The HTML page deployed on the healthy private EC2 instance is displayed.
+
+> Since only one instance has the application running, the Target Group health check marks the other instance as unhealthy and routes all traffic to the healthy one. Once both instances have applications deployed, traffic will alternate between them.
+
+---
+
+## Traffic Flow Summary
+
+```
+User types Load Balancer DNS name
+    │
+    ▼
+DNS resolves to Load Balancer IP
+    │
+    ▼
+Internet Gateway (entry into VPC)
+    │
+    ▼
+Public Subnet → Application Load Balancer (Port 80)
+    │  Security Group: Allow port 80 inbound
+    ▼
+Target Group (routes to healthy instances on port 8000)
+    │
+    ▼
+Private Subnet → EC2 Instance
+    │  Security Group: Allow port 8000 inbound
+    ▼
+Python HTTP Server → HTML Response sent back to user
+```
+
+**Outbound flow (private instance downloading from internet):**
+
+```
+EC2 Instance (Private Subnet)
+    │
+    ▼
+NAT Gateway (Public Subnet — masks private IP with Elastic IP)
+    │
+    ▼
+Internet Gateway → Internet
+```
+
+---
+
+## Key Takeaways
+
+- **Private subnets** are used for application servers to keep them unexposed to the internet.
+- **Public subnets** host internet-facing resources: Load Balancer, NAT Gateway, and Bastion Host.
+- **Auto Scaling Groups** manage EC2 instances across availability zones automatically, handling both scaling and distribution.
+- A **Bastion Host** is the only SSH entry point to private instances — never give private instances a public IP.
+- Use `scp` to securely transfer files (like a `.pem` key) between machines before SSH chaining through the Bastion.
+- The **Application Load Balancer** must be in the public subnet and needs its Security Group to allow inbound HTTP (port 80).
+- **Target Groups** perform health checks — traffic is only routed to healthy instances.
+- **NAT Gateway** with an Elastic IP allows private instances to make outbound internet calls without exposing their internal IP.
+- Two availability zones provide fault tolerance — if one AZ goes down, the other continues to serve traffic.
+
+---
