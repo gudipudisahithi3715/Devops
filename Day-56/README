@@ -1,0 +1,164 @@
+# AWS IAM — Identity and Access Management
+
+## What is AWS IAM?
+
+**AWS IAM (Identity and Access Management)** is an AWS service that handles **authentication and authorization** for an AWS account.
+
+- It controls **who can access** the AWS account (authentication).
+- It controls **what they can do** inside the account (authorization).
+
+---
+
+## Why Do We Need IAM?
+
+When an AWS account is created, a **root user** is generated with full unrestricted access to all services. If root credentials are shared with everyone in an organization, any user — knowingly or unknowingly — could:
+
+- Delete critical databases
+- Remove compute resources (EC2 instances)
+- Destroy storage buckets (S3)
+
+This creates a huge security and operational risk. IAM solves this by allowing fine-grained access control without sharing root credentials.
+
+---
+
+## Authentication vs Authorization
+
+| Concept | Meaning | IAM Component |
+|---|---|---|
+| **Authentication** | Verifying *who you are* — can you enter the account? | IAM Users |
+| **Authorization** | Verifying *what you can do* — which services/actions are permitted? | IAM Policies |
+
+**Real-world analogy:** A bank allows only verified account holders to enter (authentication). Once inside, each person can only access specific areas based on their role — a customer can visit the service desk, but only an employee can access the cash vault (authorization).
+
+---
+
+## IAM Components
+
+### 1. Users
+
+- An **IAM User** represents a single person or identity that needs access to the AWS account.
+- Created for every individual who requests AWS access.
+- Provides **authentication** — the user gets a username and password to log in.
+- Without any attached policy, a user can log in but **cannot perform any actions**.
+
+### 2. Policies
+
+- A **Policy** is a JSON document that defines **what actions are allowed or denied** on which AWS resources.
+- Policies provide **authorization**.
+- **AWS Managed Policies** are pre-built policies provided by AWS (e.g., `AmazonS3FullAccess`, `AmazonEC2FullAccess`).
+- **Custom Policies** can be written manually using JSON for more granular control.
+
+A policy document has this general structure:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+Key fields:
+- **Effect** — `Allow` or `Deny`
+- **Action** — AWS service actions (e.g., `s3:ListBuckets`, `ec2:*`)
+- **Resource** — specific resource ARN or `*` for all
+
+### 3. Groups
+
+- A **Group** is a collection of IAM users.
+- Policies are attached to the group, and all users in the group **inherit those permissions**.
+- Eliminates the need to attach policies to each user individually.
+
+**Why groups matter:**
+- If 100 developers need the same permissions, create one `Development` group with the required policies, then add all users to it.
+- If permissions change later, update the group policy once — all members are updated automatically.
+
+Common group examples:
+
+| Group | Typical Permissions |
+|---|---|
+| `developers` | S3 access, EC2 read |
+| `qa-engineers` | Read-only access to specific services |
+| `db-admins` | RDS full access |
+| `devops-team` | Broad admin access (never root) |
+
+### 4. Roles
+
+- A **Role** is similar to a user but is intended for **services, applications, or cross-account access** — not for individual humans.
+- Use cases:
+- An application running outside AWS needs to access an AWS database.
+- One AWS account needs to interact with another AWS account.
+- Roles use **temporary credentials**, making them more secure than long-lived user credentials.
+- Roles will be covered in depth in future sessions (e.g., Jenkins + AWS integration, Terraform, CI/CD pipelines).
+
+---
+
+## Practical Walkthrough
+
+### Step 1: Create an IAM User
+
+1. Log in to the AWS Management Console using the **root account**.
+2. Search for and open the **IAM** service.
+3. Navigate to **Users → Add users**.
+4. Enter a username (e.g., `test-user-501`).
+5. Enable **AWS Management Console access**.
+6. Select **Auto-generated password** and check **"User must create a new password at next sign-in"**.
+7. Skip permissions for now (to demonstrate authentication-only behavior).
+8. Click **Create user** and download or copy the credentials CSV.
+
+---
+
+### Step 2: Log in Without Policies (Authentication Only)
+
+1. Sign out of the root account.
+2. On the sign-in page, select **IAM user**.
+3. Enter the **Account ID** (found in the IAM console URL or dashboard).
+4. Enter the IAM username and auto-generated password.
+5. Reset the password when prompted.
+
+**Observation:** After logging in, attempting to view S3 buckets or launch EC2 instances results in **"Access Denied"** errors. The user is authenticated (can log in) but has no authorization to perform any actions.
+
+---
+
+### Step 3: Attach a Policy (Add Authorization)
+
+1. Log back in as root.
+2. Go to **IAM → Users → test-user-501**.
+3. Click **Add permissions → Attach policies directly**.
+4. Search for `AmazonS3FullAccess` and select it.
+5. Click **Next → Add permissions**.
+
+**Observation:** Log back in as `test-user-501`. Now S3 buckets are visible and a new bucket can be created successfully — authorization is working.
+
+---
+
+### Step 4: Create a Group and Add Users
+
+1. In the IAM console, go to **User groups → Create group**.
+2. Name the group (e.g., `development-group`).
+3. Attach a policy (e.g., `AmazonS3FullAccess`).
+4. Click **Create group**.
+5. Open the group → **Users tab → Add users**.
+6. Select the relevant users and add them.
+
+**Adding permissions later (group benefit):**
+- Go to the group → **Permissions tab → Add permissions → Attach policies**.
+- Adding `AmazonEC2FullAccess` here automatically grants EC2 access to **all users in the group** — no need to update each user individually.
+
+---
+
+## Key Takeaways
+
+- **Never share root credentials** with anyone in an organization.
+- Always create **IAM users** for individuals who need AWS access — even for DevOps engineers.
+- Use **policies** to grant only the minimum required permissions (**principle of least privilege**).
+- Use **groups** to manage permissions at scale and reduce repetitive manual work.
+- **Roles** are for non-human identities (applications, services, cross-account access) and use temporary credentials.
+- In interviews: always state that you use IAM users with appropriate permissions, not the root account, for day-to-day operations.
+
+---
