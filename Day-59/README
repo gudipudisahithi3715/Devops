@@ -1,0 +1,281 @@
+# AWS VPC Security — Security Groups & NACLs
+
+## Recap: VPC Traffic Flow
+
+Before a user's request reaches an application running inside an EC2 instance, it passes through several layers:
+
+```
+User (Internet)
+    │
+    ▼
+Internet Gateway
+    │
+    ▼
+Public Subnet (Load Balancer, if present)
+    │
+    ▼
+NACL  ←── Subnet-level security
+    │
+    ▼
+Route Table
+    │
+    ▼
+Security Group  ←── Instance-level security
+    │
+    ▼
+EC2 Instance (Application)
+```
+
+**Security Groups** and **NACLs** are the last two layers of defense before a request reaches the application. This makes them critical to understand and configure correctly.
+
+---
+
+## Security is a Shared Responsibility
+
+In AWS, **security is always a shared responsibility** between AWS and the DevOps/cloud engineer.
+
+- **AWS's part:** Provides the security tools and infrastructure — VPC, Security Groups, NACLs, IAM, etc. AWS also applies sensible defaults (e.g., denying all inbound traffic by default).
+- **DevOps engineer's part:** Configuring those tools correctly — opening only necessary ports, defining NACL rules, restricting IP ranges, and applying the principle of least privilege.
+
+> Blindly accepting AWS defaults without reviewing them is a security risk. Every layer must be deliberately configured.
+
+---
+
+## Security Groups
+
+A **Security Group** is a virtual firewall applied at the **EC2 instance level**. It controls what traffic is allowed to enter or leave an individual instance.
+
+- Every EC2 instance must be associated with at least one Security Group.
+- Rules are **stateful** — if an inbound request is allowed, the response is automatically allowed outbound (and vice versa).
+- Security Groups only support **allow** rules — there is no explicit deny. Traffic not matching any rule is implicitly denied.
+
+### Inbound vs Outbound Traffic
+
+| Direction | Description | Example |
+|---|---|---|
+| **Inbound** | Traffic coming *into* the EC2 instance | A user accessing a web application |
+| **Outbound** | Traffic going *out* of the EC2 instance | The app calling a third-party API (e.g., a payment gateway) |
+
+Both inbound and outbound rules can be configured in a Security Group.
+
+### Default Security Group Behaviour
+
+When an EC2 instance is created, AWS attaches a **default Security Group** with these rules:
+
+| Direction | Default Rule |
+|---|---|
+| **Inbound** | **Deny all** — no traffic is allowed in unless explicitly added |
+| **Outbound** | **Allow all** — the instance can reach any external destination (except Port 25) |
+
+This means a freshly launched EC2 instance with a running application is **not accessible from the internet** until an inbound rule is explicitly added.
+
+### Port 25 — Why AWS Blocks It
+
+AWS blocks **outbound traffic on Port 25** (SMTP — email) by default.
+
+- Port 25 is used for sending emails.
+- AWS blocks it to prevent instances from being used for spam or bulk email campaigns, which would tarnish the IP reputation of AWS infrastructure.
+
+---
+
+## NACLs — Network Access Control Lists
+
+A **NACL** is a firewall applied at the **subnet level**, one layer above Security Groups. Every subnet in a VPC is associated with a NACL.
+
+- NACLs are **stateless** — inbound and outbound rules are evaluated independently. A return response is not automatically allowed; it must match a separate outbound rule.
+- NACLs support both **allow** and **deny** rules (unlike Security Groups which only support allow).
+- A NACL rule applies to **all EC2 instances** within the associated subnet.
+
+### How NACLs Differ from Security Groups
+
+| Feature | Security Group | NACL |
+|---|---|---|
+| Applied at | EC2 instance level | Subnet level |
+| Rule types | Allow only | Allow and Deny |
+| Statefulness | Stateful | Stateless |
+| Scope | Single instance | All instances in the subnet |
+| Use case | Per-instance access control | Org-wide subnet-level policies |
+
+**When to use NACLs over Security Groups:**
+
+- When a blanket rule needs to apply to all instances in a subnet (e.g., blocking a suspicious IP range across all 10,000 instances in a subnet without touching each Security Group individually).
+- When an instance owner has misconfigured their Security Group (e.g., opened all ports), NACLs allow a DevOps engineer to enforce the correct policy at a higher level, overriding the instance-level config.
+
+### NACL Rule Ordering
+
+NACL rules are evaluated in **ascending numerical order**. The first rule that matches the traffic is applied, and evaluation stops.
+
+Example:
+
+| Rule # | Type | Port | Action |
+|---|---|---|---|
+| 100 | Custom TCP | 8000 | DENY |
+| 200 | All Traffic | All | ALLOW |
+| * | All Traffic | All | DENY (default) |
+
+In this case, traffic on Port 8000 hits **Rule 100 first** and is denied — Rule 200 is never reached for that traffic. Traffic on any other port hits Rule 200 and is allowed.
+
+> **Rule number = priority.** Lower number = higher priority. Plan rule numbers with gaps (e.g., 100, 200, 300) to allow inserting rules later without renumbering.
+
+---
+
+## Practical Walkthrough
+
+### Step 1: Create a Custom VPC
+
+1. Go to the **AWS Management Console → VPC**.
+2. Click **Create VPC** → select **VPC and more** (AWS will auto-create subnets, route tables, and an internet gateway).
+3. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `demo-vpc` |
+| IPv4 CIDR | `10.0.0.0/16` (65,536 IP addresses) |
+| Availability Zones | 1 (for this demo) |
+| Public Subnets | 1 |
+| Private Subnets | 1 |
+
+4. Click **Create VPC**.
+
+AWS automatically creates:
+- Public and private subnets
+- Internet Gateway (IGW)
+- Route tables (associated with subnets)
+- Default NACL
+- VPC endpoints (optional, can select None)
+
+5. After creation, go to **Resource Map** inside the VPC to visualise the full topology.
+
+---
+
+### Step 2: Launch an EC2 Instance in the Custom VPC
+
+1. Go to **EC2 → Instances → Launch Instance**.
+2. Configure:
+
+| Field | Value |
+|---|---|
+| Name | `demo-instance` |
+| AMI | Ubuntu (Free Tier eligible) |
+| Instance Type | `t2.micro` |
+| Key Pair | Select or create (e.g., `aws-login`) |
+
+3. Under **Network Settings → Edit**:
+- VPC: select `demo-vpc`
+- Subnet: select the **public subnet**
+- Auto-assign Public IP: **Enable**
+- Security Group: Let AWS create a new one (will modify it shortly)
+
+4. Click **Launch Instance**.
+
+---
+
+### Step 3: Run a Python HTTP Server
+
+Connect to the instance via SSH:
+
+```bash
+chmod 600 ~/Downloads/aws-login.pem
+ssh -i ~/Downloads/aws-login.pem ubuntu@<PUBLIC_IP>
+```
+
+Update packages and start a simple HTTP server on port 8000:
+
+```bash
+sudo apt update
+python3 -m http.server 8000
+```
+
+Try to access the application in a browser:
+
+```
+http://<PUBLIC_IP>:8000
+```
+
+**Result:** The page will not load. The default Security Group only allows Port 22 (SSH). Port 8000 is blocked.
+
+Meanwhile, the **default NACL** allows all inbound traffic — so the block is coming entirely from the Security Group.
+
+---
+
+### Step 4: Allow Port 8000 in Security Group
+
+1. Go to **EC2 → Security Groups → select the Security Group attached to `demo-instance`**.
+2. Click **Inbound Rules → Edit inbound rules → Add rule**:
+
+| Type | Protocol | Port | Source |
+|---|---|---|---|
+| Custom TCP | TCP | 8000 | 0.0.0.0/0 |
+
+3. Click **Save rules**.
+
+Refresh the browser:
+
+```
+http://<PUBLIC_IP>:8000
+```
+
+**Result:** The application is now accessible. The Security Group allowed Port 8000, and the NACL (allowing all traffic by default) did not block it.
+
+---
+
+### Step 5: Block Port 8000 at the NACL Level
+
+Even though the Security Group allows Port 8000, a DevOps engineer can override this at the NACL level for the entire subnet.
+
+1. Go to **VPC → Network ACLs**.
+2. Select the NACL associated with `demo-vpc`.
+3. Click **Inbound Rules → Edit inbound rules**.
+4. Remove the existing "Allow All" rule and add:
+
+| Rule # | Type | Port | Source | Action |
+|---|---|---|---|---|
+| 100 | Custom TCP | 8000 | 0.0.0.0/0 | DENY |
+| 200 | All Traffic | All | 0.0.0.0/0 | ALLOW |
+
+5. Click **Save changes**.
+
+Refresh the browser:
+
+**Result:** The application is no longer accessible — even though the Security Group still allows Port 8000. The NACL denied it first at the subnet level.
+
+---
+
+### Step 6: Demonstrate NACL Rule Ordering
+
+Now swap the rule numbers to confirm that ordering drives evaluation:
+
+| Rule # | Type | Port | Source | Action |
+|---|---|---|---|---|
+| 100 | All Traffic | All | 0.0.0.0/0 | ALLOW |
+| 110 | Custom TCP | 8000 | 0.0.0.0/0 | DENY |
+
+**Result:** The application is accessible again. Rule 100 (Allow All) is evaluated first and matches — Rule 110 (Deny Port 8000) is never reached.
+
+Swap back so Deny Port 8000 is Rule 100 and Allow All is Rule 200:
+
+**Result:** Application is blocked again. Rule 100 (Deny Port 8000) is evaluated first.
+
+> This confirms that **NACL rule numbers determine priority**, not their content.
+
+NACLs can also be used to block traffic by IP address range:
+
+```
+Rule 100 | Custom TCP | Port 8000 | Source: 3.4.0.0/16 | DENY
+```
+
+This blocks all traffic from the `3.4.0.0/16` IP range on Port 8000 across the entire subnet.
+
+---
+
+## Key Takeaways
+
+- **Security Groups** protect at the EC2 instance level — configure inbound and outbound rules per instance. They are **stateful** and only support **allow** rules.
+- **NACLs** protect at the subnet level — rules apply to all instances in the subnet. They are **stateless** and support both **allow** and **deny** rules.
+- **NACL rules are evaluated in ascending numerical order** — the first matching rule wins. Lower rule number = higher priority.
+- AWS denies all inbound traffic by default at the Security Group level — ports must be explicitly opened.
+- The default NACL allows all traffic — it must be hardened for production environments.
+- NACLs give DevOps engineers the ability to enforce security policies across all instances in a subnet, even if individual instance owners have misconfigured their Security Groups.
+- **Both layers together** provide defense-in-depth: NACL acts as the subnet gate, Security Group acts as the instance door.
+
+---
