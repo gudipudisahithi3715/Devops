@@ -1,0 +1,224 @@
+# AWS EC2 — Elastic Cloud Compute
+
+## What is EC2?
+
+**EC2 stands for Elastic Cloud Compute.**
+
+Breaking down each word:
+
+- **Compute** — A request to AWS to provide a virtual server (a combination of CPU, RAM, and disk).
+- **Cloud** — The virtual server is hosted on AWS's public cloud infrastructure.
+- **Elastic** — The resource can be scaled up or scaled down as needed. AWS uses the prefix *elastic* for services that support this kind of flexibility (e.g., Elastic Kubernetes Service, Elastic Load Balancer).
+
+> In short: EC2 = requesting a **scalable virtual machine** from AWS's cloud platform.
+
+AWS maintains physical servers (data centers) across the world. When an EC2 instance is requested, AWS uses its virtualization platform (hypervisor) to carve out a virtual machine from one of those physical servers and assign it to me.
+
+---
+
+## Why Use EC2?
+
+Managing physical servers on-premises involves:
+
+- Purchasing hardware from vendors (IBM, HP, etc.)
+- Setting up and maintaining a hypervisor
+- Regularly upgrading OS and packages
+- Monitoring uptime and handling failures
+- Paying for hardware even when it's idle
+
+**EC2 solves these problems in two main ways:**
+
+1. **Reduced Maintenance** — AWS handles all hardware maintenance, security patches, and uptime monitoring. I only focus on what runs *on* the instance.
+
+2. **Cost Efficiency (Pay-as-you-go)** — I only pay for the time the instance is running. If the instance is shut down (e.g., nights, weekends, holidays), I am not charged. This is far more cost-effective than owning physical servers.
+
+Additionally, EC2 instances are elastic — I can resize them (increase/decrease CPU, RAM, storage) without buying new hardware.
+
+---
+
+## EC2 Instance Types
+
+AWS offers different instance types based on the workload requirements. The current main categories are:
+
+| Instance Type | Best For |
+|---|---|
+| **General Purpose** | Web servers, small apps, learning/dev environments |
+| **Compute Optimized** | Machine learning, gaming servers, high-performance batch processing |
+| **Memory Optimized** | Big data analytics, real-time processing, in-memory databases |
+| **Storage Optimized** | Data warehousing, distributed file systems |
+| **Accelerated Computing** | GPU-based workloads, video rendering, deep learning |
+
+> **For this series:** I will use **General Purpose** instances (specifically `t2.micro`) as they are sufficient for DevOps tooling and are covered under the AWS Free Tier.
+
+In real projects, the instance type is chosen based on the application's resource profile — not all workloads need the same hardware.
+
+---
+
+## Regions and Availability Zones
+
+### Regions
+
+A **Region** is a geographic location where AWS has its data centers. Examples:
+
+- `us-east-1` — North Virginia, USA
+- `ap-south-1` — Mumbai, India
+- `eu-central-1` — Frankfurt, Germany
+- `ap-southeast-1` — Singapore
+
+**Why regions matter:**
+
+- **Data residency / compliance** — Some clients (e.g., European banks) require data to stay within their country or region.
+- **Latency** — Creating an instance close to the end users reduces the time it takes for requests and responses to travel. Lower latency = faster application.
+
+> When working for an organization, always create instances in the region closest to the client or end users.
+
+### Availability Zones (AZs)
+
+Within each region, AWS has multiple **Availability Zones** — physically separate data centers that are isolated from each other's failures.
+
+Example: `us-east-1` (North Virginia) has AZs like `us-east-1a`, `us-east-1b`, `us-east-1c`.
+
+**Why AZs matter:**
+
+- If one AZ goes down (power failure, network issue), the application can still run from another AZ.
+- Deploying across multiple AZs provides **high availability**.
+
+> High availability architecture using AZs will be covered in detail in future sessions.
+
+---
+
+## Practical Walkthrough
+
+### Step 1: Launch an EC2 Instance
+
+1. Log in to the **AWS Management Console**.
+2. Search for and open **EC2**.
+3. Click **Instances → Launch Instance**.
+4. Fill in the following details:
+
+| Field | Value |
+|---|---|
+| Name | `my-first-instance` |
+| AMI (OS) | Ubuntu (Free Tier eligible) |
+| Instance Type | `t2.micro` (1 vCPU, 1 GB RAM — Free Tier) |
+| Key Pair | Create new → name it (e.g., `aws-login`) → RSA → `.pem` format |
+| Network Settings | Leave as default for now |
+| Storage | 8 GB (default) |
+
+5. Click **Launch Instance**.
+6. Download the `.pem` key file — **keep it safe and never share it.**
+7. Wait for the instance state to show **Running**.
+8. Click on the Instance ID to view details, including the **Public IP address**.
+
+> **Key Pair note:** AWS disables password authentication by default. The only way to log in to an instance is using the private key (`.pem` file). The instance holds the public key; I hold the private key.
+
+---
+
+### Step 2: Connect to the Instance via SSH
+
+Fix the `.pem` file permissions first (required on Linux/Mac):
+
+```bash
+chmod 600 ~/Downloads/aws-login.pem
+```
+
+Connect using SSH:
+
+```bash
+ssh -i ~/Downloads/aws-login.pem ubuntu@<PUBLIC_IP_ADDRESS>
+```
+
+- Replace `<PUBLIC_IP_ADDRESS>` with the public IP from the EC2 console.
+- Default username for Ubuntu AMIs is `ubuntu`.
+
+Once connected, switch to root (optional) and update packages:
+
+```bash
+sudo su -
+apt update
+```
+
+> Always run `apt update` after logging into a fresh instance to ensure all packages are up to date.
+
+---
+
+### Step 3: Deploy Jenkins on EC2
+
+**Install Java (required by Jenkins):**
+
+```bash
+sudo apt install openjdk-11-jdk -y
+java --version
+```
+
+**Install Jenkins:**
+
+```bash
+curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2023.key | sudo tee \
+  /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+sudo apt update
+sudo apt install jenkins -y
+```
+
+**Start Jenkins and verify it is running:**
+
+```bash
+sudo systemctl start jenkins
+sudo systemctl status jenkins
+```
+
+Jenkins runs on **port 8080** by default.
+
+---
+
+### Step 4: Open Port 8080 in the Security Group
+
+By default, EC2 instances are not accessible from the internet except through SSH (port 22). To allow browser access to Jenkins, I need to open port 8080 in the instance's **Security Group**.
+
+1. In the EC2 console, click on the instance.
+2. Go to the **Security** tab → click on the linked **Security Group**.
+3. Click **Edit inbound rules → Add rule**.
+4. Set:
+- **Type:** Custom TCP
+- **Port:** `8080`
+- **Source:** `0.0.0.0/0` (Anywhere IPv4)
+5. Click **Save rules**.
+
+> Security Groups act as a virtual firewall. Inbound rules control what traffic can reach the instance. Outbound rules control what traffic leaves it. These will be covered in depth in the networking session.
+
+---
+
+### Step 5: Access Jenkins from the Browser
+
+Open a browser and navigate to:
+
+```
+http://<PUBLIC_IP_ADDRESS>:8080
+```
+
+Jenkins will prompt for an initial admin password. Retrieve it from the instance:
+
+```bash
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+
+Copy the password, paste it into the browser, and Jenkins is live.
+
+---
+
+## Key Takeaways
+
+- **EC2** is AWS's virtual machine service — elastic, managed, and pay-as-you-go.
+- Always use **Free Tier eligible** instance types (`t2.micro`) while learning to avoid unexpected charges.
+- **Regions** determine where the data center is located — choose based on client location and latency requirements.
+- **Availability Zones** provide fault tolerance within a region.
+- A **Key Pair** (`.pem` file) is the only way to SSH into an EC2 instance — never share the private key.
+- **Security Groups** act as a firewall — inbound rules must be explicitly opened for any port to be accessible externally.
+- After deploying any application, always verify the relevant port is open in the security group.
+
+---
