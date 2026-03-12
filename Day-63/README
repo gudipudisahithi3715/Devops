@@ -1,0 +1,343 @@
+# AWS S3 — Simple Storage Service
+
+## What is AWS S3?
+
+**Amazon S3 (Simple Storage Service)** is AWS's managed object storage service. It solves the fundamental problem of scalable, durable, and cost-effective storage for organisations moving to the cloud.
+
+- S3 was one of the **first two services** AWS ever launched — highlighting how critical storage was for cloud adoption.
+- Unlike EC2 (compute as a service) or EKS (Kubernetes as a service), S3 provides **storage as a service**.
+- Any file — images, videos, database dumps, application logs, Excel sheets, configuration files — can be stored in S3.
+- Stored content is **globally accessible** via HTTPS:
+
+```
+https://s3.<region>.amazonaws.com/<bucket-name>/<object-key>
+```
+
+---
+
+## Why S3? The 11 Nines Reliability
+
+The number behind S3's reputation:
+
+```
+99.999999999%  (11 nines)
+```
+
+This means: if **1 billion objects** are stored in S3 over **100 years**, AWS guarantees the expected loss is at most **1 object**.
+
+**How is this achieved?**
+
+Whenever an object is uploaded to S3, AWS automatically creates **multiple replicas** across different data centers and Availability Zones within the selected region. If one AZ or data center goes down, the object is still safely stored in the others and is automatically restored.
+
+---
+
+## What Do DevOps Engineers Store in S3?
+
+While S3 has no content restrictions, common DevOps use cases include:
+
+- **Database backups and dumps** — e.g., nightly dumps of production databases (can be TBs in size)
+- **Application log files** — storing and archiving logs from EC2 instances or containers
+- **Configuration files** — large application config files shared across services
+- **Dashboard data** — CSV, Excel exports, and reports
+- **Build artefacts** — compiled binaries, container images (in some workflows)
+- **Static website assets** — HTML, CSS, JS files for frontend hosting
+
+---
+
+## S3 Key Characteristics
+
+| Characteristic | Description |
+|---|---|
+| **Availability & Durability** | 11 nines (99.999999999%) — multi-AZ replication within a region |
+| **Scalability** | No limit on total storage; individual objects can be up to **5 TB** |
+| **Security** | Bucket policies, IAM policies, ACLs, encryption at rest and in transit, access logging |
+| **Cost Efficiency** | Pay only for what you store; extremely cheap for infrequently accessed data |
+| **Performance** | Low latency when bucket is in a nearby region; supports **multi-part uploads** for large files |
+
+**Multi-part uploads:** For files larger than a few hundred MB, S3 supports chunked uploads (e.g., 100 MB at a time). If the upload is interrupted, AWS retries only the failed chunk — the entire upload does not restart.
+
+---
+
+## S3 Storage Classes
+
+S3 offers multiple **storage classes** based on the tradeoff between access speed and cost. Choose based on how frequently the data needs to be accessed:
+
+| Storage Class | Use Case | Access Time | Relative Cost |
+|---|---|---|---|
+| **S3 Standard** | Frequently accessed data | Milliseconds | Higher |
+| **S3 Standard-IA** | Infrequently accessed, but rapid retrieval needed | Milliseconds | Lower |
+| **S3 One Zone-IA** | Non-critical, infrequent access (single AZ only) | Milliseconds | Lower |
+| **S3 Intelligent-Tiering** | Unknown or changing access patterns | Milliseconds | Auto-optimised |
+| **S3 Glacier Instant Retrieval** | Archive with occasional access | Milliseconds | Low |
+| **S3 Glacier Flexible Retrieval** | Long-term archive | Minutes to hours | Very Low |
+| **S3 Glacier Deep Archive** | Rarely accessed, long-term compliance | 12–48 hours | Cheapest |
+
+**Cost management tip with versioning:** Configure S3 **lifecycle policies** to automatically move older versions to a cheaper storage class (e.g., Glacier) or delete them after a defined number of days — keeping costs low while retaining history.
+
+---
+
+## S3 Core Concepts
+
+### Buckets
+
+A **bucket** is the top-level container in S3, similar to a folder or drive. Key rules:
+
+- Bucket names must be **globally unique** across all AWS accounts worldwide.
+- Buckets are scoped to a **region** (for latency and compliance), even though content is globally accessible.
+- Naming convention best practice: `<app>-<feature>-<env>-<domain>` (e.g., `app1-payments-prod-example.com`)
+
+### Objects
+
+An **object** is any file stored inside a bucket. Every uploaded file — whether a `.log`, `.html`, `.csv`, or a database dump — is an object in S3.
+
+- Maximum object size: **5 TB**
+- Each object has metadata: type, last modified date, size, storage class, and a unique key (its path/name within the bucket).
+
+### Bucket Versioning
+
+**Versioning** keeps multiple copies of the same object over time, similar to how Git tracks file changes.
+
+- When versioning is enabled, re-uploading an object creates a **new version** rather than overwriting the old one.
+- Old versions can be retrieved, downloaded, or restored at any time.
+- Versioning is **disabled by default** — it must be explicitly enabled per bucket.
+
+**Enable versioning:**
+1. Go to **S3 → Bucket → Properties → Bucket Versioning → Edit**.
+2. Select **Enable** → Save changes.
+
+After enabling, re-upload the same file — both versions will appear under the **Versions** tab of the object.
+
+### Bucket Policies
+
+**Bucket policies** are JSON documents attached directly to a bucket that control who can access the bucket and what actions they can perform — independent of IAM policies.
+
+This is useful when:
+- An IAM user has `S3FullAccess` across all buckets, but you want to **restrict them from a specific sensitive bucket**.
+- You want to allow **public access** to specific objects (e.g., for static website hosting).
+
+Even if an IAM user has full S3 access, a **bucket policy can override and deny** them access to a specific bucket.
+
+**Bucket policy structure (JSON):**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BlockAllExceptOwner",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::your-bucket-name",
+        "arn:aws:s3:::your-bucket-name/*"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::<ACCOUNT_ID>:root"
+        }
+      }
+    }
+  ]
+}
+```
+
+This policy **denies all S3 actions** for everyone except the bucket owner (the root account of the specified Account ID).
+
+**Public read policy** (for static website hosting):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::your-bucket-name/*"
+    }
+  ]
+}
+```
+
+> Use the **AWS Policy Generator** (available in the S3 console) to build bucket policies visually without writing JSON manually.
+
+### Encryption
+
+S3 supports **two encryption modes:**
+
+| Mode | Description |
+|---|---|
+| **Encryption at rest** | Data is encrypted when stored on disk (enabled by default since AWS's recent update) |
+| **Encryption in transit** | Data is encrypted via HTTPS when being uploaded or downloaded |
+
+Both modes are supported by default in modern S3 buckets.
+
+### Access Logging
+
+S3 can log every request made to a bucket — who accessed it, what action was performed, when, and from which IP. Useful for auditing and security monitoring.
+
+- Disabled by default.
+- Enable in **Bucket → Properties → Server Access Logging**.
+- Can be integrated with CloudWatch for alerting on suspicious activity.
+
+### Object Locking
+
+**Object locking** prevents an uploaded object from being modified or deleted — useful for compliance and sensitive data that must remain immutable.
+
+- Once locked, no user (including the bucket owner) can overwrite or delete the object during the lock period.
+- Configured under **Bucket → Properties → Object Lock**.
+
+---
+
+## Practical Walkthrough
+
+### Demo 1: Create a Bucket, Upload an Object, and Restrict Access with Bucket Policy
+
+**Step 1: Create an S3 Bucket**
+
+1. Go to **AWS Console → S3 → Create Bucket**.
+2. Enter a globally unique name (e.g., `app1-payments-prod-example.com`).
+3. Select the nearest AWS region.
+4. Leave **Block all public access** enabled (default).
+5. Leave **Bucket Versioning** disabled for now.
+6. Click **Create Bucket**.
+
+**Step 2: Upload an Object**
+
+1. Click on the created bucket.
+2. Click **Upload → Add Files** → select `index.html` (or any file).
+3. Click **Upload**.
+
+The file is now an object stored in S3.
+
+**Step 3: Create an IAM User with S3 Full Access**
+
+1. Go to **IAM → Users → Create User**.
+2. Name: `demo-s3-bucket-user`
+3. Enable AWS Management Console access.
+4. Attach policy: `AmazonS3FullAccess`.
+5. Note the login URL, username, and password.
+
+**Step 4: Verify the IAM user can access the bucket**
+
+Log in as the IAM user in an incognito window. Navigate to S3 and confirm the bucket and its objects are accessible.
+
+**Step 5: Add a Bucket Policy to Block the IAM User**
+
+1. Log back in as the root/admin user.
+2. Go to **S3 → Bucket → Permissions → Bucket Policy → Edit**.
+3. Paste the following (replace `<ACCOUNT_ID>` with your 12-digit AWS Account ID and update the bucket name):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BlockAllExceptOwner",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::app1-payments-prod-example.com",
+        "arn:aws:s3:::app1-payments-prod-example.com/*"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::<ACCOUNT_ID>:root"
+        }
+      }
+    }
+  ]
+}
+```
+
+4. Click **Save changes**.
+
+**Step 6: Verify the IAM user is now blocked**
+
+Go back to the incognito window (still logged in as the IAM user) and refresh the bucket. The error `Insufficient permissions to list objects` confirms the bucket policy is working — even though the IAM policy still grants S3 full access.
+
+---
+
+### Demo 2: Host a Static Website on S3
+
+**Step 1: Prepare `index.html`**
+
+Create a simple HTML file locally:
+
+```html
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>My First AWS S3 Static Website</h1>
+  <p>Hosted using Amazon S3.</p>
+</body>
+</html>
+```
+
+**Step 2: Upload to the bucket**
+
+1. Go to the S3 bucket → **Upload → Add Files** → select `index.html` → **Upload**.
+
+**Step 3: Enable Static Website Hosting**
+
+1. Go to **S3 → Bucket → Properties → Static Website Hosting → Edit**.
+2. Select **Enable**.
+3. Set **Index document** to `index.html`.
+4. Click **Save changes**.
+
+AWS will provide a public endpoint URL (e.g., `http://<bucket-name>.s3-website-<region>.amazonaws.com`).
+
+**Step 4: Unblock Public Access**
+
+1. Go to **S3 → Bucket → Permissions → Block Public Access → Edit**.
+2. Uncheck **Block all public access**.
+3. Click **Save changes → Confirm**.
+
+> Note: If this option is greyed out, public access may be blocked at the AWS Organisation level. It must be disabled there first.
+
+**Step 5: Add a Public Read Bucket Policy**
+
+1. Go to **S3 → Bucket → Permissions → Bucket Policy → Edit**.
+2. Paste the following (update the bucket name):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::app1-payments-prod-example.com/*"
+    }
+  ]
+}
+```
+
+3. Click **Save changes**.
+
+**Step 6: Access the static website**
+
+Open the endpoint URL from Step 3 in a browser. The HTML page is now publicly accessible from anywhere in the world.
+
+> **CORS note:** If the website uses JavaScript that calls external APIs, **CORS (Cross-Origin Resource Sharing)** must be configured on the bucket. This will be covered in the CloudFront session.
+
+---
+
+## Key Takeaways
+
+- **S3** is AWS's object storage service — store any type of file at massive scale, globally accessible over HTTPS.
+- S3 provides **11 nines (99.999999999%) durability** through automatic multi-AZ replication.
+- **Buckets** are regional containers; **objects** are individual files stored within them (max 5 TB per object).
+- **Bucket names must be globally unique** across all AWS accounts.
+- **Versioning** maintains a history of all object versions — useful for rollback and auditing.
+- **Bucket policies** (JSON) control access at the bucket level and can override IAM policies — critical for protecting sensitive buckets.
+- **Storage classes** determine the cost vs. access speed tradeoff — use lifecycle policies to auto-transition old versions to cheaper tiers (e.g., Glacier).
+- **Encryption at rest and in transit** is supported and enabled by default on new buckets.
+- S3 is the **cheapest way to host a static website** — enable static hosting, unblock public access, and add a public read bucket policy.
+
+---
