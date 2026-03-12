@@ -1,0 +1,230 @@
+# AWS VPC — Virtual Private Cloud
+
+## What is a VPC?
+
+A **Virtual Private Cloud (VPC)** is a logically isolated private network within an AWS region. It is the networking layer that wraps around all AWS resources like EC2 instances, databases, and load balancers.
+
+When an organization uses AWS, instead of sharing raw infrastructure with every other customer (which creates security risks), they get their own private, isolated section of the AWS data center — that is the VPC.
+
+> Think of it like a **gated community** inside a large city. The city is the AWS region, and each organization gets its own secure, fenced property (VPC) within it, complete with internal roads (route tables), gates (internet gateway), and security guards (security groups).
+
+---
+
+## Why Do We Need a VPC?
+
+In the early days of AWS, all virtual machines for all customers were created inside the same shared physical infrastructure. This meant:
+
+- A security breach in one company's instance could expose neighboring instances.
+- There was no logical isolation between customers.
+- Sensitive data was at risk.
+
+**VPC solves this by:**
+
+- Providing a **dedicated, isolated network** for each organization or project.
+- Allowing fine-grained control over who can access what, at every layer.
+- Preventing other AWS customers or bad actors from reaching internal resources.
+
+---
+
+## VPC Components
+
+### 1. IP Address Range (CIDR Block)
+
+When creating a VPC, an **IP address range** must be defined using CIDR notation. This determines how many IP addresses are available inside the VPC.
+
+Example:
+
+```
+172.16.0.0/16  →  65,536 available IP addresses
+```
+
+This IP range is the total pool from which all subnets inside the VPC will be allocated.
+
+---
+
+### 2. Subnets
+
+A **Subnet** (Sub-Network) is a smaller division of the VPC's IP address range. Subnets are created to logically separate different parts of a project or application.
+
+Example: A VPC with CIDR `172.16.0.0/16` can be split into:
+
+| Subnet | CIDR Block | Use |
+|---|---|---|
+| Subnet A (Project 1) | `172.16.1.0/24` | ~255 IPs |
+| Subnet B (Project 2) | `172.16.2.0/24` | ~255 IPs |
+| Subnet C (Project 3) | `172.16.3.0/24` | ~255 IPs |
+
+EC2 instances and other resources are deployed inside subnets, not directly inside a VPC.
+
+There are two types of subnets:
+
+- **Public Subnet** — directly reachable from the internet via an Internet Gateway. Hosts resources like load balancers.
+- **Private Subnet** — not directly accessible from the internet. Hosts application servers and databases.
+
+---
+
+### 3. Internet Gateway
+
+An **Internet Gateway (IGW)** is the entry and exit point between the VPC and the public internet.
+
+- Without an IGW, nothing outside the VPC can reach resources inside it.
+- It is attached to the VPC, not to individual subnets.
+- Only the **public subnet** routes traffic through the IGW.
+
+---
+
+### 4. Route Tables
+
+A **Route Table** defines the rules (routes) for how network traffic is directed within the VPC.
+
+- Every subnet must be associated with a route table.
+- The route table tells traffic: *"to reach this destination, use this path."*
+- Public subnets have a route that sends internet-bound traffic to the Internet Gateway.
+- Private subnets have routes that send traffic through a NAT Gateway (for outbound) or a load balancer (for inbound).
+
+---
+
+### 5. Load Balancer (ELB)
+
+An **Elastic Load Balancer (ELB)** sits in the public subnet and distributes incoming traffic to application instances in private subnets.
+
+- It receives requests from the internet (via the IGW).
+- It uses a **Target Group** to know which EC2 instances to forward requests to.
+- Types of ELB: Application Load Balancer (ALB), Network Load Balancer (NLB) — covered in a dedicated session.
+
+---
+
+### 6. Security Groups
+
+A **Security Group** acts as a virtual firewall at the **EC2 instance level**.
+
+- Controls **inbound** (incoming) and **outbound** (outgoing) traffic.
+- Rules are defined by: protocol, port number, and source/destination IP.
+- If an inbound rule does not allow traffic on a specific port, the request is blocked — even if it passed through all other layers.
+
+Example rule:
+```
+Type: Custom TCP
+Port: 8080
+Source: 0.0.0.0/0   # Allow from anywhere
+```
+
+---
+
+### 7. NACLs (Network Access Control Lists)
+
+**NACLs** operate at the **subnet level**, providing an additional layer of security above security groups.
+
+- They apply the same type of allow/deny rules but for an entire subnet instead of a single instance.
+- Useful when the same access rules need to be applied to multiple instances within a subnet — avoiding repetitive security group configuration.
+- NACLs are **stateless** (both inbound and outbound rules must be defined separately).
+
+> NACLs will be covered in greater depth in the security-focused session.
+
+---
+
+### 8. NAT Gateway
+
+A **NAT Gateway (Network Address Translation Gateway)** allows instances in **private subnets** to initiate outbound connections to the internet (e.g., to download packages), without exposing their private IP addresses.
+
+**The problem it solves:**
+
+When a private EC2 instance tries to download something from the internet, the destination server would receive the private IP address — which is a security risk. The NAT Gateway:
+
+1. Accepts the outbound request from the private instance.
+2. **Masks (replaces) the private IP** with a public IP before sending the request to the internet.
+3. Returns the response to the private instance.
+
+**Key points:**
+
+- NAT Gateway is deployed in the **public subnet**.
+- It handles outbound internet access from private subnets only — not inbound.
+- It hides the internal network topology from the outside world.
+
+| Concept | Direction | Component |
+|---|---|---|
+| Inbound traffic to app | Internet → VPC | Internet Gateway + Load Balancer |
+| Outbound from private instance | VPC → Internet | NAT Gateway |
+
+---
+
+### 9. VPC Flow Logs
+
+**VPC Flow Logs** capture information about all IP traffic flowing in and out of the VPC.
+
+- Useful for debugging traffic issues, auditing access, and monitoring security.
+- Logs can be sent to Amazon CloudWatch or S3.
+- **Note:** VPC Flow Logs are a **chargeable** feature.
+
+---
+
+## End-to-End Traffic Flow
+
+Below is the complete path a request takes when a user from the internet accesses an application deployed in a private subnet:
+
+```
+User (Internet)
+    │
+    ▼
+Internet Gateway (IGW)
+    │  Entry point into the VPC
+    ▼
+Public Subnet
+    │  Contains the Load Balancer
+    ▼
+Elastic Load Balancer (ELB)
+    │  Receives request, checks Target Group
+    ▼
+Route Table
+    │  Defines the path to the private subnet
+    ▼
+Private Subnet
+    │  Contains the EC2 instance
+    ▼
+Security Group
+    │  Validates port/IP rules
+    ▼
+EC2 Instance (Application)
+```
+
+For **outbound** requests initiated from the private subnet (e.g., downloading a package):
+
+```
+EC2 Instance (Private Subnet)
+    │
+    ▼
+NAT Gateway (Public Subnet)
+    │  Masks private IP with public IP
+    ▼
+Internet Gateway
+    │
+    ▼
+Internet (e.g., package registry, google.com)
+```
+
+---
+
+## Public Subnet vs Private Subnet
+
+| Feature | Public Subnet | Private Subnet |
+|---|---|---|
+| Internet accessible | Yes (via IGW) | No (direct access blocked) |
+| Typical resources | Load Balancer, NAT Gateway | EC2 instances, Databases |
+| Route table target | Internet Gateway | NAT Gateway / Local |
+| Security exposure | Higher | Lower (more secure) |
+
+---
+
+## Key Takeaways
+
+- A **VPC** is an isolated private network inside an AWS region — every organization should have their own VPC.
+- **Subnets** divide the VPC's IP range for different projects or application tiers.
+- **Internet Gateway** is the bridge between the VPC and the public internet.
+- **Route Tables** define traffic paths between subnets and gateways.
+- **Load Balancer** sits in the public subnet and distributes traffic to private instances.
+- **Security Groups** are instance-level firewalls — they must explicitly allow traffic on required ports.
+- **NACLs** are subnet-level firewalls — useful for applying rules to multiple instances at once.
+- **NAT Gateway** enables private instances to access the internet without exposing their IP addresses.
+- **VPC Flow Logs** record all network traffic for auditing and debugging (chargeable).
+
+---
