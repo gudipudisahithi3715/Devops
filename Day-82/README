@@ -1,0 +1,247 @@
+# Azure Zero to Hero
+
+## What This Series Covers
+
+This is a 25-day series designed to take complete beginners to job-ready and certification-ready on Microsoft Azure. The series covers Azure concepts theoretically and practically — with demos, projects, and interview Q&A sessions built in throughout.
+
+**Series outcomes:**
+- Job-ready for **Azure DevOps** positions (combined with DevOps fundamentals).
+- Prepared to clear **AZ-900** (Azure Fundamentals) certification.
+- Prepared to clear **AZ-104** (Azure Administrator) certification.
+
+---
+
+### Day 1 — Cloud Computing Fundamentals
+Foundation concepts applicable to any cloud provider (AWS, Azure, GCP):
+- Virtualization and Virtual Machines
+- APIs
+- Regions, Geographies, and Availability Zones
+- Scalability, Elasticity, Agility
+- High Availability and Disaster Recovery
+- Load Balancing
+
+> This day exists to ensure every term used in the series is familiar before Azure-specific content begins.
+
+---
+
+### Day 2 — Getting Started with Azure
+- Creating an Azure account
+- Regions and Availability Zones — Azure perspective
+- IaaS, PaaS, and SaaS models — definitions and differences
+- Which model is used in this series and why
+
+---
+
+### Day 3 — Resources, Resource Groups & Azure Resource Manager
+- What is a resource in Azure
+- What is a Resource Group and why it matters
+- Azure Resource Manager (ARM) — the engine behind resource creation
+- How all resources in Azure are managed through ARM
+
+---
+
+### Day 4 — Azure Virtual Machines & VM Scale Sets
+- Creating a Virtual Machine on Azure
+- Connecting to a Virtual Machine
+- Deploying a first application on an Azure VM
+- Virtual Machine Scale Sets — Azure's auto-scaling mechanism (equivalent to AWS Auto Scaling Groups)
+
+---
+
+### Day 5 — Azure Networking Services (Basics)
+Core networking concepts explained with a real-world traffic flow example:
+- Virtual Network (VNet) — equivalent to AWS VPC
+- Subnets
+- CIDR block ranges
+- Routes and Route Tables
+- Network Security Groups (NSG)
+- Application Security Groups (ASG)
+- **Demo included**
+
+---
+
+### Day 6 — Azure Networking Services (Advanced)
+- Virtual Network Peering — connecting two VNets (equivalent to AWS VPC Peering)
+- VNet Gateway — alternative method to connect VNets
+- VPN Gateway — secure connectivity, important for security interviews
+- Azure Load Balancer vs Azure Application Gateway — differences and when to use each
+- CDN (Content Delivery Network) — advantages and use cases
+
+---
+
+### Day 7 — Interview Q&A: Cloud Computing, Azure Basics & Networking
+Dedicated interview questions and answers covering:
+- Cloud computing fundamentals (Day 1)
+- Azure basics (Days 2–3)
+- Compute — Virtual Machines and Scale Sets (Day 4)
+- Networking concepts (Days 5–6)
+
+> Self-evaluation checkpoint — test knowledge before moving to advanced topics.
+
+---
+
+### Day 8 — Project: Two-Tier Application Deployment on Azure
+First project of the series:
+- Deploy a complete two-tier application (frontend + backend) on Azure
+- Uses networking and VM concepts covered in Days 1–7
+- Proof of concept of a real-world deployment pattern
+
+---
+
+### Day 9 — Azure Storage Services
+- Different types of Azure storage services
+- Use cases for each storage type
+- Practical demonstrations
+
+---
+
+### Day 10 — Azure CLI (Command Line Interface)
+First introduction to scripting and automation on Azure:
+- What Azure CLI is and why it matters for DevOps engineers
+- Creating resources via shell scripting and Python scripting
+- Automating resource creation (instead of using the Azure portal)
+- CLI documentation walkthrough with multiple examples
+
+---
+
+### Day 11 — Azure Resource Manager (ARM) Templates
+- Creating resources using ARM templates (declarative Infrastructure as Code)
+- Different resource creation approaches covered so far:
+- Portal (Days 1–9)
+- CLI scripting (Day 10)
+- ARM Templates (Day 11)
+- Terraform (Day 24)
+
+---
+
+### Day 12 — Authentication & Identity Management
+- Azure Active Directory concepts
+- Role-Based Access Control (RBAC)
+- Authentication and identity management on Azure
+- Why this is placed at Day 12 (not Day 1 — unlike AWS): familiarity with Azure platform first makes these concepts easier to understand
+
+---
+
+### Day 13 — Monitoring Azure Resources
+- Monitoring resource activity and health on Azure
+- Tracking who created resources and when
+- Azure Monitor — dashboards, alerts, and metrics
+- Note: this is infrastructure monitoring, not application monitoring
+
+---
+
+### Day 14 — Introduction to Azure DevOps
+Overview of the Azure DevOps platform:
+- Azure Repos — Git-based source control
+- Azure Boards — project and work item tracking
+- Azure Pipelines — CI/CD
+- All Azure DevOps services and their roles
+
+---
+
+### Day 15 — Project: CI (Continuous Integration) with Azure DevOps
+- Hands-on project implementing a complete CI pipeline using Azure DevOps
+- Build, test, and package stages
+
+---
+
+### Day 16 — Project: CD (Continuous Delivery) with Azure DevOps
+- Hands-on project adding the CD stage to the Day 15 CI pipeline
+- Target environment: Azure Virtual Machine
+- Docker containers used for packaging; VM as deployment target
+
+---
+
+### Day 17 — AKS (Azure Kubernetes Service)
+- What is AKS and how it differs from self-managed Kubernetes
+- Deploying a two-tier application on AKS
+- Exposing the application to the external world
+- Ingress configuration on AKS
+
+---
+
+### Day 18 — Large Project: Three-Tier E-Commerce Application on AKS
+Full end-to-end project:
+- 8 microservices
+- 2 databases
+- Messaging queue
+- Caching service
+- Writing Dockerfiles for each service
+- Service-to-service communication
+- Complete deployment workflow
+- Ingress configuration
+- Target platform: AKS
+
+---
+
+### Day 19 — Interview Q&A: Azure DevOps
+Dedicated interview questions and answers covering:
+- Azure DevOps concepts (Days 14–18)
+- CI/CD pipelines
+- AKS
+
+> Second self-evaluation checkpoint.
+
+---
+
+### Day 20 — Azure Key Vault
+- Storing and managing sensitive information (secrets, keys, certificates) on Azure
+- Azure's equivalent to AWS Secrets Manager / SSM Parameter Store
+
+---
+
+### Day 21 — Azure Serverless (Functions)
+Serverless from a DevOps engineer's perspective — two real-world projects:
+1. **Cloud Cost Optimization** — automated detection of unused/stale resources
+2. **Compliance Enforcement** — automated detection of policy violations
+
+> Both projects are resume-worthy and frequently asked about in interviews.
+
+---
+
+### Day 22 — Terraform with Azure
+- Connecting Terraform to Azure
+- Creating Azure resources using Terraform (HCL)
+- Managing Terraform state file with Azure backend
+- Builds on Terraform fundamentals from the DevOps series
+
+---
+
+### Day 23 — *(Additional Azure topic — TBD in series)*
+
+---
+
+### Day 24 — *(Additional Azure topic — TBD in series)*
+
+---
+
+### Day 25 — Interview Preparation & Course Wrap-Up
+- How to present these projects on a resume
+- How to explain real-world hands-on experience in interviews
+- How to position yourself for Azure DevOps job roles
+- Final certification readiness review
+
+---
+
+## Certification Alignment
+
+### AZ-900 (Azure Fundamentals)
+
+| Exam Domain | Weightage | Coverage in This Series |
+|---|---|---|
+| Cloud Concepts | 25–30% | Day 1 |
+| Azure Architecture & Services | 35–40% | Days 2–18 |
+| Azure Management & Governance | 30–35% | Days 13, 20, 21 |
+
+### AZ-104 (Azure Administrator)
+
+| Exam Domain | Coverage in This Series |
+|---|---|
+| Virtual Networks | Days 5–6 |
+| Storage | Day 9 |
+| Compute | Days 4, 17, 18 |
+| Identity | Day 12 |
+| Security | Days 6, 12, 20 |
+| Governance | Days 21 (Compliance & Cost Optimization) |
+
+---
