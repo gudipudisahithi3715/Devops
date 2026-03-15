@@ -1,0 +1,246 @@
+# Azure Zero to Hero — Day 1: Cloud Computing Fundamentals
+
+## What I Learned Today
+
+Today I covered the foundational concepts of cloud computing — the prerequisite vocabulary needed before learning any cloud platform (Azure, AWS, or GCP). These concepts will be referenced throughout the entire series.
+
+---
+
+## What is a Server?
+
+A **server** is a computer designed to run applications and processes. Unlike a personal laptop, servers do not need rich display or graphics capabilities — they are optimized for:
+- Local storage
+- CPU
+- RAM
+
+Servers exist to host and serve applications to users.
+
+---
+
+## What is a Data Center?
+
+A **data center** is a physical facility containing a collection of servers connected together via:
+- High-speed data transfer cables
+- Network switches
+- Routers
+
+Servers are mounted in physical racks within the data center. The data center's purpose is to run applications at scale and serve them reliably to users.
+
+---
+
+## Private Cloud, Public Cloud, and Hybrid Cloud
+
+### Private Cloud
+An organization builds and manages its **own data center** on its premises.
+
+- System administrators procure servers, set up racks, manage cables, patch systems, and maintain uptime.
+- **Challenges:** High cost, continuous maintenance, dedicated team required, 24x7 electricity, physical security.
+- Still used today by some banking, financial, and insurance companies due to security requirements or legacy systems.
+
+### Public Cloud
+Cloud providers (AWS, Azure, GCP) set up **hundreds of data centers across the world** and offer server resources on-demand.
+
+- Organizations request virtual machines instead of buying physical servers.
+- The cloud provider handles electricity, maintenance, security, patching, and scaling.
+- **Examples:** AWS, Microsoft Azure, Google Cloud Platform.
+
+### Hybrid Cloud
+A **mix of private and public cloud** — some workloads run on the organization's own on-premises infrastructure, and others run on a public cloud provider.
+
+- **Common reason:** Sensitive data must remain on-premises (regulatory requirements), while non-sensitive workloads run on the public cloud.
+- The two environments are connected securely (via VPN or dedicated links).
+
+### Multi-Cloud
+Using services from **multiple public cloud providers** simultaneously (e.g., some services on AWS, others on Azure). Different from hybrid cloud.
+
+---
+
+## What is Cloud Computing?
+
+**Cloud computing** is the practice of using remote servers (hosted on the internet) to store, manage, and process data and run applications — instead of using local servers or personal computers.
+
+Any organization running applications on public or hybrid cloud infrastructure is performing cloud computing.
+
+---
+
+## Virtualization
+
+### The Problem
+Servers sold by vendors come with very large configurations (e.g., 512 GB RAM, hundreds of CPUs). Allocating one entire server to a single developer wastes the vast majority of its resources.
+
+### The Solution: Virtualization
+**Virtualization** is the concept of logically splitting one physical server into multiple smaller, isolated servers called **virtual machines (VMs)**.
+
+```
+Physical Server (512 GB RAM, 1000 CPUs)
+              ↓ Hypervisor installed
+    ┌──────┬──────┬──────┬──────┐
+    │ VM 1 │ VM 2 │ VM 3 │ VM N │
+    │2 CPU │2 CPU │4 CPU │ ...  │
+    │4GB   │8GB   │16GB  │ ...  │
+    └──────┴──────┴──────┴──────┘
+```
+
+### Hypervisor
+A **hypervisor** is software installed on a physical server that enables virtualization — creating and managing multiple VMs from a single physical machine.
+
+### How Cloud Providers Use Virtualization
+When you request a VM from Azure or AWS:
+1. The provider's data center servers already have hypervisors installed.
+2. Your request (e.g., 1 CPU, 2 GB RAM) is matched to available capacity on a physical server.
+3. A virtual machine is provisioned and handed to you.
+
+This is how millions of VM requests are fulfilled daily from a finite number of physical servers.
+
+---
+
+## What is an API?
+
+**API (Application Programming Interface)** is a programmatic way to interact with an application or service — as opposed to using a user interface (UI).
+
+### Two Ways to Access Applications
+
+| Method | Description | Example |
+|---|---|---|
+| **User Interface (UI)** | Use a browser, click buttons | Creating a VM in the Azure portal |
+| **API / CLI** | Write scripts to interact programmatically | Creating 1,000 VMs using a shell or Python script |
+
+### Why APIs Matter for DevOps
+- Clicking buttons in the portal 1,000 times is not practical.
+- APIs allow DevOps engineers to automate resource creation using scripts.
+- Azure exposes its services via APIs — tools like Azure CLI, Terraform, and Python SDK all talk to these APIs under the hood.
+
+---
+
+## Regions and Availability Zones
+
+### Why Multiple Regions?
+If all data centers were in one location (e.g., only in Alaska), a natural disaster or power outage in that area would take down all services globally. To prevent this, cloud providers distribute data centers geographically.
+
+**Region** = A geographical area containing multiple data centers.
+
+Examples:
+- US East, US West
+- Europe West
+- Southeast Asia
+
+### Availability Zones (AZs)
+Within a single region, data centers are placed in **physically separate locations** — these are called **Availability Zones**.
+
+```
+US West Region
+├── Availability Zone 1 (Data Center A)
+├── Availability Zone 2 (Data Center B)
+└── Availability Zone 3 (Data Center C)
+```
+
+- If one AZ loses power or experiences a disaster, the other AZs in the same region continue operating.
+- Applications deployed across multiple AZs remain available even if one AZ fails.
+- Each AZ is connected to the others with low-latency, high-speed links.
+
+---
+
+## Load Balancer
+
+A **load balancer** sits in front of multiple application replicas and distributes incoming requests across them.
+
+```
+                Users (10 million requests)
+                          ↓
+                    Load Balancer
+                   ↙      ↓      ↘
+               VM 1    VM 2    VM 3
+```
+
+### Key Capabilities
+- **Traffic distribution** — splits requests across VMs using configurable algorithms (round robin, weighted, etc.).
+- **Health checks** — detects when a VM goes down and automatically stops sending traffic to it.
+- **High availability** — if one AZ fails, the load balancer redirects traffic to healthy VMs in other AZs.
+- **Flexible routing** — can send 80% of traffic to one server and 20% to another (weighted routing).
+
+---
+
+## Scalability
+
+**Scalability** is the ability to increase or decrease infrastructure capacity in response to changing demand.
+
+### Two Types of Scaling
+
+| Type | Description |
+|---|---|
+| **Manual Scaling** | A human adds or removes servers manually |
+| **Auto Scaling** | The cloud platform automatically adds or removes servers based on load |
+
+### Two Directions of Scaling
+
+| Direction | Description |
+|---|---|
+| **Horizontal Scaling (Scale Out/In)** | Add more servers (instances) to distribute load |
+| **Vertical Scaling (Scale Up/Down)** | Increase/decrease CPU or RAM on an existing server |
+
+---
+
+## Elasticity
+
+**Elasticity** is the ability to **dynamically and automatically** scale resources up or down in real time based on demand — also known as **auto-scaling**.
+
+- Elasticity = Dynamic / Automatic Scaling
+- Manual scaling = Scalability, but not elasticity
+
+> Think of elasticity as scalability that happens automatically without human intervention.
+
+---
+
+## High Availability
+
+**High Availability (HA)** means designing infrastructure so that applications remain available and accessible for the maximum possible amount of time — minimizing downtime.
+
+Achieved through:
+- Deploying application replicas across multiple Availability Zones.
+- Using load balancers to route around failures.
+- Auto-scaling to handle demand spikes.
+
+---
+
+## Disaster Recovery (DR)
+
+**Disaster Recovery** is the strategy and plan for recovering data and restoring service after a catastrophic failure — when normal high availability measures are insufficient.
+
+### Key Principle
+Always have a **backup** of critical data in a completely different location.
+
+- Best practice: Store database backups in a different **region** (not just a different AZ).
+- If the primary region fails entirely, the DR region takes over.
+
+### Example
+- Primary database: US East region
+- DR backup database: Singapore region
+- If US East goes down, applications are pointed to the Singapore database.
+
+As a DevOps/Cloud engineer, Disaster Recovery planning is always a required consideration.
+
+---
+
+## Key Concepts Summary
+
+| Concept | One-Line Definition |
+|---|---|
+| **Server** | A computer optimized to run applications and processes |
+| **Data Center** | A facility housing many servers connected with switches and routers |
+| **Private Cloud** | Organization's own on-premises data center |
+| **Public Cloud** | Cloud provider's data centers available to anyone (AWS, Azure, GCP) |
+| **Hybrid Cloud** | Mix of private (on-premises) and public cloud |
+| **Cloud Computing** | Running applications and storing data on remote cloud infrastructure |
+| **Virtualization** | Logically splitting one physical server into multiple virtual machines |
+| **Hypervisor** | Software that enables virtualization on a physical server |
+| **Virtual Machine (VM)** | A logically isolated server created from a physical server using virtualization |
+| **API** | Programmatic interface to interact with an application or service |
+| **Region** | A geographical area containing multiple cloud data centers |
+| **Availability Zone** | A physically separate data center within a region |
+| **Load Balancer** | Distributes incoming requests across multiple servers |
+| **Scalability** | Ability to increase/decrease infrastructure capacity |
+| **Elasticity** | Automatic/dynamic scaling based on real-time demand |
+| **High Availability** | Infrastructure design that minimizes downtime |
+| **Disaster Recovery** | Plan and strategy to recover from catastrophic failures |
+
+---
