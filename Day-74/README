@@ -1,0 +1,250 @@
+# Day 20 — AWS ECR: Elastic Container Registry
+
+## What I Learned Today
+
+Today I explored **AWS ECR (Elastic Container Registry)** — AWS's managed private container image registry. The session covered what ECR is, how it compares to Docker Hub, and a hands-on walkthrough of creating a repository, building a Docker image, and pushing it to ECR.
+
+> **Prerequisite:** A basic understanding of containers and Docker is required. If unfamiliar, study Docker fundamentals before this session.
+
+---
+
+## Breaking Down "ECR"
+
+| Letter | Word | Meaning |
+|---|---|---|
+| **E** | Elastic | Highly scalable and available — no restriction on number of images; AWS ensures uptime |
+| **C** | Container | Stores container images (OCI-compliant images, not just Docker) |
+| **R** | Registry | A storage and distribution system for container images — similar to Docker Hub |
+
+> **Note:** ECR is an OCI-compliant container registry, meaning it supports images built with any OCI-compliant tool (Docker, Buildah, Podman, etc.) — not Docker exclusively.
+
+---
+
+## What is ECR?
+
+ECR is a **fully managed, private container image registry** on AWS. Its primary purpose is the same as any container registry:
+
+- Store container (Docker) images built on a developer's machine.
+- Allow others — across regions or the world — to pull and use those images.
+- Integrate natively with AWS services like ECS, EKS, and Fargate.
+
+---
+
+## ECR vs Docker Hub
+
+| Feature | Docker Hub | AWS ECR |
+|---|---|---|
+| Default repository type | **Public** | **Private** |
+| Access management | Docker Hub accounts | AWS IAM (users, roles, policies) |
+| Free public repositories | Yes | Yes (public ECR gallery) |
+| Private repository | Paid tiers | IAM-controlled, pay-as-you-go |
+| Integration with AWS services | Limited | Native (ECS, EKS, Fargate, CodeBuild) |
+| Image scanning | Available | Built-in on push (configurable) |
+| Support & SLA | Docker support | AWS support and SLA |
+| Best for | Public/open-source images | Private org images on AWS |
+
+### When to Use Which
+
+- **Docker Hub** — personal projects, open-source images, public sharing.
+- **AWS ECR** — production workloads on AWS, private organization images, teams already using IAM.
+
+> In interviews: if presenting yourself as an AWS DevOps engineer, state that container images are managed in **ECR** — not Docker Hub — for private/production use cases.
+
+---
+
+## Hands-On: Push a Docker Image to ECR
+
+> ⚠️ ECR is **not a free service**. Delete repositories and images after the demo to avoid charges.
+
+---
+
+### Step 1 — Install and Configure AWS CLI
+
+AWS CLI is required to authenticate with ECR.
+
+**Install AWS CLI:**
+Follow the official documentation for your OS:
+- Linux / macOS: [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- Windows: use the MSI installer from the same page.
+
+**Verify installation:**
+```bash
+aws --version
+```
+
+**Configure credentials:**
+```bash
+aws configure
+```
+
+You will be prompted for:
+- **AWS Access Key ID** — from IAM → Security credentials → Access keys
+- **AWS Secret Access Key**
+- **Default region** — e.g., `us-east-1`
+- **Output format** — `json`
+
+---
+
+### Step 2 — Create an ECR Repository
+
+1. Go to **AWS Console → ECR → Get started / Create repository**.
+2. **Visibility:** Private (default — recommended).
+3. **Repository name:** e.g., `demo-app-repo`
+4. **Tag immutability:** Enable to prevent overwriting images with the same tag (optional).
+5. **Image scan on push:** Enable to automatically scan images for vulnerabilities when pushed.
+6. Click **Create repository**.
+
+---
+
+### Step 3 — Authenticate Docker to ECR
+
+ECR uses AWS credentials to authenticate Docker. Run the login command from the **View push commands** section of your repository:
+
+```bash
+aws ecr get-login-password --region <your-region> | \
+  docker login --username AWS --password-stdin \
+  <aws-account-id>.dkr.ecr.<your-region>.amazonaws.com
+```
+
+**What this does:**
+- `aws ecr get-login-password` — fetches a temporary ECR authentication token.
+- The `|` (pipe) passes the token as input to `docker login`.
+- Docker is now authenticated to push/pull from your ECR registry.
+
+> If using an IAM user (not root), ensure the user has the `AmazonEC2ContainerRegistryFullAccess` or a scoped ECR policy attached.
+
+**Grant ECR permissions to an IAM user:**
+1. Go to **IAM → Users → select user → Permissions → Add permissions**.
+2. Search for `ECR` → attach `AmazonEC2ContainerRegistryFullAccess` or a custom policy.
+
+---
+
+### Step 4 — Build the Docker Image
+
+Create a simple `Dockerfile`:
+
+```dockerfile
+FROM ubuntu:22.04
+CMD ["echo", "Hello from ECR!"]
+```
+
+Build the image:
+
+```bash
+docker build -t test-image .
+```
+
+Verify the image was created:
+
+```bash
+docker images | head -5
+```
+
+---
+
+### Step 5 — Tag the Image for ECR
+
+Tag the local image with the ECR repository URI:
+
+```bash
+docker tag test-image \
+  <aws-account-id>.dkr.ecr.<your-region>.amazonaws.com/demo-app-repo:latest
+```
+
+**What this does:** Associates the local image name with the ECR repository address so Docker knows where to push it.
+
+---
+
+### Step 6 — Push the Image to ECR
+
+```bash
+docker push \
+  <aws-account-id>.dkr.ecr.<your-region>.amazonaws.com/demo-app-repo:latest
+```
+
+Once the push completes, go to **ECR → your repository** and refresh — the image will appear with its tag, size, and push timestamp.
+
+---
+
+### Step 7 — Pull the Image from ECR (Optional Verification)
+
+```bash
+docker pull \
+  <aws-account-id>.dkr.ecr.<your-region>.amazonaws.com/demo-app-repo:latest
+```
+
+Anyone with valid IAM credentials and ECR read access can pull this image from anywhere.
+
+---
+
+### Full Command Reference (Copy-Paste)
+
+The exact commands are also available in the ECR console under **Repository → View push commands**:
+
+```bash
+# 1. Authenticate
+aws ecr get-login-password --region <region> | \
+  docker login --username AWS --password-stdin \
+  <account-id>.dkr.ecr.<region>.amazonaws.com
+
+# 2. Build
+docker build -t demo-app-repo .
+
+# 3. Tag
+docker tag demo-app-repo:latest \
+  <account-id>.dkr.ecr.<region>.amazonaws.com/demo-app-repo:latest
+
+# 4. Push
+docker push \
+  <account-id>.dkr.ecr.<region>.amazonaws.com/demo-app-repo:latest
+```
+
+---
+
+## Key ECR Features
+
+| Feature | Description |
+|---|---|
+| **Private by default** | Repositories are private; access controlled by IAM |
+| **Image scan on push** | Automatically scans for known vulnerabilities (CVEs) on push |
+| **Tag immutability** | Prevents overwriting an existing image tag |
+| **Cross-region replication** | Replicate images across AWS regions for low-latency pulls |
+| **Lifecycle policies** | Automatically delete old or untagged images to control storage cost |
+| **Native AWS integration** | Direct integration with ECS, EKS, Fargate, CodeBuild, and CodePipeline |
+
+---
+
+## Connecting ECR to the CI/CD Pipeline (Day 14–15 Revisited)
+
+In the Day 14–15 CI/CD pipeline, Docker images were pushed to Docker Hub. Now that ECR is covered, that workflow can be updated:
+
+| Step | Previous (Day 14–15) | Updated with ECR |
+|---|---|---|
+| Container registry | Docker Hub | AWS ECR |
+| Authentication | `docker login` with Docker Hub credentials | `aws ecr get-login-password` + `docker login` |
+| Push command | `docker push <dockerhub-username>/app:tag` | `docker push <account>.dkr.ecr.<region>.amazonaws.com/app:tag` |
+| Credentials storage | SSM Parameter Store (Docker Hub username/password) | IAM role attached to CodeBuild (no static credentials needed) |
+
+---
+
+## Cleanup
+
+To avoid charges after the demo:
+
+1. Go to **ECR → repository → select images → Delete**.
+2. Go to **ECR → repositories → select repository → Delete**.
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| ECR | AWS's managed private container registry |
+| Elastic | Scalable — no image count limit; AWS ensures availability |
+| Private by default | Unlike Docker Hub (public by default), ECR defaults to private |
+| IAM integration | Same IAM users/roles used for AWS can control ECR access |
+| Push workflow | Authenticate → Build → Tag → Push |
+| Use in CI/CD | Replace Docker Hub with ECR in CodeBuild pipelines for production workloads |
+
+---
