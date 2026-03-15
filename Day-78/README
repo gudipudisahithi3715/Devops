@@ -1,0 +1,265 @@
+# AWS Config: Compliance & Resource Governance
+
+## What I Learned Today
+
+Today I explored **AWS Config** — AWS's service for tracking resource configurations and enforcing compliance rules. The session covered what compliance means in a cloud context, how AWS Config works with Lambda to evaluate and report on resource compliance, and a hands-on demo monitoring EC2 detailed monitoring settings.
+
+---
+
+## What is Compliance in AWS?
+
+Every organization has a set of rules and regulations that all cloud resources must follow. These rules vary by domain:
+
+| Domain | Example Compliance Rule |
+|---|---|
+| Banking / Finance | All S3 buckets must have Public Access disabled |
+| Government | All EC2 instances must have detailed monitoring enabled |
+| Any organization | All resources must have tags with `project` and `environment` keys |
+| Security-focused | All EBS volumes must be encrypted |
+
+Resources that follow these rules are **compliant**. Resources that do not are **non-compliant**.
+
+As a DevOps engineer, it is your responsibility to:
+1. Collect the list of mandatory compliance rules from your organization.
+2. Implement automated checks to detect non-compliant resources.
+3. Report or remediate violations.
+
+---
+
+## What is AWS Config?
+
+AWS Config is a service that:
+- Continuously **monitors and records** the configuration of AWS resources.
+- Evaluates resources against **compliance rules** you define.
+- Reports which resources are **compliant** or **non-compliant**.
+- Triggers actions (via Lambda) when a resource is created, modified, or deleted.
+
+---
+
+## How AWS Config Works
+
+```
+AWS Resource created/modified/deleted
+              ↓
+AWS Config detects the change
+              ↓
+Config Rule triggers → Lambda Function
+              ↓
+Lambda evaluates the resource configuration
+              ↓
+Lambda reports result back to AWS Config:
+    → COMPLIANT or NON_COMPLIANT
+              ↓
+AWS Config updates the compliance dashboard
+```
+
+---
+
+## Two Types of Config Rules
+
+| Type | Description |
+|---|---|
+| **AWS Managed Rules** | Pre-built rules provided by AWS — no Lambda needed. Enable and configure directly. |
+| **Custom Lambda Rules** | Rules where you write a Lambda function with your own evaluation logic. Used for org-specific requirements. |
+
+> For most standard compliance checks, start with AWS Managed Rules. Use Custom Lambda Rules for organization-specific requirements not covered by managed rules.
+
+---
+
+## Hands-On: EC2 Detailed Monitoring Compliance Rule
+
+### Scenario
+Organization rule: **All EC2 instances must have detailed monitoring enabled.**
+
+- EC2 Instance A — detailed monitoring **enabled** → Compliant ✅
+- EC2 Instance B — detailed monitoring **disabled** → Non-Compliant ❌
+
+---
+
+### Step 1 — Create the Lambda Function
+
+1. Go to **Lambda → Create function → Author from scratch**.
+2. **Function name:** `ec2-monitoring-compliance-check`
+3. **Runtime:** Python 3.x
+4. **Execution role:** Create a new role (update permissions after creation).
+5. Click **Create function**.
+
+**Increase timeout:**
+- Go to **Configuration → General configuration → Edit**.
+- Set **Timeout** to `10 seconds` (default 3 seconds is often not enough for Config evaluations).
+- **Save**.
+
+**Attach IAM Permissions to the Lambda Role:**
+- Go to **Configuration → Permissions → click the role name**.
+- **Add permissions → Attach policies:**
+- `CloudWatchFullAccess`
+- `AmazonEC2FullAccess`
+- `AWSConfigRole`
+- `AWSCloudTrailFullAccess`
+
+> For production, use least-privilege policies. For initial setup and learning, the above provides enough access to get the demo working.
+
+---
+
+### Step 2 — Write the Lambda Function
+
+```python
+import boto3
+import json
+
+ec2_client = boto3.client('ec2')
+config_client = boto3.client('config')
+
+def lambda_handler(event, context):
+    # Parse the invoking event from AWS Config
+    invoking_event = json.loads(event['invokingEvent'])
+    configuration_item = invoking_event['configurationItem']
+
+    # Extract the EC2 instance ID
+    instance_id = configuration_item['resourceId']
+
+    # Default compliance status
+    compliance_status = 'COMPLIANT'
+
+    # Describe the EC2 instance to get monitoring state
+    response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    instance = response['Reservations'][0]['Instances'][0]
+    monitoring_state = instance['Monitoring']['State']
+
+    # Evaluate compliance
+    if monitoring_state != 'enabled':
+        compliance_status = 'NON_COMPLIANT'
+
+    # Report the evaluation result back to AWS Config
+    config_client.put_evaluations(
+        Evaluations=[
+            {
+                'ComplianceResourceType': configuration_item['resourceType'],
+                'ComplianceResourceId': instance_id,
+                'ComplianceType': compliance_status,
+                'OrderingTimestamp': configuration_item['configurationItemCaptureTime']
+            }
+        ],
+        ResultToken=event['resultToken']
+    )
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(f'Instance {instance_id} is {compliance_status}')
+    }
+```
+
+Click **Deploy** after pasting the code.
+
+---
+
+### Step 3 — Create the AWS Config Rule
+
+1. Go to **AWS Config → Rules → Add rule**.
+2. Select **Create custom Lambda rule**.
+3. Click **Next**.
+4. **Rule name:** `ec2-detailed-monitoring-check`
+5. **Description:** Checks if EC2 instances have detailed monitoring enabled.
+6. **Lambda function ARN:** paste the ARN of the Lambda function created above.
+7. **Trigger type:** `When configuration changes` (not periodic — this ensures real-time evaluation).
+8. **Resource type:** Select **AWS::EC2::Instance**.
+9. Click **Next → Save**.
+
+---
+
+### Step 4 — Verify Compliance Status
+
+1. Go to **AWS Config → Rules → ec2-detailed-monitoring-check**.
+2. Click **Resources in scope** → view the compliance status of each EC2 instance.
+3. Instances with monitoring enabled show **Compliant**.
+4. Instances without monitoring show **Non-Compliant**.
+
+---
+
+### Step 5 — Test Real-Time Detection
+
+1. Go to **EC2 → select a non-compliant instance → Monitoring tab**.
+2. **Enable detailed monitoring** → confirm.
+3. Wait 1–3 minutes for AWS Config to detect the change and re-trigger the Lambda function.
+4. Refresh the Config rule page — the instance should now show **Compliant**.
+
+To test the reverse:
+1. **Disable detailed monitoring** on a previously compliant instance.
+2. Wait 1–3 minutes.
+3. The instance should move back to **Non-Compliant**.
+
+> If the status is not updating, go to **AWS Config → Rules → Actions → Re-evaluate** to trigger a manual evaluation.
+
+---
+
+## Troubleshooting with CloudWatch Logs
+
+If the Lambda function is not working as expected:
+
+1. Go to **CloudWatch → Log groups**.
+2. Find the log group for the Lambda function (e.g., `/aws/lambda/ec2-monitoring-compliance-check`).
+3. Open the latest log stream and check for errors.
+
+Common issues:
+- **Timeout:** Lambda execution exceeded the configured timeout — increase it.
+- **Permission denied:** Lambda role missing a required IAM policy — attach the needed policy.
+- **Key error in JSON parsing:** The event structure from Config changed — check the `invokingEvent` format.
+
+---
+
+## Extending to Other Resources
+
+The same pattern applies to any AWS resource. Examples:
+
+| Resource | Compliance Check |
+|---|---|
+| S3 Bucket | Public Access must be blocked |
+| EC2 Instance | Must have a specific tag (e.g., `project`) |
+| EBS Volume | Must be encrypted |
+| IAM User | Must have MFA enabled |
+| RDS Instance | Must have automated backups enabled |
+
+For each new rule:
+1. Create a new Lambda function with the appropriate evaluation logic using Boto3.
+2. Create a new AWS Config custom rule pointing to that Lambda.
+3. Select the relevant resource type.
+
+---
+
+## Key Concepts Summary
+
+| Concept | Description |
+|---|---|
+| **Compliance** | Whether an AWS resource adheres to organizational rules and standards |
+| **AWS Config** | Service that monitors resource configurations and evaluates compliance rules |
+| **Compliant** | Resource follows the defined rule |
+| **Non-Compliant** | Resource violates the defined rule |
+| **AWS Managed Rules** | Pre-built Config rules provided by AWS — no Lambda needed |
+| **Custom Lambda Rule** | Config rule that calls a Lambda function for custom evaluation logic |
+| **`invokingEvent`** | JSON payload sent by AWS Config to the Lambda function containing resource details |
+| **`put_evaluations`** | Boto3 method used to report compliance results back to AWS Config |
+| **Re-evaluate** | Manual trigger in Config to force immediate rule evaluation |
+
+---
+
+## Lambda Function Flow Summary
+
+```python
+# 1. Parse the event from AWS Config
+invoking_event = json.loads(event['invokingEvent'])
+
+# 2. Extract resource details
+instance_id = configuration_item['resourceId']
+
+# 3. Describe the resource using Boto3
+response = ec2_client.describe_instances(InstanceIds=[instance_id])
+
+# 4. Evaluate the compliance condition
+if monitoring_state != 'enabled':
+    compliance_status = 'NON_COMPLIANT'
+
+# 5. Report back to AWS Config
+config_client.put_evaluations(Evaluations=[...], ResultToken=event['resultToken'])
+```
+
+---
