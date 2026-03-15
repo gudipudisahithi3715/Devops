@@ -1,0 +1,176 @@
+# Three-Tier Architecture on AWS
+
+## What I Learned Today
+
+Today I explored the **Three-Tier Architecture model on AWS** — one of the most commonly referenced architectures in AWS interviews and real-world projects. The session covers what the three tiers are, how AWS services map to each tier, the full request flow, and critically — when to mention this architecture in interviews and when not to.
+
+---
+
+## Application Architecture Tiers — Overview
+
+| Tier | Layer | Description | Example |
+|---|---|---|---|
+| **1-Tier** | Single layer | Frontend only — no backend, no database | Static HTML page, simple calculator UI |
+| **2-Tier** | Frontend + Backend | No database required | Calculator with compute logic on backend |
+| **3-Tier** | Frontend + Backend + Database | Full application stack | E-commerce site (amazon.com) |
+
+### What Makes an Application "Three-Tier"?
+
+Any application with all three of the following components follows the three-tier architecture:
+
+1. **Frontend (Tier 1)** — User Interface (UI); what the user sees and interacts with in the browser.
+2. **Backend (Tier 2)** — Application logic; processes requests from the frontend, written in Java, Python, Go, etc.
+3. **Database (Tier 3)** — Stores and retrieves data; the backend queries the database and returns results to the frontend.
+
+### Request Flow Example (amazon.com)
+
+```
+User opens browser → searches amazon.com
+         ↓
+Frontend (HTML/UI) — user logs in, clicks product
+         ↓
+Backend — processes the request, authenticates to database
+         ↓
+Database — returns product details
+         ↓
+Backend — formats response
+         ↓
+Frontend — displays product information to user
+```
+
+---
+
+## Three-Tier Architecture on AWS — Components
+
+### VPC and Subnet Design
+
+The entire architecture lives inside a **Virtual Private Cloud (VPC)** — isolated from other projects/teams in the same AWS account.
+
+```
+VPC (e.g., 172.16.0.0/16)
+├── Public Subnet          — Load Balancer (internet-facing)
+├── Private Subnet 1       — Frontend EC2 instances (Auto Scaling Group)
+├── Private Subnet 2       — Backend EC2 instances (Auto Scaling Group)
+└── Database Subnet        — RDS (Primary + Secondary)
+```
+
+Each subnet type serves a specific tier and is kept isolated for security — users cannot reach the backend directly; the backend cannot be accessed without going through the frontend load balancer.
+
+---
+
+### Full Architecture Diagram
+
+```
+User
+  ↓
+Route 53 (DNS)
+  ↓
+CloudFront (CDN — optional, for caching)
+  ↓
+Application Load Balancer (Public Subnet — internet-facing)
+  ↓
+Frontend EC2 Instances — Auto Scaling Group
+  (Private Subnet — us-east-1a, us-east-1b)
+  ↓
+Application Load Balancer (Internal — private)
+  ↓
+Backend EC2 Instances — Auto Scaling Group
+  (Private Subnet — us-east-1a, us-east-1b)
+  ↓
+Amazon RDS — Primary Instance
+  ↓ (replication)
+Amazon RDS — Secondary Instance (standby for failover)
+  (Database Subnet)
+```
+
+---
+
+## AWS Services Used at Each Tier
+
+| Layer | AWS Service | Purpose |
+|---|---|---|
+| DNS | **Route 53** | Resolves domain to load balancer |
+| CDN | **CloudFront** | Caches static content at edge locations |
+| Public entry point | **Application Load Balancer** | Distributes traffic to frontend instances |
+| Frontend compute | **EC2 + Auto Scaling Group** | Hosts frontend app; scales across 2 AZs |
+| Internal routing | **Application Load Balancer (internal)** | Routes frontend → backend |
+| Backend compute | **EC2 + Auto Scaling Group** | Hosts backend app; scales across 2 AZs |
+| Database | **Amazon RDS** | Managed relational database (MySQL, PostgreSQL) |
+| High availability | **RDS Multi-AZ** | Primary + Secondary RDS for failover |
+| Isolation | **VPC + Subnets** | Separates tiers into private network segments |
+
+---
+
+## Why Auto Scaling Groups?
+
+- Auto Scaling Groups deploy EC2 instances across **multiple Availability Zones** (e.g., us-east-1a and us-east-1b).
+- If one AZ goes down, instances in the other AZ continue serving traffic.
+- Traffic spikes trigger **scale-out** (add instances); quiet periods trigger **scale-in** (remove instances).
+- This ensures **high availability** and **cost efficiency** simultaneously.
+
+---
+
+## Why Primary + Secondary RDS?
+
+- The **Primary RDS** handles all read/write operations.
+- The **Secondary RDS** (standby) is a replica — automatically promoted if the primary fails.
+- This prevents **data loss** and reduces **downtime** during database failures.
+- In AWS, this is called **RDS Multi-AZ deployment**.
+
+---
+
+## Disaster Recovery — Multi-Region Setup
+
+For critical applications, the entire three-tier architecture can be replicated in a **second AWS region**:
+
+```
+Region 1 (us-east-1)                Region 2 (eu-west-1)
+┌─────────────────────┐             ┌─────────────────────┐
+│  VPC + Full Stack   │  ←replication→ │  VPC + Full Stack   │
+│  (Primary)          │             │  (Disaster Recovery) │
+└─────────────────────┘             └─────────────────────┘
+```
+
+- If Region 1 becomes completely unavailable, Route 53 can automatically route traffic to Region 2.
+- VPC Peering or AWS Transit Gateway connects the two regions.
+
+---
+
+## Security Considerations
+
+- **Public Subnet** — Only the internet-facing load balancer lives here. EC2 instances are never directly exposed to the internet.
+- **Private Subnets** — Frontend and backend EC2 instances are not publicly accessible. They can only receive traffic from the load balancer.
+- **Database Subnet** — RDS instances have no internet connectivity. Only backend EC2 instances in the private subnet can access the database.
+- **Security Groups** — Layer-by-layer access control: LB → frontend SG → backend SG → database SG.
+- **IAM Roles** — EC2 instances use IAM roles to access other AWS services (e.g., S3, Secrets Manager) without hardcoded credentials.
+
+---
+
+## Interview Guidance — When to Use This Architecture
+
+### ✅ Mention Three-Tier Architecture When:
+- The job description mentions **EC2**, traditional web application hosting, or MNC/enterprise environments.
+- The company is **not yet containerized** and still runs workloads on virtual machines.
+- You are asked about architecting a **scalable web application** on AWS.
+
+### ❌ Do NOT Lead with Three-Tier (EC2-based) When:
+- The job description emphasizes **Kubernetes, EKS, containers, or microservices**.
+- The company is clearly cloud-native or uses modern DevOps tooling.
+- In these cases, explain the **EKS-based architecture** instead — containerized microservices with Kubernetes, Ingress controllers, and managed services.
+
+> **Key principle:** Match the architecture you describe to what the company actually uses. Describing an EC2-based three-tier architecture to a Kubernetes-heavy company signals a lack of modern cloud-native experience.
+
+---
+
+## Three-Tier vs Kubernetes Architecture
+
+| Aspect | Three-Tier (EC2) | Kubernetes (EKS) |
+|---|---|---|
+| Compute unit | EC2 instance | Container / Pod |
+| Scaling | Auto Scaling Group | HPA / Cluster Autoscaler |
+| Routing | Application Load Balancer | Ingress Controller |
+| Service discovery | DNS / Load Balancer | Kubernetes Service |
+| Deployment | AMI + Launch Template | Docker image + Helm/kubectl |
+| Best for | Traditional workloads, MNCs | Modern microservices, cloud-native |
+
+---
