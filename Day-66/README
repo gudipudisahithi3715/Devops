@@ -1,0 +1,168 @@
+# AWS CodeCommit: Managed Version Control on AWS
+
+## What I Learned Today
+
+Today I started a 4-part series on implementing CI/CD entirely using AWS managed services. This first part focuses on **AWS CodeCommit** — AWS's managed Git-based version control service.
+
+---
+
+## CI/CD on AWS — The Big Picture
+
+Instead of using open-source or third-party tools, AWS provides its own managed services to cover every stage of a CI/CD pipeline:
+
+| CI/CD Stage | Common Tool | AWS Equivalent |
+|---|---|---|
+| Source / Version Control | GitHub / GitLab | **AWS CodeCommit** |
+| Pipeline Orchestration | Jenkins | **AWS CodePipeline** |
+| Build & Test | Maven / Docker / SonarQube | **AWS CodeBuild** |
+| Deploy | Argo CD / Ansible / Shell Scripts | **AWS CodeDeploy** |
+
+A typical Jenkins-based CI/CD flow looks like this:
+
+1. Developer pushes code → **GitHub** (source)
+2. GitHub webhook triggers → **Jenkins pipeline**
+3. Jenkins runs build, unit tests, static analysis → **Build stage**
+4. Build artifact (e.g., Docker image) is deployed → **Kubernetes / EC2**
+
+AWS replicates this entire flow using its own four managed services above.
+
+---
+
+## What is AWS CodeCommit?
+
+- AWS CodeCommit is a **fully managed, private Git repository service**.
+- It is AWS's alternative to self-hosted GitLab or GitHub Enterprise.
+- **All repositories are private** — there is no concept of a public repository in CodeCommit.
+- It is designed for organizations that need private, scalable, and secure source code hosting without managing their own Git servers.
+
+### Why Does CodeCommit Exist?
+
+Many organizations do not use public GitHub repositories for production code. Instead, they either:
+- Use **private repositories** on GitHub or GitLab
+- **Self-host** GitLab or other Git solutions on their own servers or EC2 instances
+
+Managing self-hosted Git servers means handling scaling, patching, and security. AWS CodeCommit eliminates this operational overhead.
+
+---
+
+## Advantages of AWS CodeCommit
+
+- **Fully managed** — no servers to provision, patch, or maintain.
+- **Scalable** — supports any number of repositories as the team or codebase grows.
+- **Secure** — integrates natively with AWS IAM for fine-grained access control.
+- **Reliable** — backed by AWS's infrastructure and SLA guarantees.
+- **Pay-as-you-go** — pay only for what you use.
+
+---
+
+## Practical: Creating a Repository
+
+### Step 1 — Create a Repository (Root Account)
+
+1. Go to AWS Console → search for **CodeCommit**.
+2. Click **Create repository**.
+3. Provide a name (e.g., `demo-repo-cc`) and optional description.
+4. Click **Create**.
+
+> ⚠️ Root account has restrictions with SSH and is not recommended for day-to-day use. Always use an IAM user.
+
+### Step 2 — Create an IAM User for CodeCommit
+
+1. Go to **IAM** → **Users** → **Create user**.
+2. Provide a username (e.g., `codecommit-user`).
+3. Enable **AWS Management Console access** and set a custom password.
+4. Attach the policy: **AWSCodeCommitPowerUser** (provides full access needed for demos and development).
+5. Create the user and note down the **Account ID**, username, and password.
+
+### Step 3 — Log In as the IAM User
+
+1. Open an incognito browser window.
+2. Go to the AWS Console sign-in page.
+3. Select **IAM user**, enter the **Account ID**, IAM username, and password.
+4. Navigate to CodeCommit → confirm you are in the correct **AWS region**.
+
+---
+
+## Practical: Cloning and Using the Repository
+
+### Install Git Locally
+
+```bash
+# Verify git installation
+git --version
+```
+
+Download Git from: [https://git-scm.com/downloads](https://git-scm.com/downloads) — choose the installer for your OS (Windows, macOS, or Linux).
+
+### Clone the Repository via HTTPS
+
+1. In the CodeCommit console, open the repository.
+2. Click **Clone URL** → **Clone HTTPS** — this copies the HTTPS URL.
+3. In your terminal:
+
+```bash
+git clone https://git-codecommit.<region>.amazonaws.com/v1/repos/demo-repo-cc
+```
+
+4. When prompted, enter your IAM username and the HTTPS Git credentials (generated from IAM → User → Security credentials → HTTPS Git credentials for CodeCommit).
+
+### Configure Git Identity
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+### Push a File to CodeCommit
+
+```bash
+cd demo-repo-cc
+
+# Create a test file
+vim testfile.txt
+
+# Stage the file
+git add .
+
+# Commit with a message
+git commit -m "Add test file"
+
+# Push to CodeCommit
+git push
+```
+
+After pushing, the file should appear in the CodeCommit repository in the AWS Console.
+
+---
+
+## UI-Based File Upload (Alternative)
+
+From within the CodeCommit console, I can also upload files directly via the UI:
+
+- Open the repository → **Add file** → **Upload file**
+- Provide author name and email → **Commit changes**
+
+> ⚠️ This only supports one file at a time. For uploading multiple files (e.g., Terraform scripts, application code), using the terminal or an IDE like VS Code is necessary.
+
+---
+
+## Disadvantages of AWS CodeCommit
+
+This is important to understand — CodeCommit has significant limitations compared to other Git platforms:
+
+- **Limited features** — lacks advanced collaboration tools, AI code suggestions (like GitHub Copilot), and online IDE integrations (like GitHub's `.` shortcut for VS Code in the browser).
+- **Restricted integrations** — primarily integrates with AWS services only; third-party tool integrations are very limited.
+- **Weak UI** — the interface is minimal and less developer-friendly compared to GitHub or GitLab.
+- **Low adoption** — even organizations that are fully on AWS often prefer GitHub, GitLab, or Bitbucket over CodeCommit.
+- **AWS-only ecosystem** — tight coupling to AWS makes it less portable.
+
+---
+
+## Key Takeaway
+
+While CodeCommit solves the problem of managed private Git hosting on AWS, it is **rarely the preferred choice** in real-world organizations due to its limited features and integrations. In practice:
+
+- Organizations use **GitHub (private repos)**, **GitLab (self-hosted or SaaS)**, or **Bitbucket**.
+- For the remaining parts of this CI/CD series (CodePipeline, CodeBuild, CodeDeploy), I will use **GitHub** for source control — this is more representative of real-world usage and more relevant for interviews.
+
+---
