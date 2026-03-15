@@ -1,0 +1,221 @@
+#  AWS CloudWatch: Monitoring, Metrics, Alarms & Logging
+
+## What I Learned Today
+
+Today I explored **AWS CloudWatch** — AWS's native monitoring, alerting, and logging service. The session covered core concepts followed by two hands-on demos: tracking EC2 CPU metrics and configuring automated email alerts using CloudWatch alarms.
+
+---
+
+## What is AWS CloudWatch?
+
+CloudWatch is the **gatekeeper** of an AWS account. It watches and records activities happening across AWS services 24/7 — even without any manual configuration.
+
+> **One-line definition:** CloudWatch is a monitoring and observability service that provides monitoring, alerting, reporting, and logging for AWS resources and applications.
+
+---
+
+## Core Features of CloudWatch
+
+### 1. Monitoring
+Tracks the health and performance of AWS infrastructure and applications in real time.
+
+### 2. Metrics
+Metrics are data points that describe the behavior of AWS resources over time. Examples:
+- CPU utilization of an EC2 instance
+- Memory consumption (requires custom metrics — not tracked by default)
+- Number of API requests received
+- Network input/output bytes
+- Disk read/write operations
+
+CloudWatch tracks **1,036+ default metrics** across all AWS services automatically, with data collected at regular intervals (every 5 minutes by default for EC2; every 1 minute with detailed monitoring enabled).
+
+### 3. Alarms
+Alarms act on metrics. When a metric crosses a defined threshold, CloudWatch triggers an alarm that can:
+- Send an email notification via SNS
+- Trigger an Auto Scaling action
+- Invoke a Lambda function
+
+### 4. Log Groups & Log Insights
+CloudWatch automatically organizes logs into **log groups** — one per service or project. For example, every CodeBuild project gets its own log group, capturing every build log, success, or failure, even after the project is deleted from CodeBuild.
+
+**Log Insights** allows querying these logs using a query language to extract structured information.
+
+### 5. Custom Metrics
+By default, CloudWatch does not track memory utilization. Custom metrics allow sending application-specific or OS-level data to CloudWatch that it doesn't collect natively. This is covered in a follow-up session.
+
+### 6. Cost Optimization & Auto Scaling Integration
+CloudWatch integrates with:
+- **AWS Lambda** — for automated resource cleanup (cost optimization)
+- **Auto Scaling Groups** — to scale EC2 instances up/down based on metric thresholds (e.g., add an instance when CPU > 80%)
+
+CloudWatch provides the trigger; other services perform the action.
+
+---
+
+## Demo 1 — Tracking EC2 CPU Metrics with CloudWatch
+
+### Step 1 — Launch an EC2 Instance
+
+1. Go to **EC2 → Launch Instance**.
+2. Name: `cloudwatch-demo`
+3. OS: Ubuntu, Instance type: `t2.micro`
+4. Use an existing key pair, enable public IP.
+5. Click **Launch instance**.
+
+### Step 2 — Enable Detailed Monitoring
+
+By default, EC2 sends metrics to CloudWatch every **5 minutes**. Enable detailed monitoring to reduce this to **1 minute**:
+
+1. Select the EC2 instance → **Monitoring tab** → **Manage detailed monitoring**.
+2. Enable detailed monitoring → **Save**.
+
+### Step 3 — Simulate a CPU Spike
+
+SSH into the EC2 instance and create the CPU spike script:
+
+```bash
+ssh -i <your-key.pem> ubuntu@<ec2-public-ip>
+```
+
+Create the script:
+
+```bash
+nano cpu_spike.py
+```
+
+Paste the following Python script (also available in the course GitHub repository under `day-16/`):
+
+```python
+import time
+import multiprocessing
+
+def cpu_spike():
+    """Simulate CPU spike by running intensive calculations."""
+    end_time = time.time() + 60  # Run for 60 seconds
+    while time.time() < end_time:
+        _ = [x**2 for x in range(10000)]
+
+if __name__ == "__main__":
+    print("Simulating CPU Spike at 80%...")
+    processes = []
+    for _ in range(multiprocessing.cpu_count()):
+        p = multiprocessing.Process(target=cpu_spike)
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
+    print("CPU Spike simulation completed.")
+```
+
+> ⚠️ Only run this script on a dedicated demo EC2 instance. Running it on production machines or personal laptops can cause the system to become unresponsive at 100% CPU.
+
+Run the script:
+
+```bash
+python3 cpu_spike.py
+```
+
+### Step 4 — View CPU Metrics in CloudWatch
+
+1. Go to **CloudWatch → Metrics → EC2 → Per-Instance Metrics**.
+2. Search for the instance by ID and select **CPUUtilization**.
+3. Set the period to **1 minute** and statistic to **Maximum** for real-time visibility.
+4. For production use, set statistic to **Average** over 5 minutes to avoid false alarms from momentary spikes.
+
+The graph will reflect the CPU spike as it happens. Metrics can be viewed as line charts, bar charts, or pie charts.
+
+---
+
+## Demo 2 — Configuring a CloudWatch Alarm with Email Notification
+
+### Step 1 — Create an Alarm
+
+1. Go to **CloudWatch → Alarms → Create alarm**.
+2. Click **Select metric → EC2 → Per-Instance Metrics**.
+3. Select the instance and choose **CPUUtilization** → **Select metric**.
+4. Configure the condition:
+- **Statistic:** Maximum
+- **Period:** 1 minute
+- **Condition:** Greater than or equal to **50** (50% CPU threshold)
+5. Click **Next**.
+
+### Step 2 — Configure Notification via SNS
+
+1. Under **Notification**, select **Create new topic**.
+2. **Topic name:** `cloudwatch-alerts`
+3. **Email endpoint:** enter the email address that should receive alerts.
+4. Click **Create topic**.
+5. Click **Next**.
+
+### Step 3 — Name the Alarm
+
+Provide a clear alarm name and description:
+
+- **Alarm name:** `priority-ec2-cpu-reached-50-percent`
+- **Description:**
+  ```
+  Hey team, this is an automated notification from CloudWatch to let you know
+  that your EC2 instance CPU has spiked to 50% or above. Please take the necessary action.
+  ```
+
+6. Click **Next → Create alarm**.
+
+### Step 4 — Confirm the SNS Subscription
+
+1. Check the inbox of the email address provided (including Spam and Promotions folders).
+2. Open the AWS notification email and click **Confirm subscription**.
+3. Return to CloudWatch — the alarm status should now show **OK** (green) instead of **Insufficient data**.
+
+### Step 5 — Trigger the Alarm
+
+Run the CPU spike script on the EC2 instance again:
+
+```bash
+python3 cpu_spike.py
+```
+
+Within 1–2 minutes, CloudWatch detects the CPU crossing 50% and sends an email notification. The email will include:
+- The alarm name and description
+- The metric that triggered it
+- The timestamp of the breach
+
+---
+
+## CloudWatch Log Groups — Automatic Logging
+
+CloudWatch automatically creates log groups for AWS services without any manual setup. Example: every CodeBuild project build (including failed ones) is automatically logged.
+
+To view logs:
+1. Go to **CloudWatch → Log groups**.
+2. Find the log group for the service (e.g., `/aws/codebuild/sample-python-flask-service`).
+3. Open a **log stream** to see detailed build output, errors, environment info, and timestamps.
+
+This is useful for debugging past build failures even after the CodeBuild project has been modified or deleted.
+
+---
+
+## Metrics Statistic Types — When to Use Each
+
+| Statistic | When to Use |
+|---|---|
+| **Maximum** | Demo/testing — shows highest value in the period; fastest to trigger |
+| **Average** | Production — smooths out momentary spikes; more meaningful threshold |
+| **Sum** | For counters like API call counts or error counts |
+| **Minimum** | Checking if a metric drops below an acceptable floor |
+
+---
+
+## Key Concepts Summary
+
+| Concept | Description |
+|---|---|
+| **CloudWatch** | AWS gatekeeper — monitors, logs, and alerts on cloud activity |
+| **Metrics** | Data points collected from AWS services (1,036+ tracked by default) |
+| **Alarms** | Rules that trigger actions when a metric crosses a threshold |
+| **SNS Topic** | The notification channel used by alarms to send emails or messages |
+| **Log Groups** | Auto-created containers that organize logs per service/project |
+| **Log Insights** | Query language for extracting data from CloudWatch logs |
+| **Custom Metrics** | User-defined metrics sent to CloudWatch (e.g., memory usage) |
+| **Detailed Monitoring** | Increases EC2 metric reporting frequency from 5 min → 1 min |
+
+---
