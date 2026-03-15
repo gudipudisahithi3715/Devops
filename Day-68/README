@@ -1,0 +1,259 @@
+# Implementing CI Pipeline on AWS: CodeBuild + CodePipeline + GitHub
+
+## What I Learned Today
+
+Today was a fully hands-on session. I implemented a **Continuous Integration (CI) pipeline** on AWS using:
+
+- **GitHub** — source code repository
+- **AWS CodeBuild** — builds the application and Docker image
+- **AWS CodePipeline** — orchestrator that ties everything together
+
+> **Note:** Only the CI part is covered today. The CD (Continuous Delivery) stage will be added in the next session.
+
+---
+
+## Project Structure
+
+The sample application used is a basic **Flask (Python)** app. The repository structure is:
+
+```
+day-14/
+└── simple-python-app/
+    ├── app.py               # Flask hello-world application
+    ├── requirements.txt     # Only dependency: flask
+    ├── Dockerfile           # Builds and runs the Flask app
+    └── buildspec.yml        # AWS CodeBuild specification file
+```
+
+### Dockerfile (reference)
+
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+EXPOSE 5000
+CMD ["python", "app.py"]
+```
+
+---
+
+## CI Pipeline Flow
+
+```
+Developer pushes code to GitHub
+        ↓
+AWS CodePipeline detects the change (Source stage)
+        ↓
+CodePipeline invokes AWS CodeBuild (Build stage)
+        ↓
+CodeBuild runs buildspec.yml:
+- Install Python runtime
+- pip install requirements
+- Docker login
+- Docker build
+- Docker push → Docker Hub
+        ↓
+New Docker image available in Docker Hub registry
+```
+
+---
+
+## Step 1 — Create an AWS CodeBuild Project
+
+### 1.1 Basic Configuration
+
+1. Go to AWS Console → search **CodeBuild** → **Create build project**.
+2. Provide:
+- **Project name:** `sample-python-flask-service`
+- **Description:** `A sample Python Flask service`
+
+### 1.2 Source — Connect GitHub
+
+1. Under **Source provider**, select **GitHub**.
+2. Click **Connect with OAuth** → **Connect to GitHub** → authorize in the pop-up.
+3. Select **Public repository** (if using a shared repo) or **Repository in my GitHub account** (for your own repo).
+4. Enter the repository URL/name.
+
+### 1.3 Environment
+
+| Setting | Value |
+|---|---|
+| Operating System | Ubuntu |
+| Runtime | Standard |
+| Image | Latest available |
+| Environment type | Linux |
+| Service role | Create new / use existing (see below) |
+
+> ⚠️ **Privileged mode** — must be **enabled** to allow Docker image builds inside CodeBuild. Go to **Edit → Environment → Enable privileged flag**. Without this, Docker daemon commands will fail.
+
+### 1.4 Create a Service Role for CodeBuild
+
+CodeBuild is an AWS service, not a user — so it needs an **IAM Role** (not an IAM User) to interact with other AWS services.
+
+1. Go to **IAM → Roles → Create role**.
+2. Select **AWS service** → search for and select **CodeBuild**.
+3. Click **Next** (attach permissions later as needed).
+4. Name the role: `codebuild-service-role`.
+5. Create the role and attach it to the CodeBuild project.
+
+---
+
+## Step 2 — Store Sensitive Credentials in AWS Systems Manager (Parameter Store)
+
+Never hardcode Docker credentials in the buildspec file. Store them securely in **SSM Parameter Store**.
+
+### 2.1 Create Parameters
+
+1. Go to AWS Console → **Systems Manager → Parameter Store → Create parameter**.
+2. Create the following three parameters:
+
+| Name | Type | Value |
+|---|---|---|
+| `/my-app/docker-credentials/username` | SecureString | Your Docker Hub username |
+| `/my-app/docker-credentials/password` | SecureString | Your Docker Hub password |
+| `/my-app/docker-credentials/registry-url` | SecureString | `docker.io` |
+
+> Use **SecureString** with default KMS encryption for all sensitive values.
+> Follow a consistent naming convention: `/<app-name>/<credential-type>/<key>` — this makes it easy to manage hundreds of secrets across multiple services.
+
+### 2.2 Grant CodeBuild Access to SSM
+
+The CodeBuild service role needs permission to read from Parameter Store:
+
+1. Go to **IAM → Roles** → open the CodeBuild service role.
+2. **Add permissions → Attach policies** → search for `AmazonSSMFullAccess` → attach.
+
+---
+
+## Step 3 — Write the buildspec.yml
+
+The `buildspec.yml` is the CodeBuild equivalent of a Jenkinsfile. It defines all CI stages.
+
+```yaml
+version: 0.2
+
+env:
+  parameter-store:
+    DOCKER_REGISTRY_USERNAME: /my-app/docker-credentials/username
+    DOCKER_REGISTRY_PASSWORD: /my-app/docker-credentials/password
+    DOCKER_REGISTRY_URL: /my-app/docker-credentials/registry-url
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+
+  pre_build:
+    commands:
+- pip install -r day-14/simple-python-app/requirements.txt
+- echo Logging into Docker Hub...
+- echo $DOCKER_REGISTRY_PASSWORD | docker login -u $DOCKER_REGISTRY_USERNAME --password-stdin $DOCKER_REGISTRY_URL
+
+  build:
+    commands:
+- cd day-14/simple-python-app
+- echo Building Docker image...
+- docker build -t $DOCKER_REGISTRY_URL/$DOCKER_REGISTRY_USERNAME/simple-python-flask-app:latest .
+- docker push $DOCKER_REGISTRY_URL/$DOCKER_REGISTRY_USERNAME/simple-python-flask-app:latest
+
+  post_build:
+    commands:
+- echo Build successful!
+```
+
+> **Key points:**
+> - The `parameter-store` block under `env` pulls credentials from SSM automatically.
+> - The `docker login` command must come **before** `docker build` and `docker push` — missing this causes an "access denied" error.
+> - The trailing `.` in `docker build -t <tag> .` is required — it tells Docker where the Dockerfile is located.
+> - Adjust directory paths (`day-14/simple-python-app/`) to match your own repo structure.
+
+---
+
+## Step 4 — Test the CodeBuild Project (Manual Run)
+
+1. Go to the CodeBuild project → click **Start build**.
+2. Monitor the build logs in real time.
+
+### Common Errors & Fixes
+
+| Error | Cause | Fix |
+|---|---|---|
+| `No such file or directory: requirements.txt` | Wrong directory path in buildspec | Verify and correct the path to `requirements.txt` |
+| `Docker build requires exactly one argument` | Missing `.` at end of `docker build` command | Add `.` at the end: `docker build -t <tag> .` |
+| `Cannot connect to the Docker daemon` | Privileged mode not enabled | Edit CodeBuild project → Environment → enable **Privileged** |
+| `Requested access to the resource is denied` (Docker push) | Missing `docker login` step | Add `docker login` command in `pre_build` phase |
+| SSM access denied | CodeBuild role missing SSM permissions | Attach `AmazonSSMFullAccess` to the CodeBuild IAM role |
+
+---
+
+## Step 5 — Create the AWS CodePipeline
+
+Once CodeBuild is working manually, wire it into CodePipeline so it triggers automatically on every GitHub push.
+
+### 5.1 Create the Pipeline
+
+1. Go to **CodePipeline → Create pipeline**.
+2. Provide a name: `sample-python-app-pipeline`.
+3. Create or use an existing service role.
+
+### 5.2 Source Stage — GitHub
+
+1. **Source provider:** GitHub (Version 2)
+2. Click **Connect to GitHub** → provide a connection name → authorize.
+3. Select **Repository:** your GitHub repo
+4. Select **Branch:** `main`
+5. Output artifact format: default (CodePipeline default)
+
+### 5.3 Build Stage — CodeBuild
+
+1. **Build provider:** AWS CodeBuild
+2. **Project name:** select `sample-python-flask-service`
+3. Build type: Single build
+
+### 5.4 Deploy Stage
+
+Skip for now — the deploy stage (CodeDeploy) will be configured in the next session.
+
+### 5.5 Review and Create
+
+Review all stages and click **Create pipeline**. The pipeline will run immediately with the current code.
+
+---
+
+## Step 6 — Verify End-to-End Automation
+
+To verify the pipeline triggers automatically:
+
+1. Make any small change to the GitHub repository (e.g., add a blank line to `app.py` and commit).
+2. Watch the CodePipeline console — the **Source** stage transitions to **In Progress** immediately.
+3. Once Source completes, the **Build** stage triggers automatically.
+4. When the build succeeds, verify the new Docker image has been pushed to Docker Hub with an updated timestamp.
+
+---
+
+## How buildspec.yml Compares to Other CI Tools
+
+| CI Tool | Pipeline Definition File |
+|---|---|
+| Jenkins | `Jenkinsfile` (Groovy) |
+| GitHub Actions | `.github/workflows/*.yml` |
+| GitLab CI | `.gitlab-ci.yml` |
+| AWS CodeBuild | `buildspec.yml` |
+
+All follow the same principle: define stages/phases → run commands in each phase.
+
+---
+
+## Summary
+
+| Component | Role |
+|---|---|
+| GitHub | Source code repository (triggers the pipeline on push) |
+| AWS CodePipeline | Orchestrator — detects source changes and invokes CodeBuild |
+| AWS CodeBuild | Executes CI stages defined in `buildspec.yml` |
+| SSM Parameter Store | Secure storage for Docker credentials |
+| Docker Hub | Target registry for the built Docker image |
+
+---
