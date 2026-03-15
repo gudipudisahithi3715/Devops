@@ -1,0 +1,236 @@
+# AWS Lambda: Serverless Computing Fundamentals
+
+## What I Learned Today
+
+Today I explored **AWS Lambda** — AWS's serverless compute service. The session focused on understanding the serverless architecture, comparing Lambda with EC2, real-world DevOps use cases, and a walkthrough of the Lambda UI.
+
+> **Next session (Day 18):** Hands-on Cloud Cost Optimization project using CloudWatch + Lambda.
+
+---
+
+## What Problem Does Lambda Solve?
+
+Lambda belongs to the **compute family** (same as EC2) but solves a different problem — **serverless computing**.
+
+| | EC2 | AWS Lambda |
+|---|---|---|
+| Architecture | Server-based | Serverless |
+| Server provisioning | Manual (you define CPU, RAM, OS) | Automatic (AWS handles it) |
+| Scaling | Manual or via Auto Scaling Groups | Automatic |
+| Teardown | Manual | Automatic (after function execution) |
+| IP address | Assigned (public/private) | Not exposed |
+| Execution model | Long-running | Short-lived, event-driven |
+| Best for | Persistent workloads, full applications | Event-triggered, short-duration tasks |
+
+---
+
+## What is Serverless Architecture?
+
+In a **serverless** model:
+- AWS automatically provisions compute when the function is triggered.
+- AWS automatically tears down the compute once the function finishes.
+- There are no servers to manage, patch, or scale manually.
+- Cost is based purely on execution time — no idle charges.
+
+### Real-World Analogy
+
+Consider a food delivery payment flow:
+1. User places an order and proceeds to checkout.
+2. AWS creates compute infrastructure → runs the payment function.
+3. Transaction completes.
+4. AWS automatically tears down the infrastructure.
+
+The compute only existed for the duration of the payment processing. No persistent server needed.
+
+---
+
+## When to Use Lambda vs EC2
+
+The **architecture decision** (serverless vs server-based) is typically made by the development and architecture teams based on how the application is designed. As a DevOps engineer, the responsibility is to implement and automate whichever is chosen.
+
+**Choose Lambda when:**
+- The workload is short-lived and event-triggered.
+- The task runs on a schedule (e.g., daily at 10 AM).
+- Spinning up an EC2 instance just for a 5-minute script would waste cost and effort.
+- Tasks include cost optimization, compliance checks, or security monitoring.
+
+**Choose EC2 when:**
+- The application runs continuously.
+- Full control over the OS, networking, and compute specs is required.
+- The workload is long-running or stateful.
+
+---
+
+## DevOps Use Cases for Lambda
+
+Lambda is widely used by DevOps engineers for the following:
+
+### 1. Cloud Cost Optimization
+Automate identification and reporting of unused or stale AWS resources. Examples:
+- EC2 instances running for months with no activity.
+- Unattached EBS volumes incurring storage costs.
+- Elastic IP addresses not associated with any instance.
+
+A Lambda function can run daily, scan all AWS resources, and send a report via SNS.
+
+### 2. Security & Compliance Enforcement
+Detect policy violations automatically. Examples:
+- Developer creates an EBS volume of type `gp2` (against org policy — should be `gp3`).
+- S3 bucket created with **Public Access** enabled.
+- Unauthorized IAM permission escalation.
+
+Lambda can detect these violations and send automated alerts to the responsible team.
+
+### 3. Routine Governance Tasks
+- Daily audit of IAM users and roles for unexpected permission changes.
+- Checking for unencrypted resources.
+- Verifying tagging compliance across all AWS resources.
+
+> The scope of what Lambda can automate is essentially unlimited — the key is identifying what needs to be monitored and writing the logic for it.
+
+---
+
+## How Lambda is Triggered (Event-Driven Model)
+
+Lambda functions are **event-driven** — they must be triggered by an event. They do not run on their own.
+
+Common triggers:
+- **CloudWatch Events / EventBridge** — schedule-based (e.g., cron job: run every day at 10 AM)
+- **S3 Events** — trigger when an object is created/deleted in a bucket
+- **SNS / SQS** — trigger from a message queue or notification
+- **API Gateway** — trigger from an HTTP request
+- **CloudWatch Alarms** — trigger when a metric crosses a threshold
+
+> Best practice: Always configure an event trigger rather than running Lambda manually. This makes the solution fully automated.
+
+---
+
+## Supported Runtimes
+
+Lambda functions can be written in:
+- Python
+- Node.js
+- Java
+- Go
+- Ruby
+- .NET (C#)
+
+> Shell scripting is **not** supported as a native runtime. As a DevOps engineer, Python is the most practical choice for Lambda automation scripts.
+
+---
+
+## Hands-On: Creating a Basic Lambda Function
+
+### Step 1 — Create the Function
+
+1. Go to AWS Console → search **Lambda** → **Create function**.
+2. Select **Author from scratch**.
+3. **Function name:** `test-lambda`
+4. **Runtime:** Python 3.x
+5. Expand **Advanced settings** → enable **Function URL** → Auth type: **NONE** (for demo only).
+6. Click **Create function**.
+
+### Step 2 — Review the Default Code
+
+AWS provides a starter handler:
+
+```python
+import json
+
+def lambda_handler(event, context):
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda!')
+    }
+```
+
+**Key rule:** The entry point function **must** be named `lambda_handler` unless the configuration is updated manually (Runtime settings → Handler).
+
+### Step 3 — Modify and Test
+
+Edit the return message:
+
+```python
+import json
+
+def lambda_handler(event, context):
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from AWS Zero to Hero series!')
+    }
+```
+
+Click **Deploy**, then click **Test** → create a test event → **Invoke**.
+
+### Step 4 — Access via Function URL
+
+If the Function URL was enabled during creation, a public HTTPS URL is generated under **Configuration → Function URL**. Opening it in a browser returns the function's response directly.
+
+> This is mainly useful for developers building serverless APIs. For DevOps automation tasks, a trigger (e.g., CloudWatch) is used instead of a public URL.
+
+---
+
+## Key Configuration Options
+
+### Environment Variables
+Avoid hardcoding values in code. Use environment variables to keep functions flexible:
+- Go to **Configuration → Environment variables → Edit → Add**.
+- Reference in code: `os.environ['MY_VARIABLE']`
+
+### IAM Role (Execution Role)
+Every Lambda function needs an IAM role to interact with other AWS services.
+- By default, AWS auto-creates a basic execution role.
+- To allow the function to access S3, SNS, EC2, etc. — go to the role in IAM and attach the required policies.
+- Alternatively, assign an existing role with the right permissions during function creation.
+
+### Triggers
+Add event sources under **Configuration → Triggers → Add trigger**. Example: select **EventBridge (CloudWatch Events)** to run the function on a schedule.
+
+### Destinations
+Configure where to send the function's output on success or failure (e.g., SNS topic, SQS queue, another Lambda function).
+
+### VPC Configuration
+Lambda functions can be placed inside a VPC to restrict network access — useful when the function needs to interact with private RDS databases or internal services.
+
+---
+
+## Uploading Code (Alternative to Inline Editor)
+
+Instead of writing code in the browser editor, code can be uploaded as a `.zip` file:
+1. Write code locally in VS Code or any editor.
+2. Zip the project folder.
+3. In the Lambda console → **Code → Upload from → .zip file**.
+
+This is the standard approach for functions with multiple files or external dependencies.
+
+---
+
+## Lambda Handler — Important Rules
+
+```python
+def lambda_handler(event, context):
+    # event: contains the trigger data (e.g., S3 event, CloudWatch event)
+    # context: runtime information about the invocation
+    pass
+```
+
+- `lambda_handler` is the **default entry point** name.
+- Multiple functions can exist in the file, but only `lambda_handler` is invoked automatically by AWS.
+- Other functions must be called explicitly from `lambda_handler`.
+- The handler name can be changed under **Runtime settings → Handler** (format: `filename.function_name`).
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| Serverless | AWS provisions and tears down compute automatically per execution |
+| Lambda vs EC2 | Lambda for short event-driven tasks; EC2 for persistent workloads |
+| Event-driven | Lambda must be triggered — it does not run on its own |
+| DevOps use cases | Cost optimization, compliance enforcement, routine governance |
+| Entry point | `lambda_handler(event, context)` — default required function name |
+| IAM Role | Required for Lambda to interact with other AWS services |
+| Runtimes | Python, Node.js, Java, Go, Ruby, .NET — no shell scripting |
+
+---
