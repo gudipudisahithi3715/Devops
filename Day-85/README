@@ -1,0 +1,160 @@
+# Azure Zero to Hero — Day 3: Resources, Resource Groups & Azure Resource Manager
+
+## What I Learned Today
+
+Today I learned the core organizational concepts of the Azure platform — what a **resource** is, what the **Azure Resource Manager** does, and why **Resource Groups** are mandatory in Azure. I also explored real-world industry practices for structuring resource groups.
+
+---
+
+## What is a Resource?
+
+A **resource** is the outcome (instance) created when you use an Azure service.
+
+| Azure Service Used | Resource Created |
+|---|---|
+| Virtual Machines service | A virtual machine resource |
+| SQL Databases service | A SQL database resource |
+| Storage Accounts service | A storage account resource |
+| Kubernetes Service (AKS) | A Kubernetes cluster resource |
+
+> **Services** = The offerings available in the Azure portal.
+> **Resources** = What you create using those services.
+
+---
+
+## What is Azure Resource Manager (ARM)?
+
+**Azure Resource Manager (ARM)** is the management layer that sits between the user and the actual creation of resources.
+
+```
+User (DevOps Engineer / Developer)
+              ↓
+  Sends request via UI / CLI / API / SDK
+              ↓
+     Azure Resource Manager (ARM)
+              ↓
+     Resource Created (VM, DB, etc.)
+```
+
+### Key Points
+- Regardless of how you create a resource — Azure portal UI, Azure CLI, REST API, Terraform, or SDK — the request always passes through ARM.
+- ARM reads the properties you provide and creates the resource accordingly.
+- ARM is the single consistent interface for all resource creation, modification, and deletion in Azure.
+
+---
+
+## What is a Resource Group?
+
+A **Resource Group** is a logical container that groups related Azure resources together.
+
+- **Mandatory** in Azure — you cannot create any resource without assigning it to a Resource Group.
+- One resource can belong to **only one** Resource Group at a time (one-to-one mapping).
+- A Resource Group can contain any combination of resource types (VMs, databases, networking components, etc.).
+
+### Why Resource Groups Exist
+
+Resource Groups enable the following capabilities for all resources within the group:
+
+| Capability | Description |
+|---|---|
+| **Access Control (IAM)** | Grant or revoke user/team access to all resources in the group at once |
+| **Security** | Apply security standards and policies to the entire group |
+| **Auditing** | Track who created, modified, or deleted resources |
+| **Cost Monitoring** | View the billing and cost breakdown per resource group |
+| **Compliance / Policies** | Enforce organizational compliance rules across grouped resources |
+| **Monitoring** | Monitor health and performance of all resources in the group |
+
+---
+
+## How to Create a Resource Group
+
+1. Go to **Azure Portal → search "Resource Groups"**.
+2. Click **Create**.
+3. Provide:
+- **Subscription:** Free tier (or your active subscription)
+- **Resource Group name:** e.g., `payments`
+- **Region:** Select your preferred region
+4. (Optional) Add tags for additional tracking.
+5. Click **Review + Create → Create**.
+
+Once created, any resource created with this group selected will appear inside it, giving you a single view of all related resources.
+
+---
+
+## How to Create a Resource (VM Example)
+
+1. Go to **Azure Portal → Virtual Machines → Create**.
+2. The first mandatory field is **Resource Group** — select an existing one or create a new one.
+3. Fill in the required properties (name, region, OS image, size, SSH key, etc.).
+4. Click **Review + Create → Create**.
+
+The request flows through ARM, which provisions the VM and adds it to the selected Resource Group.
+
+---
+
+## Resource Group Naming Best Practices
+
+There is no single "correct" naming convention, but the following industry practice works well:
+
+### Scenario 1: Multiple Azure Accounts (One Per Environment)
+
+If your organization uses **separate Azure accounts** for Dev, QA, and Production:
+
+```
+Azure Account (Dev)    → Resource Group: payments
+Azure Account (QA)     → Resource Group: payments
+Azure Account (Prod)   → Resource Group: payments
+```
+
+Each account is isolated — no environment overlap. Simple naming by project team works.
+
+### Scenario 2: Single Azure Account (All Environments)
+
+If your organization uses **one Azure account** for all environments (common in startups or learning/PoC setups):
+
+```
+payments-dev
+payments-qa
+payments-prod
+transactions-dev
+transactions-qa
+transactions-prod
+```
+
+Name format: `<project>-<environment>`
+
+This allows clear separation of resources by both project and environment within a single account.
+
+### Interview Answer
+
+> *"We create Resource Groups per project. If using multiple Azure accounts per environment, we name them by project (e.g., `payments`). If using a single Azure account, we name them `<project>-<environment>` (e.g., `payments-dev`, `payments-prod`). Using Resource Groups allows us to manage access, monitor billing, apply security policies, and audit all resources of a specific project in one place."*
+
+---
+
+## What Appears Inside a Resource Group?
+
+When you create a VM, Azure automatically creates several associated resources — all placed in the same Resource Group:
+
+- Virtual Machine (the VM itself)
+- Virtual Network (VNet)
+- Network Security Group (NSG)
+- Public IP Address
+- Network Interface Card (NIC)
+- Key Pair / SSH Key
+
+All of these appear together in the Resource Group, making it easy to track, manage, and delete the entire stack when needed.
+
+---
+
+## Key Concepts Summary
+
+| Concept | Definition |
+|---|---|
+| **Resource** | An instance created from an Azure service (e.g., a specific VM or database) |
+| **Service** | The offering in the Azure portal used to create resources (e.g., Virtual Machines, SQL Databases) |
+| **Azure Resource Manager (ARM)** | The management layer that processes all resource creation/update/delete requests |
+| **Resource Group** | A mandatory logical container that groups related resources for management purposes |
+| **One-to-one rule** | A resource can belong to only one Resource Group at a time |
+| **ARM is universal** | All requests — UI, CLI, API, SDK — pass through ARM |
+
+---
