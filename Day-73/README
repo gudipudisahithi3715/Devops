@@ -1,0 +1,274 @@
+# Cloud Cost Optimization with AWS Lambda & Boto3
+
+## What I Learned Today
+
+Today I implemented a real-world **Cloud Cost Optimization** project using AWS Lambda and Python (Boto3). The project automatically identifies and deletes stale EBS snapshots — a common and resume-worthy DevOps task performed in production environments.
+
+---
+
+## Why Cloud Cost Optimization Matters
+
+Organizations move to cloud to **reduce infrastructure overhead** and **optimize costs**. However, costs only go down if resources are managed efficiently. Stale (unused) resources are a primary cause of unexpected cloud spend.
+
+### Common Examples of Stale Resources
+
+- **EBS snapshots** whose parent volumes and EC2 instances have been deleted.
+- **EBS volumes** created and forgotten — never attached to any instance.
+- **S3 buckets** with data that is no longer needed.
+- **Elastic IP addresses** not associated with any running instance.
+- **EKS/RDS clusters** left running after a project ends.
+
+As a DevOps engineer, two actions can be taken on stale resources:
+1. **Send a notification** (via SNS) to the resource owner to review and delete.
+2. **Automatically delete** the stale resource using a Lambda function.
+
+> Today's project covers **option 2** — automated deletion of stale EBS snapshots.
+
+---
+
+## Project Architecture
+
+```
+CloudWatch Event (scheduled trigger)
+          ↓
+AWS Lambda Function (Python + Boto3)
+          ↓
+Step 1: Fetch all EBS snapshots owned by the account
+          ↓
+Step 2: Filter out stale snapshots:
+- Snapshot has no associated volume, OR
+- Snapshot's volume exists but is NOT attached to any running EC2 instance
+          ↓
+Step 3: Delete the identified stale snapshots
+```
+
+---
+
+## Project: Delete Stale EBS Snapshots
+
+### Problem Statement
+
+A developer creates an EC2 instance, attaches a volume, and takes daily snapshots for backup. Later, the developer deletes the EC2 instance (and optionally the volume) but **forgets to delete the snapshots**. AWS continues charging for these snapshots indefinitely.
+
+**Two cases handled by this Lambda function:**
+- **Case 1:** Snapshot exists, but its parent volume has been deleted.
+- **Case 2:** Snapshot exists, its parent volume exists, but the volume is **not attached to any running EC2 instance**.
+
+---
+
+## Step 1 — Create a Test EC2 Instance and Snapshot
+
+1. Go to **EC2 → Launch Instance** → name it `test-ec2`, OS: Ubuntu, type: `t2.micro` → Launch.
+2. Once running, note the attached **volume ID** under **Storage**.
+3. Go to **EC2 → Snapshots → Create snapshot**.
+4. Select the volume → name it `test-snapshot` → **Create snapshot**.
+
+This simulates a developer creating a backup snapshot.
+
+---
+
+## Step 2 — Create the Lambda Function
+
+1. Go to **Lambda → Create function**.
+2. **Function name:** `cost-optimization-ebs-snapshot`
+3. **Runtime:** Python 3.x
+4. Leave permissions as default (will update next).
+5. Click **Create function**.
+
+### Increase the Default Timeout
+
+The default Lambda execution timeout is **3 seconds**. For this project, increase it:
+
+1. Go to **Configuration → General configuration → Edit**.
+2. Set **Timeout** to `10 seconds`.
+3. **Save**.
+
+> Keep timeout as low as practical — AWS charges based on execution duration.
+
+---
+
+## Step 3 — Attach the Required IAM Permissions
+
+The Lambda execution role needs permissions to describe and delete EC2 resources.
+
+### Create a Custom IAM Policy
+
+1. Go to **IAM → Policies → Create policy**.
+2. Select service: **EC2**.
+3. Add the following actions:
+- `ec2:DescribeSnapshots`
+- `ec2:DeleteSnapshot`
+- `ec2:DescribeInstances`
+- `ec2:DescribeVolumes`
+4. Resources: **All resources**.
+5. Name the policy: `cost-optimization-ebs-policy` → **Create policy**.
+
+### Attach the Policy to the Lambda Role
+
+1. Go to **Lambda → your function → Configuration → Permissions**.
+2. Click the execution role link (opens IAM).
+3. **Add permissions → Attach policies** → search for `cost-optimization-ebs-policy` → **Attach**.
+
+---
+
+## Step 4 — Write the Lambda Function Code
+
+The full code is also available in the course GitHub repository under `day-18/ebs_stale_snapshots.py`.
+
+```python
+import boto3
+
+def lambda_handler(event, context):
+    ec2 = boto3.client('ec2')
+
+    # Get all snapshots owned by this AWS account
+    response = ec2.describe_snapshots(OwnerIds=['self'])
+    snapshots = response['Snapshots']
+
+    # Get all running EC2 instances and their attached volume IDs
+    instances_response = ec2.describe_instances(
+        Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
+    )
+
+    active_instance_ids = set()
+    for reservation in instances_response['Reservations']:
+        for instance in reservation['Instances']:
+            active_instance_ids.add(instance['InstanceId'])
+
+    # Get all volumes attached to running instances
+    volumes_response = ec2.describe_volumes(
+        Filters=[{'Name': 'attachment.status', 'Values': ['attached']}]
+    )
+
+    active_volume_ids = set()
+    for volume in volumes_response['Volumes']:
+        for attachment in volume['Attachments']:
+            if attachment['InstanceId'] in active_instance_ids:
+                active_volume_ids.add(volume['VolumeId'])
+
+    # Evaluate each snapshot
+    for snapshot in snapshots:
+        snapshot_id = snapshot['SnapshotId']
+        volume_id = snapshot.get('VolumeId')
+
+        # Case 1: Snapshot has no associated volume
+        if not volume_id:
+            ec2.delete_snapshot(SnapshotId=snapshot_id)
+            print(f"Deleted snapshot {snapshot_id} — no associated volume.")
+            continue
+
+        # Case 2: Volume exists but is not attached to any running instance
+        try:
+            ec2.describe_volumes(VolumeIds=[volume_id])
+            if volume_id not in active_volume_ids:
+                ec2.delete_snapshot(SnapshotId=snapshot_id)
+                print(f"Deleted snapshot {snapshot_id} — volume {volume_id} not attached to any running instance.")
+        except ec2.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'InvalidVolume.NotFound':
+                # Volume has been deleted — snapshot is stale
+                ec2.delete_snapshot(SnapshotId=snapshot_id)
+                print(f"Deleted snapshot {snapshot_id} — parent volume {volume_id} no longer exists.")
+```
+
+### Deploy and Test
+
+1. Paste the code into the Lambda inline editor.
+2. Click **Deploy** (or press `Ctrl+S`).
+3. Click **Test** → create a test event named `test` → **Save** → **Invoke**.
+
+---
+
+## Step 5 — Verify the Behavior
+
+### Test Case 1: Snapshot with Active EC2 Instance (Should NOT delete)
+
+1. EC2 instance is running → volume is attached → snapshot exists.
+2. Run the Lambda function → **snapshot should NOT be deleted**.
+3. Verify: Go to **EC2 → Snapshots** → snapshot is still present. ✅
+
+### Test Case 2: EC2 Instance Deleted (Should delete)
+
+1. **Terminate** the EC2 instance (volume gets deleted automatically with it).
+2. Run the Lambda function again.
+3. Verify: Go to **EC2 → Snapshots** → snapshot is now deleted. ✅
+
+### Test Case 3: Volume exists but not attached to any EC2
+
+1. Create a standalone EBS volume (1 GB) — do **not** attach it to any instance.
+2. Create a snapshot of that volume.
+3. Run the Lambda function.
+4. Verify: Snapshot is deleted; volume remains (Lambda only deletes snapshots, not volumes). ✅
+
+---
+
+## Understanding the Boto3 Code
+
+[Boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) is the official AWS SDK for Python. It allows Python scripts to interact with AWS APIs.
+
+### Key Methods Used
+
+| Boto3 Method | Purpose |
+|---|---|
+| `ec2.describe_snapshots(OwnerIds=['self'])` | Fetch all snapshots owned by this AWS account |
+| `ec2.describe_instances(Filters=[...])` | Fetch all running EC2 instances |
+| `ec2.describe_volumes(Filters=[...])` | Fetch all volumes attached to running instances |
+| `ec2.describe_volumes(VolumeIds=[volume_id])` | Check if a specific volume still exists |
+| `ec2.delete_snapshot(SnapshotId=snapshot_id)` | Delete a specific snapshot |
+
+### How to Find API Methods
+
+1. Go to [https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html)
+2. Search for the operation (e.g., `describe_snapshots`).
+3. Review the request syntax and response structure.
+4. Parse the response JSON to extract the required fields.
+
+---
+
+## Step 6 — Automate with CloudWatch Scheduler
+
+To run this Lambda function automatically on a schedule:
+
+1. Go to **CloudWatch → Events → Rules → Create rule**.
+2. **Rule name:** `ebs-snapshots-rule`
+3. **Rule type:** Schedule
+4. Set frequency (e.g., daily, weekly).
+5. **Target:** select the Lambda function `cost-optimization-ebs-snapshot`.
+6. Click **Next → Create rule**.
+
+> ⚠️ Remember to **disable or delete the rule** after testing. A scheduled Lambda that runs indefinitely will accumulate costs.
+
+---
+
+## Extending This Project
+
+The same pattern can be applied to other AWS resources:
+
+| Resource | Stale Condition | Action |
+|---|---|---|
+| EBS Snapshots | No parent volume or volume unattached | Delete snapshot |
+| EBS Volumes | Unattached for N days | Notify or delete |
+| Elastic IPs | Not associated with any instance | Release |
+| S3 Buckets | No access for N days | Notify owner |
+| RDS Instances | No connections for N days | Stop or delete |
+| EKS Clusters | No workloads running | Notify or delete |
+
+For each resource type, write a **separate Lambda function** following the same approach:
+1. Use Boto3 to list all resources.
+2. Apply filter logic to identify stale ones.
+3. Delete or send SNS notification.
+4. Schedule via CloudWatch.
+
+---
+
+## Key Takeaways
+
+| Concept | Detail |
+|---|---|
+| Stale resources | Resources created but forgotten — primary cause of unexpected AWS costs |
+| Lambda + Boto3 | Standard combination for DevOps automation tasks on AWS |
+| IAM least privilege | Only grant the exact permissions the function needs (describe + delete) |
+| Lambda timeout | Default is 3 seconds — increase for longer-running tasks, keep it minimal |
+| Event-driven | Use CloudWatch to schedule Lambda — avoids manual execution |
+| Resume value | Cloud cost optimization is a day-to-day DevOps responsibility — add this project |
+
+---
