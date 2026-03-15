@@ -1,0 +1,411 @@
+# Terraform on AWS: Infrastructure as Code Project
+
+## What I Learned Today
+
+Today I implemented a real-world **Terraform project** that provisions a complete AWS infrastructure stack from scratch — including VPC, subnets, internet gateway, route tables, security groups, EC2 instances with user data, an S3 bucket, an Application Load Balancer, and a Target Group — all using Infrastructure as Code.
+
+> **Prerequisite:** Understanding how to create these resources manually via the AWS console (covered in Day 7) makes Terraform much easier to learn. Always understand the manual process before automating it.
+
+---
+
+## What is Terraform?
+
+Terraform is an **Infrastructure as Code (IaC)** tool that automates the creation, management, and deletion of cloud resources. Instead of clicking through the AWS console, you write configuration files in **HCL (HashiCorp Configuration Language)** and Terraform calls the cloud provider's APIs on your behalf.
+
+### Key Benefits
+- Reproducible infrastructure — run the same code to recreate everything.
+- Version-controlled infrastructure — store configs in Git.
+- Fast — provisions dozens of resources in seconds.
+- Multi-cloud — supports AWS, Azure, GCP, and 100+ providers.
+- Destroy with one command — clean up everything reliably.
+
+---
+
+## Project Architecture
+
+```
+Internet
+    │
+Internet Gateway
+    │
+┌───────────────────────────────────────┐
+│              VPC (10.0.0.0/16)        │
+│                                       │
+│  ┌─────────────────┐  ┌────────────┐  │
+│  │  Public Subnet 1│  │Public Sub2 │  │
+│  │  (us-east-1a)   │  │(us-east-1b)│  │
+│  │  10.0.0.0/24    │  │10.0.1.0/24 │  │
+│  │  EC2 Instance 1 │  │EC2 Inst. 2 │  │
+│  └────────┬────────┘  └─────┬──────┘  │
+│           └────────┬────────┘         │
+│              Load Balancer            │
+│              (Target Group)           │
+│                   │                   │
+│           S3 Bucket (+ IAM Role)      │
+└───────────────────────────────────────┘
+```
+
+---
+
+## Prerequisites
+
+- **AWS Account** with an IAM user (not root for production).
+- **AWS CLI** installed and configured (`aws configure`).
+- **Terraform** installed ([https://developer.hashicorp.com/terraform/install](https://developer.hashicorp.com/terraform/install)).
+- **VS Code** with the **HashiCorp Terraform** extension (provides autocomplete and syntax highlighting).
+
+### Configure AWS Credentials
+
+```bash
+aws configure
+# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
+```
+
+> ⚠️ Never hardcode AWS credentials inside Terraform files. Always use `aws configure` or environment variables.
+
+---
+
+## Project File Structure
+
+```
+terraform-aws-project/
+├── provider.tf       # AWS provider configuration
+├── variables.tf      # Input variable definitions
+├── main.tf           # All resource definitions
+├── user_data1.sh     # Bootstrap script for EC2 instance 1
+├── user_data2.sh     # Bootstrap script for EC2 instance 2
+└── outputs.tf        # Output values (e.g., Load Balancer DNS)
+```
+
+> ⚠️ Never push `terraform.tfstate` or `terraform.tfstate.backup` to GitHub — these files may contain sensitive data.
+
+---
+
+## Step-by-Step Implementation
+
+### Step 1 — Define the Provider (`provider.tf`)
+
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+```
+
+Initialize Terraform (downloads the AWS provider plugin):
+
+```bash
+terraform init
+```
+
+---
+
+### Step 2 — Define Variables (`variables.tf`)
+
+```hcl
+variable "vpc_cidr" {
+  default = "10.0.0.0/16"
+}
+```
+
+---
+
+### Step 3 — Create VPC and Subnets (`main.tf`)
+
+```hcl
+# VPC
+resource "aws_vpc" "myvpc" {
+  cidr_block = var.vpc_cidr
+}
+
+# Public Subnet 1
+resource "aws_subnet" "sub1" {
+  vpc_id                  = aws_vpc.myvpc.id
+  cidr_block              = "10.0.0.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+}
+
+# Public Subnet 2
+resource "aws_subnet" "sub2" {
+  vpc_id                  = aws_vpc.myvpc.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
+}
+```
+
+---
+
+### Step 4 — Internet Gateway and Route Table
+
+```hcl
+# Internet Gateway
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.myvpc.id
+}
+
+# Route Table
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.myvpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+# Associate Route Table with Subnet 1
+resource "aws_route_table_association" "rta1" {
+  subnet_id      = aws_subnet.sub1.id
+  route_table_id = aws_route_table.rt.id
+}
+
+# Associate Route Table with Subnet 2
+resource "aws_route_table_association" "rta2" {
+  subnet_id      = aws_subnet.sub2.id
+  route_table_id = aws_route_table.rt.id
+}
+```
+
+---
+
+### Step 5 — Security Group
+
+```hcl
+resource "aws_security_group" "websg" {
+  name_prefix = "web_sg"
+  vpc_id      = aws_vpc.myvpc.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+```
+
+---
+
+### Step 6 — EC2 User Data Scripts
+
+**`user_data1.sh`**
+```bash
+#!/bin/bash
+apt update -y
+apt install -y apache2
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+echo "<h1>Terraform Project</h1><p>Instance ID: $INSTANCE_ID</p><p>Welcome to Server 1!</p>" > /var/www/html/index.html
+systemctl start apache2
+systemctl enable apache2
+```
+
+**`user_data2.sh`**
+```bash
+#!/bin/bash
+apt update -y
+apt install -y apache2
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+echo "<h1>Terraform Project</h1><p>Instance ID: $INSTANCE_ID</p><p>Welcome to Server 2!</p>" > /var/www/html/index.html
+systemctl start apache2
+systemctl enable apache2
+```
+
+> The EC2 metadata URL `169.254.169.254` is available on all EC2 instances and returns instance-specific data at runtime.
+
+---
+
+### Step 7 — EC2 Instances
+
+```hcl
+resource "aws_instance" "webserver1" {
+  ami                    = "ami-0c7217cdde317cfec"   # Ubuntu 20.04 us-east-1 (use your region's AMI ID)
+  instance_type          = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.websg.id]
+  subnet_id              = aws_subnet.sub1.id
+  user_data              = base64encode(file("user_data1.sh"))
+}
+
+resource "aws_instance" "webserver2" {
+  ami                    = "ami-0c7217cdde317cfec"
+  instance_type          = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.websg.id]
+  subnet_id              = aws_subnet.sub2.id
+  user_data              = base64encode(file("user_data2.sh"))
+}
+```
+
+> Get the correct AMI ID for your region from **EC2 → Launch Instance → Browse AMIs**.
+
+---
+
+### Step 8 — S3 Bucket
+
+```hcl
+resource "aws_s3_bucket" "mybucket" {
+  bucket = "my-terraform-project-bucket-2024"   # Must be globally unique
+}
+```
+
+---
+
+### Step 9 — Application Load Balancer
+
+```hcl
+# Application Load Balancer
+resource "aws_lb" "myalb" {
+  name               = "my-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.websg.id]
+  subnets            = [aws_subnet.sub1.id, aws_subnet.sub2.id]
+}
+
+# Target Group
+resource "aws_lb_target_group" "tg" {
+  name     = "my-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.myvpc.id
+
+  health_check {
+    path = "/"
+    port = "traffic-port"
+  }
+}
+
+# Attach Instance 1 to Target Group
+resource "aws_lb_target_group_attachment" "attach1" {
+  target_group_arn = aws_lb_target_group.tg.arn
+  target_id        = aws_instance.webserver1.id
+  port             = 80
+}
+
+# Attach Instance 2 to Target Group
+resource "aws_lb_target_group_attachment" "attach2" {
+  target_group_arn = aws_lb_target_group.tg.arn
+  target_id        = aws_instance.webserver2.id
+  port             = 80
+}
+
+# Listener — forward traffic to Target Group
+resource "aws_lb_listener" "listener" {
+  load_balancer_arn = aws_lb.myalb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg.arn
+  }
+}
+```
+
+---
+
+### Step 10 — Outputs (`outputs.tf`)
+
+```hcl
+output "load_balancer_dns" {
+  value = aws_lb.myalb.dns_name
+}
+```
+
+---
+
+## Terraform Workflow Commands
+
+```bash
+# 1. Initialize — download provider plugins
+terraform init
+
+# 2. Validate — check syntax
+terraform validate
+
+# 3. Format — auto-format HCL files
+terraform fmt
+
+# 4. Plan — dry run, shows what will be created/changed/destroyed
+terraform plan
+
+# 5. Apply — create the resources
+terraform apply
+
+# 6. Apply without confirmation prompt
+terraform apply -auto-approve
+
+# 7. Destroy — delete all resources defined in the configuration
+terraform destroy -auto-approve
+```
+
+### Output Symbols in `terraform plan`
+
+| Symbol | Meaning |
+|---|---|
+| `+` (green) | Resource will be **created** |
+| `-` (red) | Resource will be **destroyed** |
+| `~` (yellow) | Resource will be **modified** |
+
+---
+
+## Key Terraform Concepts
+
+| Concept | Description |
+|---|---|
+| **Provider** | The cloud platform Terraform connects to (e.g., AWS, Azure, GCP) |
+| **Resource** | A cloud infrastructure component to create (e.g., VPC, EC2, S3) |
+| **Variable** | Reusable input value defined in `variables.tf` |
+| **Output** | A value printed after `apply` (e.g., load balancer DNS) |
+| **State file** | `terraform.tfstate` — tracks what Terraform has created; never push to Git |
+| **`terraform init`** | Downloads provider plugins; must run first |
+| **`terraform plan`** | Dry run — shows what will happen without making changes |
+| **`terraform apply`** | Executes the configuration and creates/updates resources |
+| **`terraform destroy`** | Deletes all resources managed by the current configuration |
+| **`base64encode()`** | Encodes user data scripts before passing to EC2 |
+| **`file()`** | Reads a local file and returns its contents as a string |
+
+---
+
+## Resource Dependency — How Terraform Knows the Order
+
+Terraform automatically determines creation order based on **references**. For example:
+
+```hcl
+subnet_id = aws_subnet.sub1.id
+```
+
+This tells Terraform: *"create `sub1` before this resource"* — no manual ordering needed.
+
+---
+
+## Important Warnings
+
+- **Cost:** This project creates an Application Load Balancer and EC2 instances which are **not free tier**. Run `terraform destroy` immediately after testing.
+- **State file:** Never commit `terraform.tfstate` to GitHub — it may contain sensitive resource details.
+- **AMI IDs:** AMI IDs are region-specific. Always get the correct AMI for your chosen region from the EC2 launch wizard.
+- **S3 bucket names:** Must be **globally unique** across all AWS accounts.
+
+---
