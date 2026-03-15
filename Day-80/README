@@ -1,0 +1,219 @@
+# AWS Cloud Migration Strategies
+
+## What I Learned Today
+
+Today I explored **Cloud Migration Strategies on AWS** — not just the commonly cited "7 Rs" but the full end-to-end process that real migration projects follow. This is one of the most important interview topics for AWS DevOps roles in large organizations still running on-premises workloads.
+
+---
+
+## Why Cloud Migration Still Matters
+
+Many large enterprises — particularly banks, financial institutions, and government organizations — are still on on-premises or private cloud infrastructure and are actively working through cloud migration projects. Understanding the full migration lifecycle, not just the migration strategies, is what sets experienced engineers apart in interviews.
+
+---
+
+## The Cloud Migration Lifecycle
+
+When asked about cloud migration in an interview, do **not** start with the 7 Rs. Instead, explain the full project lifecycle:
+
+```
+Step 1: Preparation
+Step 2: Planning
+Step 3: Migrate
+Step 4: Monitor
+Step 5: Optimize
+```
+
+The 7 Rs (migration strategies) are part of **Steps 1 and 2** — they are a subset of the process, not the whole story.
+
+---
+
+## Step 1 — Preparation
+
+The preparation stage answers: *Is the application ready to move to cloud?*
+
+### Key Activity: Monolith to Microservices
+
+Most legacy on-premises applications are **monolithic** — one large application that does everything. Cloud-native architecture favors **microservices** — small, independently deployable services.
+
+- If the application is already in microservice architecture → preparation is simpler.
+- If the application is monolithic → the dev and DevOps teams must **break the monolith into microservices** as part of preparation.
+
+### Why This Matters
+- Microservices map naturally to containers.
+- Containers are the standard deployment unit on Kubernetes (EKS, ECS).
+- A monolith cannot be effectively containerized without decomposition.
+
+---
+
+## Step 2 — Planning
+
+The planning stage produces two key decisions:
+
+### Decision 1: Define Migration Phases
+
+With 200+ microservices, migration happens in phases — not all at once.
+
+| Phase | Applications | Rationale |
+|---|---|---|
+| Phase 1 | Non-critical, low risk | Proof of concept; safe to experiment |
+| Phase 2–4 | Moderately critical | Building confidence and tooling |
+| Phase 5 | Most critical (payments, auth) | Migrate last, after process is proven |
+
+> Real projects at large banks can run for 1–2 years across 10–15 phases.
+
+### Decision 2: Choose a Migration Strategy (The 7 Rs)
+
+For each application (or group of applications), one of the following strategies is selected:
+
+---
+
+## The 7 Rs — Cloud Migration Strategies
+
+### 1. Rehost (Lift and Shift) ⭐ Most Common
+Move applications to AWS with **zero or minimal changes**.
+
+- Take the existing environment and recreate it on AWS.
+- Same Kubernetes cluster setup, same namespaces, same deployments — just on EC2 instances instead of on-premises VMs.
+- **Effort:** Very low.
+- **Benefit:** Fastest migration; immediate cost reduction from exiting on-premises hardware.
+- **Limitation:** Does not leverage AWS-native optimizations; cost savings are minimal compared to re-platform.
+
+### 2. Re-platform (Lift, Tinker, and Shift)
+Move to AWS with **minor optimizations** that take advantage of cloud features.
+
+- Same architecture as rehost, but adopt specific AWS managed services.
+- Example: Put the Kubernetes control plane across multiple availability zones for high availability; enable CloudWatch monitoring.
+- **Effort:** Low to medium.
+- **Benefit:** Gains some cloud-native advantages without full re-architecture.
+
+### 3. Re-architect / Refactor ⭐ Highest Value
+**Redesign the application** to be cloud-native.
+
+- Typically applied to monolithic applications being broken into microservices.
+- Adopt best practices: containerization, managed databases (RDS), serverless where appropriate, IAM-based security.
+- **Effort:** High — requires significant development work.
+- **Benefit:** Maximum scalability, availability, and cost efficiency on AWS.
+
+### 4. Relocate
+Move workloads to a **different platform** on AWS.
+
+- Example: Moving from on-premises Kubernetes to **EKS** (managed Kubernetes) or **ROSA** (Red Hat OpenShift on AWS).
+- **Effort:** Medium to high.
+- **Consideration:** Platform change adds complexity; not just infrastructure migration but operational change too.
+
+### 5. Retain
+**Keep some applications on-premises** intentionally — do not migrate them.
+
+- Applied to applications that are too sensitive, too complex, or not worth the migration cost.
+- Example: Mainframe applications handling payments/transactions at a bank — too risky to migrate; kept on-premises with a secure gateway connecting cloud applications to them.
+- The cloud applications connect to retained on-premises systems via VPN or Direct Connect.
+
+### 6. Retire
+**Decommission applications** that are no longer needed.
+
+- Identify applications with zero active users or no business value.
+- Migrating them would waste time and money — simply shut them down.
+- Typically 5–15% of a large application portfolio qualifies for retirement.
+
+### 7. Repurchase
+Replace an existing application with a **SaaS or cloud-native equivalent**.
+
+- Example: Replacing a self-managed CRM with Salesforce, or replacing on-premises email with a cloud email service.
+- **Usage:** Less common today; most relevant for non-core tooling.
+
+---
+
+### Strategy Priority in Practice
+
+| Priority | Strategy | When to Use |
+|---|---|---|
+| ⭐⭐⭐ | **Rehost** | Fast migration needed; platform-independent apps |
+| ⭐⭐⭐ | **Re-architect** | Monolithic apps; want full cloud-native benefits |
+| ⭐⭐ | **Re-platform** | Quick wins on scalability/availability |
+| ⭐⭐ | **Retain** | Sensitive or unmovable apps |
+| ⭐⭐ | **Retire** | Unused or obsolete applications |
+| ⭐ | **Relocate** | Platform change required |
+| ⭐ | **Repurchase** | Non-core tooling replacement |
+
+---
+
+## Step 3 — Migrate
+
+Migrate is a **repeated stage** — executed once per phase.
+
+### Typical DevOps Engineer Activities During Migration
+
+- Write **Terraform** scripts to provision equivalent AWS infrastructure (VPCs, EC2, EKS clusters, RDS, etc.).
+- Write **shell scripts** or automation for environment setup.
+- Configure **CloudWatch** monitors, alarms, and dashboards for the new environment.
+- Set up **CI/CD pipelines** for deploying applications to the new cloud environment.
+- Run **test automation scripts** on a schedule (e.g., Jenkins cron job) to validate deployments.
+- Coordinate with the development team to validate application behavior post-migration.
+
+---
+
+## Step 4 — Monitor
+
+After each phase migration:
+
+- Run the migrated applications for **1–2 months** before proceeding to the next phase.
+- Share access with **beta users** or internal teams to collect performance feedback.
+- Compare **before vs after** performance dashboards (latency, error rates, availability).
+- Use CloudWatch metrics and alarms to detect issues early.
+- Only proceed to the next phase once the current phase is stable.
+
+---
+
+## Step 5 — Optimize
+
+A **one-time stage** after all phases are complete.
+
+- **Evaluate outcomes:** What was achieved? Cost reduction? Reduced maintenance overhead? Improved availability?
+- **Measure efficiency:** Example — if migration delivered 40% cost reduction, can it reach 50%?
+- Create tasks/Jira tickets for identified optimization opportunities.
+- Implement improvements: right-sizing EC2 instances, enabling reserved instances, using Spot instances, applying lifecycle policies to S3, etc.
+
+---
+
+## Database Migration — Special Considerations
+
+Databases require extra care during migration:
+
+### Step 1 — Choose the Right AWS Service
+- Evaluate whether a fully managed AWS database service fits the use case.
+- **Example:** Many organizations migrate MySQL/PostgreSQL databases to **Amazon RDS** — fully managed, automated backups, multi-AZ support.
+
+### Step 2 — Take Backups Before Migration
+- Always maintain a **live backup database** in a staging or pre-production environment during migration.
+- If the cloud migration fails or data is lost, redirect application database URLs back to the on-premises backup immediately.
+- Changing database connection URLs is the fastest rollback mechanism.
+
+> Never migrate a production database without a tested rollback plan.
+
+---
+
+## Interview Guidance
+
+When asked *"How did you migrate applications to AWS?"*:
+
+**Wrong answer:** "We used the lift and shift mechanism."
+
+**Better answer:**
+> "We started with a preparation phase where we assessed our application architecture and decomposed a monolithic application into microservices. In the planning phase, we divided 200 services into 10 migration phases, prioritizing non-critical services in early phases and keeping payment systems for the final phase. We used a rehost strategy for most services to accelerate the migration timeline. For each phase, we provisioned AWS infrastructure using Terraform, configured CloudWatch monitoring, and ran automated tests on a schedule. We monitored each phase for 1–2 months before proceeding to the next. After completing all phases, we entered an optimization phase where we evaluated cost savings and identified further improvements."
+
+**Key principle:** The 7 Rs are just one part of the answer. The interviewer wants to understand *how you ran the project*, not just which strategy you used.
+
+---
+
+## Summary
+
+| Stage | Description | One-time or Repeated? |
+|---|---|---|
+| **Preparation** | Assess architecture; monolith → microservices | One-time |
+| **Planning** | Define phases; choose migration strategy (7 Rs) | One-time |
+| **Migrate** | Provision infra, deploy apps, set up CI/CD | Repeated per phase |
+| **Monitor** | Validate performance; collect feedback | Repeated per phase |
+| **Optimize** | Evaluate outcomes; improve efficiency | One-time |
+
+---
