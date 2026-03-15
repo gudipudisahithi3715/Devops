@@ -1,0 +1,322 @@
+# AWS CodeDeploy: Implementing the Full CI/CD Pipeline on AWS
+
+## What I Learned Today
+
+Today I completed the CI/CD pipeline by adding the **Continuous Delivery (CD)** stage using **AWS CodeDeploy**. This session covers deploying a Docker-containerized Flask application onto an EC2 instance, then wiring everything together through **AWS CodePipeline** for full end-to-end automation.
+
+> **Prerequisite:** This session builds directly on Day 14. The CI pipeline (GitHub → CodePipeline → CodeBuild → Docker Hub) must already be working before adding CodeDeploy.
+
+---
+
+## Complete CI/CD Flow (End-to-End)
+
+```
+Developer pushes code to GitHub
+          ↓
+AWS CodePipeline detects the change
+          ↓
+Stage 1 — Source:   GitHub (fetches latest code + appspec.yml)
+          ↓
+Stage 2 — Build:    AWS CodeBuild (builds & pushes Docker image to Docker Hub)
+          ↓
+Stage 3 — Deploy:   AWS CodeDeploy
+                      → Runs scripts/stopcontainer.sh  (stop old container)
+                      → Runs scripts/startcontainer.sh (pull & run new container)
+                      → Deploys to EC2 instance
+```
+
+---
+
+## New Files Added to the Repository
+
+```
+day-14/simple-python-app/
+├── app.py
+├── requirements.txt
+├── Dockerfile
+├── buildspec.yml
+├── appspec.yml          ← NEW: CodeDeploy configuration (must be at repo root)
+└── scripts/
+    ├── stopcontainer.sh  ← NEW: Stops the running Docker container
+    └── startcontainer.sh ← NEW: Pulls latest image and starts the container
+```
+
+> ⚠️ `appspec.yml` **must be placed at the root of the GitHub repository**. Unlike `buildspec.yml`, CodeDeploy does not allow a custom path for this file when using GitHub as the source.
+
+---
+
+## Step 1 — Create an EC2 Instance
+
+1. Go to **EC2 → Launch Instance**.
+2. Name: `sample-python-app`
+3. OS: Ubuntu, Instance type: `t2.micro`
+4. Use an existing key pair.
+5. Network: default VPC, **enable Auto-assign Public IP**.
+6. Security group: allow **SSH (port 22)**. Port 5000 can be opened later for app access.
+
+### Add a Tag to the EC2 Instance
+
+Tags allow CodeDeploy to identify which EC2 instances to deploy to.
+
+- **Key:** `Name`
+- **Value:** `sample-python`
+
+> CodeDeploy uses these tags to target one or many EC2 instances. All instances sharing the same tag key-value pair will receive the deployment.
+
+---
+
+## Step 2 — Install the CodeDeploy Agent on EC2
+
+SSH into the EC2 instance and run the following commands:
+
+```bash
+# Update packages
+sudo apt update
+
+# Install required dependencies
+sudo apt install ruby-full -y
+sudo apt install wget -y
+
+# Download the CodeDeploy agent installer (replace region as needed)
+wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+
+# Grant execute permissions
+chmod +x ./install
+
+# Install the agent
+sudo ./install auto
+
+# Check agent status
+sudo service codedeploy-agent status
+```
+
+If the agent is not running, start it manually:
+
+```bash
+sudo service codedeploy-agent start
+sudo service codedeploy-agent status
+```
+
+> The bucket name in the `wget` URL depends on the AWS region where the EC2 instance was created. Refer to the [AWS CodeDeploy agent installation documentation](https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-ubuntu.html) to get the correct bucket name for your region.
+
+### Install Docker on EC2
+
+```bash
+sudo apt install docker.io -y
+```
+
+---
+
+## Step 3 — Create IAM Roles
+
+Two IAM roles are needed:
+
+### 3.1 EC2 Instance Role (allows EC2 to communicate with CodeDeploy)
+
+1. Go to **IAM → Roles → Create role**.
+2. Trusted entity: **AWS service → EC2**.
+3. Attach policy: `AmazonEC2FullAccess` (or a scoped policy for CodeDeploy access).
+4. Name: `ec2-codedeploy-role`.
+
+**Attach the role to the EC2 instance:**
+- EC2 Console → select instance → **Actions → Security → Modify IAM role** → select `ec2-codedeploy-role`.
+
+**Restart the CodeDeploy agent after attaching the role:**
+
+```bash
+sudo service codedeploy-agent restart
+sudo service codedeploy-agent status
+```
+
+### 3.2 CodeDeploy Service Role (allows CodeDeploy to call AWS services)
+
+1. Go to **IAM → Roles → Create role**.
+2. Trusted entity: **AWS service → CodeDeploy**.
+3. Attach policy: `AWSCodeDeployRole`.
+4. Name: `codedeploy-service-role`.
+
+---
+
+## Step 4 — Create the CodeDeploy Application
+
+1. Go to **CodeDeploy → Applications → Create application**.
+2. **Application name:** `sample-python-flask-app`
+3. **Compute platform:** EC2/On-premises
+4. Click **Create application**.
+
+---
+
+## Step 5 — Create a Deployment Group
+
+A deployment group links the CodeDeploy application to the target EC2 instances.
+
+1. Inside the application, click **Create deployment group**.
+2. **Deployment group name:** `sample-python-app`
+3. **Service role:** select `codedeploy-service-role`
+4. **Deployment type:** In-place
+5. **Environment configuration:** Amazon EC2 instances
+- **Key:** `Name` | **Value:** `sample-python`
+- CodeDeploy will immediately show how many matching instances were found.
+6. **Agent configuration:** CodeDeploy agent is already installed — no changes needed.
+7. **Load balancer:** disable (not required for this demo).
+8. Click **Create deployment group**.
+
+---
+
+## Step 6 — Write the appspec.yml
+
+This file tells CodeDeploy what scripts to run and when. It must be at the **repository root**.
+
+```yaml
+version: 0.0
+os: linux
+hooks:
+  ApplicationStop:
+- location: scripts/stopcontainer.sh
+      timeout: 300
+      runas: root
+  AfterInstall:
+- location: scripts/startcontainer.sh
+      timeout: 300
+      runas: root
+```
+
+---
+
+## Step 7 — Write the Deployment Scripts
+
+### scripts/stopcontainer.sh
+
+Stops and removes any currently running Docker container before deploying the new one.
+
+```bash
+#!/bin/bash
+
+# Get the container ID of the running container
+CONTAINER_ID=$(sudo docker ps | awk '{if(NR>1) print $1}')
+
+# Force remove if a container is running
+if [ -n "$CONTAINER_ID" ]; then
+  sudo docker rm -f $CONTAINER_ID
+fi
+```
+
+### scripts/startcontainer.sh
+
+Pulls the latest Docker image from Docker Hub and starts it.
+
+```bash
+#!/bin/bash
+
+# Pull the latest image
+sudo docker pull <your-dockerhub-username>/simple-python-flask-app:latest
+
+# Run the container
+sudo docker run -d -p 5000:5000 <your-dockerhub-username>/simple-python-flask-app:latest
+```
+
+> Replace `<your-dockerhub-username>` with your actual Docker Hub username.
+
+---
+
+## Step 8 — Test CodeDeploy Manually (Before Wiring to CodePipeline)
+
+1. Go to **CodeDeploy → Applications → sample-python-flask-app → Deployments**.
+2. Click **Create deployment**.
+3. **Deployment group:** `sample-python-app`
+4. **Revision type:** My application is stored in GitHub
+5. Connect to GitHub (provide OAuth or Personal Access Token on first use).
+6. **Repository name:** `<github-username>/<repo-name>`
+7. **Commit ID:** paste the latest commit ID from GitHub.
+8. Click **Create deployment**.
+
+### Verify Deployment
+
+```bash
+# On the EC2 instance — check running containers
+sudo docker ps
+
+# Check pulled images
+sudo docker images
+```
+
+If the Flask app container is running on port 5000, the deployment was successful.
+
+---
+
+## Step 9 — Add CodeDeploy Stage to CodePipeline
+
+Now wire CodeDeploy into the existing CodePipeline to automate the full CI/CD flow.
+
+1. Go to **CodePipeline → select the existing pipeline → Edit**.
+2. Click **Add stage** after the Build stage.
+3. **Stage name:** `Deploy`
+4. Click **Add action group**:
+- **Action name:** `CodeDeploy`
+- **Action provider:** AWS CodeDeploy
+- **Input artifacts:** `BuildArtifact` (output from CodeBuild stage)
+- **Application name:** `sample-python-flask-app`
+- **Deployment group:** `sample-python-app`
+5. Click **Done → Save**.
+
+---
+
+## Step 10 — Verify the Full End-to-End Pipeline
+
+1. Make any small change to the GitHub repository (e.g., add a blank line to `app.py`).
+2. Commit and push.
+3. Watch **CodePipeline** — all three stages (Source → Build → Deploy) should go **In Progress** and then **Succeeded**.
+4. Verify on the EC2 instance:
+
+```bash
+sudo docker ps
+```
+
+The container should be running with an updated image timestamp.
+
+To access the Flask app from a browser, open **port 5000** in the EC2 security group inbound rules and visit:
+
+```
+http://<ec2-public-ip>:5000
+```
+
+---
+
+## Common Errors & Fixes
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Docker: command not found` during deployment | Docker not installed on EC2 | Run `sudo apt install docker.io -y` on the EC2 instance |
+| `Bind for 0.0.0.0:5000 failed: port already allocated` | Old container still running; `stopcontainer.sh` not properly configured | Implement `stopcontainer.sh` to remove the running container before deploying |
+| `appspec.yml not found` | File not placed at root of GitHub repository | Move `appspec.yml` to the repo root (not inside a subfolder) |
+| CodeDeploy agent not communicating | IAM role not attached to EC2 or agent not restarted after role attachment | Attach the IAM role and restart: `sudo service codedeploy-agent restart` |
+| `Requested access denied` on Docker push | Docker not logged in during CodeBuild | Ensure `docker login` is in the `pre_build` phase of `buildspec.yml` |
+
+---
+
+## AWS Tags — Why They Matter
+
+Tags are key-value pairs attached to AWS resources. I learned that in real-world usage, tags serve two purposes:
+
+- **CodeDeploy targeting** — identifies which EC2 instances belong to a deployment group.
+- **Cost tracking & governance** — filter all AWS resources by team, project, or environment. Example tags:
+- `project: payments`
+- `environment: production`
+- `team: backend`
+
+Management can query all resources under a specific tag to track usage and costs without manually checking each service.
+
+---
+
+## Summary — Complete AWS CI/CD Stack
+
+| Stage | AWS Service | Role |
+|---|---|---|
+| Source | GitHub / AWS CodeCommit | Hosts source code; triggers pipeline on push |
+| Orchestration | AWS CodePipeline | Detects changes; invokes Build and Deploy stages |
+| Build | AWS CodeBuild | Runs `buildspec.yml`; builds and pushes Docker image |
+| Deploy | AWS CodeDeploy | Runs `appspec.yml` hooks; pulls image and starts container on EC2 |
+| Secret Storage | AWS SSM Parameter Store | Stores Docker credentials securely |
+| Compute Target | Amazon EC2 | Hosts the running application container |
+
+---
