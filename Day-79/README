@@ -1,0 +1,235 @@
+# AWS Load Balancers: ALB vs NLB vs GWLB
+
+## What I Learned Today
+
+Today I explored the **three types of AWS Load Balancers** — Application Load Balancer (ALB), Network Load Balancer (NLB), and Gateway Load Balancer (GWLB) — and when to use each one. The session also covered the foundational concepts of what a load balancer is and how traffic flows through the OSI model layers.
+
+---
+
+## What is a Load Balancer?
+
+When a single server cannot handle the volume of incoming requests, multiple server instances are deployed. A **load balancer** sits in front of these instances and distributes incoming traffic across them.
+
+```
+          Users (100 requests)
+                  ↓
+           Load Balancer
+          ↙      ↓      ↘
+      EC2-1    EC2-2    EC2-3
+    (~33 req) (~33 req) (~33 req)
+```
+
+### Benefits
+- **High availability** — no single point of failure.
+- **Scalability** — add more instances as traffic grows.
+- **Better user experience** — eliminates slowness and downtime caused by overloaded servers.
+
+### Common Load Balancing Techniques
+- **Round Robin** — requests distributed evenly across all instances in order.
+- **Weighted / Ratio-based** — more powerful instances receive more requests.
+- **Sticky Sessions** — all requests from the same user go to the same server (important for stateful workloads).
+
+---
+
+## The OSI Model — Why It Matters for Load Balancers
+
+Different load balancers operate at different OSI layers. Understanding which layer a load balancer acts on determines what it can and cannot do.
+
+| Layer | Name | What Happens Here |
+|---|---|---|
+| **7** | Application | Protocol selection — HTTP, HTTPS, FTP, etc. |
+| **6** | Presentation | Encryption/decryption — SSL/TLS |
+| **5** | Session | Session management between client and server |
+| **4** | Transport | Data split into packets; TCP/UDP; reliable transmission |
+| **3** | Network | Routing through routers across the internet |
+| **2** | Data Link | Switches; local network delivery |
+| **1** | Physical | Cables, hardware; actual data transmission |
+
+### How a Request Travels (Example: Accessing a Website)
+
+```
+User opens browser → HTTP request created (Layer 7)
+       ↓
+TLS encryption applied (Layer 6)
+       ↓
+Session established (Layer 5)
+       ↓
+Request split into TCP packets (Layer 4)
+       ↓
+Packets routed through internet routers (Layer 3)
+       ↓
+Switch in data center receives packets (Layer 2)
+       ↓
+Cable delivers to server hardware (Layer 1)
+       ↓
+Server processes and responds
+```
+
+**Key rule:** The layer at which a load balancer operates determines what information it can read and act upon.
+
+---
+
+## The Three AWS Load Balancer Types
+
+| Load Balancer | OSI Layer | Protocol | Primary Use Case |
+|---|---|---|---|
+| **ALB** — Application | Layer 7 | HTTP / HTTPS | Web apps, microservices, path/host-based routing |
+| **NLB** — Network | Layer 4 | TCP / UDP | Streaming, gaming, high-performance, low-latency |
+| **GWLB** — Gateway | Layer 3+4 | All traffic | Virtual appliances — firewalls, VPN, intrusion detection |
+
+---
+
+## Application Load Balancer (ALB) — Layer 7
+
+### How It Works
+ALB intercepts the HTTP/HTTPS request at **Layer 7** before forwarding it. Because it can read the full HTTP request, it can make routing decisions based on:
+
+- **URL path** — e.g., `/payments` → Payments Service, `/login` → Auth Service
+- **Host header** — e.g., `api.example.com` vs `www.example.com`
+- **HTTP headers** — custom routing based on request metadata
+- **Query strings** — route based on URL parameters
+- **Weighted routing** — send X% of traffic to version A, Y% to version B (useful for canary deployments)
+
+### Example: Path-Based Routing
+
+```
+User → ALB (amazon.com)
+         ├── /payments   → Payments Target Group (EC2s)
+         ├── /login      → Auth Target Group (EC2s)
+         └── /transactions → Transactions Target Group (EC2s)
+```
+
+### Additional Capabilities
+- **SSL Offloading** — ALB terminates SSL from the client; sends plain HTTP to backend servers (or re-encrypts).
+- **SSL Pass-Through** — forwards encrypted traffic directly to the backend.
+- **Authentication** — integrates with Cognito or OIDC providers.
+- **Web Application Firewall (WAF)** — can be attached directly to ALB.
+
+### Trade-offs
+- **Cost:** Higher than NLB — more features, more processing.
+- **Latency:** Slightly slower — ALB reads and inspects each request before forwarding.
+
+### When to Use ALB
+- Microservices that need path or host-based routing.
+- Web applications serving HTTP/HTTPS traffic.
+- When advanced HTTP routing, SSL offloading, or authentication is needed.
+
+---
+
+## Network Load Balancer (NLB) — Layer 4
+
+### How It Works
+NLB operates at **Layer 4 (Transport Layer)** and routes traffic based on **IP address and TCP/UDP port** — without reading HTTP request content. It forwards TCP/UDP packets with minimal processing.
+
+### Key Characteristics
+- **Ultra-low latency** — no request inspection, fastest possible forwarding.
+- **High throughput** — handles millions of requests per second.
+- **Static IP support** — NLB can be assigned a fixed IP address per availability zone (ALB cannot).
+- **Sticky Sessions** — all packets from the same client connection go to the same backend server (critical for stateful protocols).
+- **Preserves source IP** — the backend server sees the client's real IP address.
+
+### Why Sticky Sessions Matter for Streaming
+
+```
+User watching a 3-hour movie:
+  Packet 1 → NLB → Server A  ✅
+  Packet 2 → NLB → Server A  ✅ (sticky)
+  Packet 3 → NLB → Server A  ✅ (sticky)
+
+Without sticky sessions (ALB routing packets independently):
+  Packet 1 → ALB → Server A
+  Packet 2 → ALB → Server B  ❌ (video breaks — different server, no state)
+```
+
+### Trade-offs
+- **No HTTP-level routing** — cannot route based on URL path or headers.
+- **Lower cost** than ALB.
+
+### When to Use NLB
+- Video/content streaming platforms (YouTube-like).
+- Online gaming servers.
+- Any workload where **latency** is critical and HTTP-level routing is not needed.
+- Applications requiring **static IP** on the load balancer.
+
+---
+
+## Gateway Load Balancer (GWLB) — Layer 3/4
+
+### What It Is
+GWLB is designed specifically for deploying, scaling, and managing **third-party virtual network appliances** such as:
+
+- **Firewalls**
+- **VPN gateways**
+- **Intrusion Detection / Prevention Systems (IDS/IPS)**
+- **Deep packet inspection tools**
+
+### How It Differs from ALB and NLB
+- GWLB routes **all traffic** (not just HTTP or TCP/UDP) through virtual appliances for inspection or security processing.
+- It sends **highly encrypted packets** to the virtual appliances — a level of security that ALB and NLB cannot provide.
+- It uses the **GENEVE protocol** to encapsulate traffic, preserving all original packet information while routing through the appliance.
+
+### Architecture
+
+```
+Internet Traffic
+      ↓
+Gateway Load Balancer
+      ↓
+Virtual Appliance (Firewall / IDS)
+[Inspect / Filter / Encrypt]
+      ↓
+Backend Application Servers
+```
+
+### When to Use GWLB
+- Building or operating **security appliance products** (firewall vendors, VPN providers).
+- Organizations that need **all traffic inspected** by a third-party security tool before it reaches application servers.
+- Any use case involving virtual network appliances at scale.
+
+---
+
+## Decision Guide — Which Load Balancer to Choose
+
+```
+Do you need to inspect HTTP traffic and route based on path/host/headers?
+    └── YES → ALB (Application Load Balancer)
+
+Do you need ultra-low latency, TCP/UDP routing, or static IPs?
+    └── YES → NLB (Network Load Balancer)
+
+Are you deploying virtual network appliances (firewalls, VPN, IDS)?
+    └── YES → GWLB (Gateway Load Balancer)
+```
+
+### Quick Reference Table
+
+| Requirement | ALB | NLB | GWLB |
+|---|---|---|---|
+| HTTP path-based routing | ✅ | ❌ | ❌ |
+| Host-based routing | ✅ | ❌ | ❌ |
+| Ultra-low latency | ❌ | ✅ | ❌ |
+| Video streaming | ❌ | ✅ | ❌ |
+| Gaming servers | ❌ | ✅ | ❌ |
+| Static IP on LB | ❌ | ✅ | ✅ |
+| Sticky sessions | Limited | ✅ | ✅ |
+| Firewall / VPN appliances | ❌ | ❌ | ✅ |
+| SSL offloading | ✅ | ✅ | ❌ |
+| Cost | High | Medium | Medium |
+
+---
+
+## Key Concepts Summary
+
+| Concept | Description |
+|---|---|
+| **Load Balancer** | Distributes traffic across multiple servers to ensure high availability and scalability |
+| **Round Robin** | Basic LB technique — requests distributed evenly across servers in order |
+| **Sticky Session** | All requests from one client go to the same server — critical for stateful workloads |
+| **ALB** | Layer 7 — reads HTTP requests; routes by path, host, headers; best for microservices and web apps |
+| **NLB** | Layer 4 — routes by IP/port; ultra-low latency; best for streaming and gaming |
+| **GWLB** | Layer 3/4 — routes all traffic through virtual appliances; best for firewalls and VPN products |
+| **SSL Offloading** | ALB terminates SSL from the client; reduces encryption overhead on backend servers |
+| **OSI Layer 7** | Application layer — HTTP, HTTPS, FTP protocols |
+| **OSI Layer 4** | Transport layer — TCP, UDP; packet-level routing |
+
+---
