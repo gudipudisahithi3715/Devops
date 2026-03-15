@@ -1,0 +1,136 @@
+# AWS CodePipeline: Managed CI/CD Orchestration on AWS
+
+## What I Learned Today
+
+Today I explored **AWS CodePipeline** — AWS's managed CI/CD orchestration service — and how it compares to Jenkins. Understanding this comparison makes it much easier to see where CodePipeline fits in the AWS ecosystem.
+
+---
+
+## Recap: The Four AWS CI/CD Services
+
+| CI/CD Stage | Common Tool | AWS Equivalent |
+|---|---|---|
+| Source / Version Control | GitHub / GitLab | AWS CodeCommit |
+| Pipeline Orchestration | Jenkins | **AWS CodePipeline** |
+| Build & Test | Maven / Docker / SonarQube | AWS CodeBuild |
+| Deploy | Argo CD / Ansible / Shell Scripts | AWS CodeDeploy |
+
+Today's focus is on **AWS CodePipeline**, the orchestrator layer.
+
+---
+
+## CI/CD Workflow with Jenkins (Baseline Comparison)
+
+To understand CodePipeline, it helps to first map out the Jenkins-based workflow it replaces.
+
+### Jenkins CI/CD Flow
+
+```
+Developer → GitHub (code commit)
+         → Webhook triggers Jenkins Pipeline
+         → Jenkins implements CI stages:
+              1. Code Checkout
+              2. Build & Unit Tests
+              3. Static Code Analysis (e.g., SonarQube)
+              4. Docker Image Build
+              5. Docker Image Scan
+              6. Docker Image Push
+         → Jenkins invokes CD (via Argo CD / Flux CD / Ansible / Shell Scripts)
+         → Application deployed to Kubernetes / EC2
+```
+
+### Key Distinction
+
+- Jenkins **implements** Continuous Integration.
+- Jenkins **invokes** Continuous Delivery (delegates to tools like Argo CD or Flux CD).
+- Jenkins acts as the **central orchestrator** of the entire pipeline.
+
+---
+
+## CI/CD Workflow with AWS Managed Services
+
+When moving to fully managed AWS services, the same flow maps as follows:
+
+```
+Developer → AWS CodeCommit (code commit)
+          → Triggers AWS CodePipeline
+          → CodePipeline invokes AWS CodeBuild (CI stages)
+          → CodePipeline invokes AWS CodeDeploy (CD to EC2 / ECS / Kubernetes)
+```
+
+### Side-by-Side Mapping
+
+| Jenkins Flow | AWS Equivalent |
+|---|---|
+| GitHub / GitLab | AWS CodeCommit |
+| Jenkins (orchestrator) | AWS CodePipeline |
+| Build stages in Jenkinsfile | AWS CodeBuild |
+| Argo CD / Ansible / Shell Scripts | AWS CodeDeploy |
+
+### Important Note
+
+In Jenkins, the CI stages (build, test, scan, push) are **written directly** in the Jenkinsfile (Groovy). In AWS, CodePipeline typically **delegates** those stages to **CodeBuild**, rather than implementing them inline. CodePipeline is primarily an orchestrator — it triggers and connects the other services.
+
+---
+
+## What is AWS CodePipeline?
+
+- A **fully managed CI/CD orchestration service** on AWS.
+- Triggers automatically when source code changes (e.g., push to CodeCommit or GitHub).
+- Connects and sequences the CI and CD stages by invoking CodeBuild and CodeDeploy.
+- Comparable to Jenkins in role, but managed by AWS — no infrastructure to maintain.
+
+---
+
+## Jenkins vs AWS CodePipeline — Advantages & Disadvantages
+
+### Why Organizations Choose Jenkins
+
+- **Open source** — free to use, large community, rich plugin ecosystem.
+- **Not AWS-locked** — Jenkins pipelines (Jenkinsfiles) are portable across AWS, Azure, GCP, and on-premises.
+- **Flexible integrations** — integrates with virtually any third-party tool.
+- **Efficient resource usage** — with Docker agents, containers spin up for a pipeline run and are removed after, avoiding idle resource costs.
+- **Can run on EC2 with Auto Scaling** — Jenkins on EC2 with Auto Scaling Groups and CloudWatch alarms gives a managed-enough experience without paying for CodePipeline.
+
+### Why Organizations Choose AWS CodePipeline
+
+- **Fully managed** — no Jenkins master/slave infrastructure to provision, patch, or scale.
+- **Automatic scaling** — AWS handles capacity as pipeline load grows.
+- **Reduced operational overhead** — no dedicated engineer needed just to manage CI infrastructure.
+- **Pay-as-you-go** — only pay for what is used; ideal for startups or teams without dedicated DevOps infrastructure engineers.
+- **Native AWS integration** — seamlessly connects with CodeCommit, CodeBuild, CodeDeploy, S3, ECR, and other AWS services.
+
+### Key Drawback of AWS CodePipeline
+
+> **Vendor lock-in** — CodePipeline and all related pipelines are restricted to AWS. If an organization migrates to Azure, GCP, or a hybrid cloud setup, all pipelines must be rewritten from scratch. Jenkins pipelines can be backed up and reused across any environment.
+
+---
+
+## When to Use Which
+
+| Scenario | Recommended Choice |
+|---|---|
+| Organization is fully on AWS and wants zero infra management | AWS CodePipeline |
+| Organization needs multi-cloud or hybrid flexibility | Jenkins |
+| Small startup, no dedicated DevOps infra team | AWS CodePipeline |
+| Large org with efficient Jenkins setup using Docker agents | Jenkins |
+| Interviewing for AWS-only DevOps role | Know both; demonstrate CodePipeline |
+| Interviewing for general DevOps role | Jenkins + GitHub Actions / GitLab CI |
+
+---
+
+## Real-World Usage Note
+
+Even organizations that use CodePipeline and CodeBuild for their pipelines **often use GitHub or GitLab** instead of CodeCommit as the source stage — because CodeCommit has limited features compared to GitHub/GitLab. CodePipeline integrates cleanly with GitHub repositories via webhooks.
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| CodePipeline's role | Orchestrator — triggers and sequences CI and CD stages |
+| Jenkins comparison | CodePipeline ≈ Jenkins; CodeBuild ≈ build stages in Jenkinsfile |
+| Main advantage | Fully managed, no infra overhead |
+| Main disadvantage | AWS vendor lock-in; pipelines not portable |
+| Source control in practice | GitHub or GitLab preferred over CodeCommit even in AWS pipelines |
