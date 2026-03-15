@@ -1,0 +1,205 @@
+# Azure Zero to Hero — Day 2: Getting Started with Azure
+
+## What I Learned Today
+
+Today I covered how to create a Microsoft Azure account, explored regions and availability zones from Azure's perspective, and learned the key differences between IaaS, PaaS, and SaaS cloud service models.
+
+---
+
+## Creating a Microsoft Azure Account
+
+### Account Options
+
+| Option | Who It's For | Credit Card Required? |
+|---|---|---|
+| **Free Account (Start Free)** | General users | Yes — small verification charge (~$1–2), refunded |
+| **Azure for Students** | Students with a valid school/college email | No credit card required |
+| **Pay As You Go** | Production use | Yes |
+
+### Free Account Benefits
+- Most popular Azure services free for the **first 12 months**.
+- **55+ services** free always (with usage limits).
+- Free credits for the first 30 days:
+- **India region:** ₹13,300 (approximately)
+- **US region:** $200
+
+> Free credits expire after 30 days. After that, only free-tier services remain available without charge. You will not be charged beyond the free tier without explicit consent.
+
+### How to Create an Account
+1. Search for **Microsoft Azure** → click the first result.
+2. Click **Try Azure for Free** → click **Start Free** (not Pay As You Go).
+3. Sign in with GitHub (recommended) or Microsoft account.
+4. Agree to the subscription terms.
+5. Provide card details for identity verification (small charge, refunded).
+6. Once verified → click **Go to Azure portal**.
+
+### Azure for Students
+- No credit card required.
+- Requires a **valid school or college email address**.
+- Microsoft sends a verification token to the institution email.
+- Search for **Azure for Students** → click **Start Free**.
+
+### Checking What's Free
+1. Search **Azure free services** in a browser.
+2. Click **See all free services**.
+3. Search for any service to check if it's free, partially free, or paid.
+
+---
+
+## Regions and Availability Zones
+
+### Why Data Centers Are Spread Globally — Latency
+
+If all Azure data centers were in one country (e.g., India), customers in France, Germany, or Italy would experience high **latency** — the delay caused by data travelling long distances across the network.
+
+> **Latency** = The delay between a user sending a request and receiving a response. High latency = slow application. Unacceptable in modern applications.
+
+To minimize latency, Azure places data centers close to where customers are located. Organizations choose the region nearest to their users when deploying applications.
+
+### Why Multiple Data Centers Per Region — Availability
+
+Even within a region, if all data centers are in the same physical location (e.g., all in Alaska), a single natural disaster or power outage would take all of them down simultaneously — causing **downtime** for every application hosted there.
+
+> **Downtime** is worse than latency — it means the application is completely inaccessible.
+
+### Solution: Regions and Availability Zones
+
+**Region** = A named geographical area that contains multiple, physically separated data centers.
+
+Examples:
+- US East, US West
+- India Central, India South
+- Europe West, Europe North
+
+**Availability Zone (AZ)** = A single, physically separate data center within a region.
+
+```
+US West Region
+├── Availability Zone 1 (Data Center — Location A)
+├── Availability Zone 2 (Data Center — Location B)
+└── Availability Zone 3 (Data Center — Location C)
+       (each ~200–300 miles apart)
+```
+
+### How This Prevents Downtime
+
+- AZs within a region are geographically separated (hundreds of miles apart).
+- If one AZ loses power or is hit by a disaster, the other AZs in the same region continue operating.
+- Applications deployed across multiple AZs remain accessible even if one AZ fails.
+- If an entire region fails (very rare), applications deployed in a second region in a different geography remain accessible.
+
+### Deployment Strategy
+
+| Goal | Approach |
+|---|---|
+| Low latency | Deploy in the region closest to your users |
+| High availability | Deploy replicas across multiple AZs in the same region |
+| Disaster recovery | Deploy in a second region in a different geography |
+
+---
+
+## IaaS, PaaS, and SaaS Models
+
+Azure services can be used in three different models depending on how much the cloud provider manages vs how much the organization manages.
+
+### IaaS — Infrastructure as a Service
+
+The organization takes **raw infrastructure** from Azure and builds everything on top of it.
+
+**Azure provides:** Virtual machines, storage, networking
+
+**Organization manages:** Operating system, runtime, middleware, application deployment, configuration
+
+**Example:**
+- Take a VM from Azure.
+- Install MySQL on the VM manually.
+- Configure the database.
+- Deploy and manage the application.
+
+> Use IaaS when you need full control over the environment.
+
+---
+
+### PaaS — Platform as a Service
+
+The organization takes a **fully managed platform** from Azure and uses it directly — no need to provision or configure the underlying infrastructure.
+
+**Azure provides:** VM, OS, runtime, middleware, the service itself (pre-configured)
+
+**Organization manages:** Application configuration and data
+
+**Example:**
+- Use **Azure SQL Database** directly — no VM, no OS, no MySQL installation.
+- Just configure the database and import data.
+- Azure handles patching, scaling, and backups.
+
+Other PaaS examples: Azure App Service, Azure Kubernetes Service (AKS)
+
+> Use PaaS when you want to focus on your application without managing infrastructure.
+
+---
+
+### SaaS — Software as a Service
+
+The organization uses a **fully delivered software product** — nothing to install, configure, or manage at the infrastructure level.
+
+**Azure / Microsoft provides:** Everything — infrastructure, platform, application, maintenance
+
+**Organization manages:** User preferences, data input only
+
+**Example:**
+- **Microsoft Outlook / Microsoft 365** — pay a subscription, log in, and start using email. No deployment, no configuration of mail servers.
+
+> Use SaaS for ready-to-use software products where no technical setup is needed.
+
+---
+
+### IaaS vs PaaS vs SaaS — Side-by-Side Comparison
+
+| Layer | IaaS | PaaS | SaaS |
+|---|---|---|---|
+| Networking | **Azure** | **Azure** | **Azure** |
+| Storage | **Azure** | **Azure** | **Azure** |
+| Servers (VMs) | **Azure** | **Azure** | **Azure** |
+| Virtualization | **Azure** | **Azure** | **Azure** |
+| Operating System | **You** | **Azure** | **Azure** |
+| Runtime / Middleware | **You** | **Azure** | **Azure** |
+| Application | **You** | **You** | **Azure** |
+| Data / Config | **You** | **You** | **You** |
+
+**Bold = who manages that layer.**
+
+---
+
+### Practical Examples
+
+| Service | Model | Reason |
+|---|---|---|
+| Azure Virtual Machine | IaaS | You get raw infrastructure; you install and manage everything on top |
+| Azure SQL Database | PaaS | Azure manages the DB engine; you manage data and queries |
+| Azure App Service | PaaS | Azure manages the hosting platform; you deploy your app code |
+| Azure Kubernetes Service (AKS) | PaaS | Azure manages the Kubernetes control plane; you manage workloads |
+| Microsoft Outlook / Microsoft 365 | SaaS | Fully delivered product; you just use it |
+
+---
+
+### As a DevOps Engineer — Which Model Matters Most?
+
+- Most DevOps work involves **IaaS** (VMs, networking, storage) and **PaaS** (managed databases, container platforms, CI/CD services).
+- **SaaS** is relevant when integrating with tools like Outlook or Microsoft Teams via APIs.
+- Understanding which model a service uses helps set expectations for what you manage vs what Azure manages.
+
+---
+
+## Key Concepts Summary
+
+| Concept | Definition |
+|---|---|
+| **Latency** | Delay between request and response caused by distance |
+| **Region** | A named geographic area containing multiple data centers |
+| **Availability Zone** | A single, physically separate data center within a region |
+| **IaaS** | Take infrastructure from cloud; manage OS, runtime, and app yourself |
+| **PaaS** | Take a managed platform; manage only app configuration and data |
+| **SaaS** | Use a fully delivered software product; manage only preferences |
+
+---
