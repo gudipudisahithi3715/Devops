@@ -1,0 +1,380 @@
+# Azure DevOps: Interview Questions
+
+## Q1: Explain your end-to-end CI/CD pipeline
+
+> **Common phrasing:** *"Can you walk me through the CI/CD pipeline you have implemented in your organisation?"* or *"How does the CI/CD pipeline look in your project?"*
+
+This question gives the opportunity to demonstrate broad DevOps knowledge. Use it fully.
+
+### Model answer structure
+
+**CI — implemented using Azure Pipelines:**
+
+```
+Developer commits to Azure Repos / GitHub
+        │
+        ▼
+Azure Pipeline triggers automatically
+        │
+        ├── Stage 1: Static Code Analysis + Unit Testing
+        ├── Stage 2: Build → Docker image created
+        ├── Stage 3: Image Security Scan (Trivy / Docker Scout / Snyk)
+        ├── Stage 4: Push → Docker image pushed to ACR
+        └── Stage 5: Update → K8s manifest / Helm chart updated
+                          with new image tag in the Git repo
+```
+
+**CD — implemented using GitOps (Argo CD):**
+
+```
+K8s manifest updated in Git repo
+        │
+        ▼
+Argo CD detects change (polls every N seconds)
+        │
+        ▼
+Deploys new image to AKS cluster automatically
+```
+
+### Key points to cover
+
+- CI is implemented with **Azure Pipelines**; CD is implemented with **GitOps (Argo CD)**.
+- The pipeline is triggered automatically on every developer commit to Azure Repos or GitHub.
+- The CI pipeline produces a **Docker image** as its primary artefact.
+- The **Update stage** bridges CI and CD by writing the new image tag into the Kubernetes YAML manifest or Helm chart — this is what triggers Argo CD.
+- Optional stages to mention: DAST/SAST, end-to-end/regression testing, performance testing.
+
+### Example statement
+
+> *"In our project, CI is implemented using Azure Pipelines with stages for static code analysis, Docker image build, image vulnerability scanning, push to Azure Container Registry, and a final update stage that modifies the Kubernetes deployment manifest with the new image tag. CD is handled by Argo CD, which monitors the manifest repository and deploys the updated image to our AKS cluster automatically."*
+
+---
+
+## Q2: How do you secure sensitive information in pipelines?
+
+> **Common phrasing:** *"You need to securely store API keys and secrets used in pipeline tasks — how do you ensure their protection?"*
+
+### What NOT to do
+
+Never hardcode secrets (API tokens, passwords, connection strings) directly in the pipeline YAML or shell scripts stored in a Git repository.
+
+### Secure approaches
+
+**Option 1 — Azure DevOps Pipeline Variables (built-in)**
+
+1. Open the pipeline → **Edit** → **Variables**.
+2. Add a variable (e.g., `ACR_TOKEN`).
+3. ✅ Check **Keep this value secret** — the value is masked in logs.
+4. Reference it in the pipeline YAML:
+
+```yaml
+env:
+  ACR_TOKEN: $(ACR_TOKEN)
+```
+
+**Option 2 — Azure Key Vault (recommended for production)**
+
+- Store all secrets in **Azure Key Vault**.
+- Link the Key Vault to Azure DevOps via a service connection.
+- Reference secrets in the pipeline using the `AzureKeyVault@2` task:
+
+```yaml
+- task: AzureKeyVault@2
+  inputs:
+    azureSubscription: '<service-connection>'
+    KeyVaultName: '<vault-name>'
+    SecretsFilter: 'ACR-TOKEN, DB-PASSWORD'
+```
+
+- Secrets are injected as pipeline variables at runtime — never stored in source code.
+
+**Option 3 — HashiCorp Vault**
+
+- Self-managed or cloud-hosted Vault instance.
+- Secrets retrieved at runtime by pipelines via the Vault API.
+- Ownership: typically maintained by a dedicated security team who grants read-only references to DevOps pipelines.
+
+### Answer framing
+
+> *"We store all sensitive values in Azure Key Vault and reference them in our pipelines via a service connection. The Key Vault is maintained by the security team, who grant scoped read access. Pipeline YAML files contain no hardcoded secrets."*
+
+---
+
+## Q3: How do you integrate ACR with Azure Pipelines?
+
+> **Common phrasing:** *"Your application uses Docker containers — how would you integrate Azure Container Registry with Azure Pipelines for build, push, and deploy?"*
+
+### Pipeline structure for ACR integration
+
+```yaml
+stages:
+- stage: Build
+    jobs:
+- job: BuildImage
+        steps:
+- task: Docker@2
+            inputs:
+              command: build
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: $(Build.BuildId)
+
+- stage: Push
+    jobs:
+- job: PushImage
+        steps:
+- task: Docker@2
+            inputs:
+              command: push
+              repository: $(imageRepository)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: $(Build.BuildId)
+```
+
+### Key components
+
+| Component | Description |
+|---|---|
+| `Docker@2` task | Built-in Azure Pipelines task for Docker operations |
+| `containerRegistry` | References a **service connection** linking Azure DevOps to ACR |
+| `dockerRegistryServiceConnection` | Created once in project settings; stores ACR credentials securely |
+| `$(Build.BuildId)` | Auto-incremented build number used as the image tag |
+
+### Creating the service connection
+
+**Azure DevOps → Project Settings → Service Connections → New → Docker Registry → Azure Container Registry** → select the ACR instance → Save.
+
+> Store the service connection ID as a pipeline variable. Never paste raw ACR credentials in pipeline YAML.
+
+---
+
+## Q4: How do you debug and troubleshoot pipeline failures?
+
+> **Common phrasing:** *"Your pipeline consistently fails at a specific stage — how do you approach troubleshooting?"*
+
+### Systematic debugging approach
+
+1. **Go to the failing pipeline run** → click the failed stage.
+2. **Read the logs** — Azure Pipelines shows stdout/stderr for every step.
+3. **Identify which step failed** — the red ✗ icon marks it.
+4. **Check the stage before the failing one** — a passing stage can still produce incorrect output that causes a downstream failure.
+5. **Fix the root cause** → re-run the pipeline.
+
+### Real example from this project
+
+**Problem:** The pipeline consistently failed at the deployment/sync stage with a `bad indentation` error in `vote-deployment.yaml`.
+
+**Investigation steps:**
+- The deployment stage was failing — but the deployment YAML was generated by the *previous* Update stage.
+- The Update stage showed as ✅ **passed** — but its output was incorrect.
+- Opening the Update stage logs revealed the shell script was writing the image tag with incorrect YAML indentation.
+
+**Root cause:** A bug in the `update-k8s-manifest.sh` shell script — the `sed` replacement was adding incorrect whitespace.
+
+**Fix:** Corrected the `sed` command in the shell script → re-ran the pipeline → succeeded.
+
+### Key lesson
+
+> A stage that **passes** can still be the root cause of a downstream failure. Always trace back from the failing stage to examine what the previous stage produced.
+
+---
+
+## Q5: How do you handle rollbacks in a production pipeline?
+
+> **Common phrasing:** *"A critical bug reaches production — how do you leverage Azure Pipelines to roll back and ensure a safe fix?"*
+
+### Option 1 — Git Revert (fastest)
+
+```bash
+# On the release branch, revert the bad commit
+git revert <commit-hash>
+git push origin release/v2.1
+```
+
+- The CI/CD pipeline triggers automatically on the new revert commit.
+- The previous working state is redeployed without manual intervention.
+
+### Option 2 — Develop and push a hotfix
+
+```bash
+# Branch from the release branch
+git checkout -b hotfix/fix-calculation release/v2.1
+
+# Fix the bug, commit, and raise a PR to the release branch
+git commit -m "fix: correct three-number addition logic"
+git push origin hotfix/fix-calculation
+```
+
+- PR is reviewed and merged to the release branch.
+- CI/CD pipeline triggers and deploys the fixed version.
+
+### Why GitOps makes rollbacks safer
+
+With Argo CD, the Kubernetes manifest in Git **is** the source of truth. A Git revert immediately triggers Argo CD to reconcile the cluster to the previous state — no manual `kubectl` commands required.
+
+### Answer framing
+
+> *"If a critical bug reaches production, the first action is a git revert on the release branch. Our CI/CD pipeline triggers automatically, rebuilds the image from the reverted code, and Argo CD deploys the previous working state to the AKS cluster within minutes. If the issue can be quickly fixed, a developer can push a hotfix branch, which follows the same pipeline path."*
+
+---
+
+## Q6: How do you use self-hosted agents in Azure Pipelines?
+
+> **Common phrasing:** *"Your company has specific infrastructure requirements and needs to run pipelines on self-hosted machines — how would you leverage Azure Runners?"*
+
+### Two types of Azure Pipeline agents
+
+| Type | Description | When to use |
+|---|---|---|
+| **Microsoft-hosted** | Azure manages the VM; no maintenance required | When standard environments are sufficient and budget allows |
+| **Self-hosted** | Team manages the VM; full control over installed tools | When free tier is used, or specific software/hardware is required |
+
+### Setting up a self-hosted agent (summary from Day 14)
+
+**Step 1 — Create a VM on Azure** (Ubuntu, in a dedicated Resource Group).
+
+**Step 2 — Create an Agent Pool in Azure DevOps:**
+```
+Azure DevOps → Organisation Settings → Agent Pools → Add Pool → Self-hosted → Name: azure-agent
+```
+
+**Step 3 — Configure the agent on the VM:**
+```bash
+mkdir myagent && cd myagent
+wget https://vstsagentpackage.azureedge.net/agent/<version>/vsts-agent-linux-x64-<version>.tar.gz
+tar zxvf vsts-agent-linux-x64-<version>.tar.gz
+./config.sh   # Provide org URL, PAT, pool name
+./run.sh      # Start the agent
+```
+
+**Step 4 — Reference the agent pool in the pipeline YAML:**
+
+```yaml
+pool:
+  name: azure-agent   # Must match the pool name created above
+```
+
+### Answer framing
+
+> *"We use self-hosted agents running on Azure VMs. The agent VM is registered to a named pool in Azure DevOps organisation settings, and pipelines reference that pool name in their YAML. This gives us full control over the environment — we can pre-install Docker, specific SDK versions, or internal tools that Microsoft-hosted agents don't have."*
+
+---
+
+## Q7: How do you configure RBAC in Azure Pipelines?
+
+> **Common phrasing:** *"Your team has various roles with different access needs — how do you configure RBAC in Azure Pipelines?"*
+
+### What RBAC means in Azure DevOps context
+
+**Role-Based Access Control (RBAC)** restricts who can do what within Azure DevOps pipelines and repositories.
+
+### Typical role assignments
+
+| Role | Access level | Examples |
+|---|---|---|
+| **DevOps Engineers** | Admin | Create/edit/delete pipelines, manage agent pools, manage service connections |
+| **Developers** | Contributor | Trigger pipeline runs, view logs, create branches |
+| **QA Engineers** | Reader | View pipeline runs and logs; cannot trigger or modify |
+| **Managers** | Reader | View dashboards, pipeline results; no pipeline access |
+
+### How to configure in Azure DevOps
+
+1. **Project Settings** → **Permissions** → assign roles to users or groups at the project level.
+2. **Pipeline-level permissions** → each pipeline has its own security settings (Edit Pipeline → ⋯ → Security).
+3. Use **Microsoft Entra ID groups** to manage permissions at scale — assign a group to a role once, then add/remove users from the group.
+
+### Answer framing
+
+> *"We implement RBAC at both the project and pipeline level. Developers have Contributor access to trigger runs and view logs. QA and management have Reader access. DevOps engineers have admin rights to manage pipelines, service connections, and agent pools. We use Entra ID groups to manage this at scale so adding a new team member automatically inherits the right permissions."*
+
+---
+
+## Q8: How do you automate infrastructure provisioning through pipelines?
+
+> **Common phrasing:** *"How do you manage Terraform or ARM templates in your organisation?"* or *"How is IaC handled in your pipelines?"*
+
+### Key principle
+
+Infrastructure code (Terraform, ARM, Bicep) is treated **exactly like application code**:
+- Stored in a Git repository (Azure Repos or GitHub).
+- Deployed through a dedicated **infrastructure pipeline** in Azure Pipelines.
+- Changes to infrastructure go through the same review and approval process as code changes.
+
+### Infrastructure pipeline stages
+
+```yaml
+stages:
+- stage: Validate
+    steps:
+- script: terraform init && terraform validate
+        displayName: 'Validate Terraform'
+
+- stage: Plan
+    steps:
+- script: terraform plan -out=tfplan
+        displayName: 'Terraform Plan'
+
+- stage: Apply
+    steps:
+- script: terraform apply tfplan
+        displayName: 'Terraform Apply'
+```
+
+### Benefits of pipeline-managed IaC
+
+- Full audit trail — every infrastructure change is a Git commit.
+- No manual `terraform apply` on a local machine — reduces human error.
+- PR-based review process for infrastructure changes.
+- Rollback is a Git revert — infrastructure returns to the previous state on the next pipeline run.
+
+### Answer framing
+
+> *"We store all Terraform scripts in Azure Repos alongside our application code. A dedicated infrastructure pipeline runs terraform validate, plan, and apply stages. Any infrastructure change must go through a PR review before the pipeline deploys it. Terraform state is stored in Azure Blob Storage with state locking enabled."*
+
+---
+
+## Q9: How do you maintain security throughout the CI/CD process (DevSecOps)?
+
+> **Common phrasing:** *"How do you maintain pipeline security?"* or *"How does your team implement DevSecOps?"*
+
+### What DevSecOps means
+
+DevSecOps is the practice of embedding security checks at every stage of the CI/CD pipeline rather than treating security as a separate, final step.
+
+### Security at each pipeline stage
+
+| Stage | Security practice |
+|---|---|
+| **Code commit** | Branch protection rules; PR review required before merge |
+| **Static analysis** | SAST tools (e.g., SonarQube, Semgrep) scan for code vulnerabilities |
+| **Build** | Dependency scanning — check for known CVEs in third-party libraries |
+| **Image creation** | Image scanning with Trivy, Docker Scout, or Snyk — block build if critical CVEs found |
+| **Image push (ACR)** | Enable **Microsoft Defender for Containers** in ACR for continuous vulnerability assessment |
+| **Secrets management** | All secrets stored in Azure Key Vault; no hardcoded values in YAML or scripts |
+| **Deployment** | Use **least-privilege** service principals; RBAC on AKS namespaces |
+| **Runtime** | Enable Azure Defender for Kubernetes; use network policies to restrict pod-to-pod traffic |
+
+### Example image scanning stage (Trivy)
+
+```yaml
+- stage: Scan
+  displayName: Image Security Scan
+  jobs:
+- job: TrivyScan
+      pool:
+        name: azure-agent
+      steps:
+- script: |
+            trivy image --exit-code 1 --severity CRITICAL \
+              $(containerRegistry)/$(imageRepository):$(Build.BuildId)
+          displayName: 'Scan image for critical CVEs'
+```
+
+> `--exit-code 1` causes the pipeline to fail if any CRITICAL vulnerabilities are found — preventing the image from being pushed.
+
+### Answer framing
+
+> *"We follow DevSecOps by embedding security at every stage. Static analysis runs at the build stage, image scanning with Trivy runs after the Docker image is built and fails the pipeline on critical CVEs, all secrets are managed through Azure Key Vault, and we use Defender for Containers in ACR for ongoing vulnerability monitoring. RBAC is applied at both the pipeline and AKS namespace level."*
+
+---
