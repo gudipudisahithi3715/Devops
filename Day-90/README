@@ -1,0 +1,294 @@
+#  Azure VM & Networking: Interview Questions
+
+## Q1: What is the difference between NSG and ASG?
+
+> ⚠️ Do NOT compare NSG/ASG with AWS Security Groups or NACLs — the concepts are fundamentally different.
+
+**Short answer:** NSG and ASG are not opposites — they are used **together**. NSG defines the security rules; ASG defines which group of VMs those rules apply to.
+
+### The Problem (without ASG)
+
+Imagine an App Subnet containing many VMs:
+
+```
+App Subnet
+├── Login App (VM)
+├── Logout App (VM)
+├── Payments App (VM)
+├── Transactions App (VM)
+├── Catalog App (VM)
+└── Billing App (VM)
+```
+
+**Requirement:** Only Payments, Transactions, Catalog, and Billing should access the DB subnet. Login and Logout must be blocked.
+
+Without ASG, I would have to list the IP addresses of every allowed VM in the NSG inbound rule. This creates two problems:
+- IP addresses can change (especially with VM Scale Sets where instances scale in/out dynamically).
+- The list must be manually updated every time a VM is added or removed.
+
+### The Solution (with ASG)
+
+1. Create an ASG (e.g., `ASG-DB-Allowed`).
+2. Assign the Payments, Transactions, Catalog, and Billing VMs to this ASG.
+3. In the NSG rule on the DB subnet, set **Source = ASG-DB-Allowed** instead of listing individual IPs.
+
+```
+NSG Inbound Rule on DB Subnet:
+  Source:      ASG-DB-Allowed   ← group reference, not IP list
+  Destination: Any
+  Port:        DB port
+  Action:      Allow
+```
+
+Now when new VMs are added to the allowed group, I just assign them to the ASG — no NSG rule changes needed.
+
+**Summary:**
+
+| Feature | NSG | ASG |
+|---|---|---|
+| Purpose | Defines traffic allow/deny rules | Groups VMs by role or function |
+| Applied to | Subnet or individual NIC/VM | Individual VM NICs |
+| Used with | Standalone or with ASG | Always used in conjunction with NSG |
+| Scales well? | Not ideal for dynamic IP lists | Yes — handles autoscaling cleanly |
+
+---
+
+## Q2: How do you block access to a VM from a specific subnet?
+
+**Scenario:** By default, all resources within a VNet can communicate with each other. This is enforced by a built-in NSG rule called `AllowVnetInbound` with priority `65000`. This rule cannot be deleted or modified.
+
+To block a specific subnet from reaching a VM, I create a **higher-priority deny rule** that overrides the default allow rule.
+
+### Steps
+
+1. Go to the NSG attached to the target VM (or its subnet).
+2. Click **Inbound Security Rules** → **Add**.
+3. Configure the rule:
+
+| Field | Value |
+|---|---|
+| **Source** | IP Addresses |
+| **Source IP / CIDR** | CIDR range of the subnet to block (e.g., `10.0.3.0/24`) |
+| **Destination** | Any |
+| **Port** | Any (or specific port) |
+| **Action** | **Deny** |
+| **Priority** | Any number **lower than 65000** (e.g., `200`) |
+
+4. Save the rule.
+
+> **Priority rule:** Lower number = higher priority. A deny rule with priority `200` is evaluated before the default allow rule at priority `65000`. The first matching rule wins.
+
+**Priority range:** 100 (highest priority) → 65535 (lowest priority)
+
+---
+
+## Q3: Are Azure NSGs stateful or stateless?
+
+**Answer: Azure NSGs are stateful.**
+
+### What stateful means
+
+When an NSG allows an **inbound** request (e.g., allow HTTP port 80 from the internet), it automatically allows the corresponding **outbound response** — even if no explicit outbound rule exists.
+
+### Example
+
+```
+Inbound Rule:  Allow port 80 from Internet   ← explicitly configured
+Outbound Rule: (none configured)
+
+User sends HTTP request → NSG allows it in (matches inbound rule)
+VM sends HTTP response  → NSG allows it out (stateful: remembers the session)
+```
+
+Without stateful behaviour (i.e., if NSGs were stateless like AWS NACLs), I would need to explicitly allow outbound traffic too. Azure NSGs handle this automatically by tracking connection state.
+
+---
+
+## Q4: What is the difference between Azure Firewall and NSG?
+
+| Feature | Azure Firewall | NSG |
+|---|---|---|
+| Scope | Entire Virtual Network | Individual subnet or VM NIC |
+| Position | Perimeter (edge of VNet) | Internal (within VNet) |
+| Traffic | Inbound and outbound for the VNet | Inbound and outbound for a subnet/VM |
+| Use case | Block external threats before they enter the VNet | Fine-grained access control between resources inside the VNet |
+| Threat intelligence | Yes (can block known malicious IPs/domains) | No |
+| Layer | L3–L7 | L3–L4 |
+
+**In practice:** Azure Firewall is the first line of defence at the VNet boundary. NSGs are the second line of defence applied at the subnet or VM level. Both are used together in a production setup.
+
+---
+
+## Q5: What are the advantages of Resource Groups?
+
+Resource Groups are mandatory in Azure, but they offer several important advantages beyond being a required field:
+
+| Advantage | Description |
+|---|---|
+| **Logical organisation** | Group all resources for a project/environment (e.g., Nike-Sales-Production) in one place |
+| **Lifecycle management** | Delete all resources in a project by deleting the Resource Group — no need to delete them one by one |
+| **Cost management** | View aggregated billing for all resources in a group to track project-level spend |
+| **RBAC (Role-Based Access Control)** | Grant or restrict access at the Resource Group level — permissions propagate to all resources inside |
+| **Tagging** | Apply tags to the group and use them for cost allocation, filtering, and reporting |
+| **Resource locking** | Lock a Resource Group to prevent accidental deletion or modification |
+| **ARM Templates** | Deploy entire environments consistently using Azure Resource Manager templates scoped to a Resource Group |
+
+**Best practice for naming:**
+
+```
+<Organisation>-<Project>-<Environment>
+
+Examples:
+  nike-sales-dev
+  nike-sales-staging
+  nike-sales-production
+```
+
+---
+
+## Q6: What is the difference between Azure Custom Data and User Data?
+
+> ⚠️ AWS User Data ≈ Azure **Custom Data** (not Azure User Data). Do not conflate them.
+
+| Feature | Custom Data | User Data |
+|---|---|---|
+| When it runs | **Once**, at VM creation/first boot (via cloud-init) | Does not auto-execute |
+| Persistence | Discarded after first boot | Persists for the **entire lifetime** of the VM |
+| Updatable after VM creation? | No | Yes |
+| Use case | Bootstrap scripts — install packages, start services during provisioning | Pass config files or scripts that the VM should always have access to |
+| Autoscaling relevance | Essential — ensures each new VM instance is fully configured on launch | Used for persistent configuration files needed across reboots |
+
+### When Custom Data is critical
+
+When using VM Scale Sets, instances scale automatically. There is no opportunity to manually SSH in and configure each new VM. Custom Data ensures the application (e.g., Nginx) is installed and started automatically on every new instance at launch.
+
+```
+VM Scale Set scales: 1 → 3 instances
+  ↓
+Each new VM runs Custom Data script on first boot
+  ↓
+Nginx installed + started automatically on all 3 instances
+  ↓
+Load balancer health checks pass → traffic flows immediately
+```
+
+---
+
+## Q7: What is the difference between Azure App Gateway and Azure Load Balancer?
+
+| Feature | App Gateway | Azure Load Balancer |
+|---|---|---|
+| OSI Layer | **L7** (Application) | **L4** (Transport) |
+| Routing basis | URL path, hostname, HTTP headers | IP address and port |
+| Traffic type | HTTP / HTTPS | TCP / UDP |
+| Typical position | In front of the **web tier** (public-facing) | In front of the **backend/app tier** (internal) |
+| Path-based routing | ✅ Yes | ❌ No |
+| Host-based routing | ✅ Yes | ❌ No |
+| WAF (Web App Firewall) | ✅ Supported | ❌ Not supported |
+| Performance | Richer but slightly more overhead | Faster, lightweight |
+
+### Three-Tier Architecture Placement
+
+```
+Internet
+    │
+[App Gateway — L7]       ← path-based routing: /login, /logout, /payment
+    │
+[Web Subnet]
+    ├── Login App  (x2)
+    ├── Logout App (x2)
+    └── Payment App (x2)
+    │
+[Azure Load Balancer — L4]   ← IP/port-based routing, internal only
+    │
+[App Subnet]
+    ├── Login Backend  (x2)
+    └── Payment Backend (x2)
+    │
+[DB Subnet]
+    └── Database (Active + Passive)
+```
+
+**Why L4 for the backend?**
+Once App Gateway has already determined which backend service to target (e.g., Login Backend), the internal load balancer only needs to distribute load between the two copies — no HTTP-level inspection is needed. L4 is faster and more efficient for this purpose.
+
+---
+
+## Q8: Explain the traffic flow in an ideal Azure networking setup
+
+**Scenario:** An application is deployed in a web subnet inside a VNet. Explain how a user accesses it.
+
+### Ideal VNet Setup
+
+```
+Internet
+    │
+    │  User types: myapp.com
+    ▼
+[Azure DNS]  →  resolves domain to Firewall or Load Balancer public IP
+    │
+[Azure Firewall]  →  perimeter security; blocks unauthorized traffic
+    │                  DNAT rule forwards request to App Gateway
+    ▼
+[App Gateway Subnet]
+    └── App Gateway (L7 LB)  →  path-based routing to correct web app pool
+    │
+[Web Subnet]  ──  NSG (inbound: allow HTTP/HTTPS)
+    ├── Web App Copy 1 (Zone 1)
+    └── Web App Copy 2 (Zone 2)
+    │
+[Azure Load Balancer (L4)]  →  forwards to correct backend service
+    │
+[App Subnet]  ──  NSG (inbound: allow only from Web Subnet)
+    ├── Backend App Copy 1
+    └── Backend App Copy 2
+    │
+[DB Subnet]  ──  NSG (inbound: allow only from App Subnet / ASG)
+    └── Database
+```
+
+### For admin/DevOps access (SSH):
+
+```
+DevOps Engineer → Azure Bastion → Private VM (no public IP needed)
+```
+
+**Key points to mention in an interview:**
+- Azure DNS resolves the domain name to the load balancer's public IP.
+- Azure Firewall acts as the perimeter guard; unauthorized requests are dropped here.
+- DNAT rule on the firewall forwards traffic to the App Gateway.
+- App Gateway routes to the correct web application based on URL path.
+- NSGs at each subnet provide an additional layer of traffic control.
+- Bastion provides secure SSH access to private VMs without exposing a public IP.
+- Multiple copies of each application tier are deployed across availability zones for high availability.
+
+---
+
+## Q9: What is Azure Bastion and what are its advantages?
+
+**Definition:** Azure Bastion is a fully managed PaaS service that provides secure, browser-based SSH/RDP connectivity to VMs — without requiring a public IP address on the VM.
+
+### Advantages
+
+| Advantage | Description |
+|---|---|
+| **No public IP on VM** | VM stays private; attack surface is minimised |
+| **Reduced attack surface** | SSH/RDP port is never exposed to the internet |
+| **Browser-based access** | Connect directly from the Azure portal — no local SSH client needed |
+| **RBAC integration** | Control who can access Bastion using Azure roles and policies |
+| **Multi-factor authentication** | Enforce MFA for all Bastion sessions |
+| **Audit & monitoring** | All sessions are logged; supports diagnostic settings and Azure Monitor |
+| **One Bastion per VNet** | A single Bastion instance provides access to all VMs in the VNet |
+| **Simplified connectivity** | No need to manage jump boxes, VPN configurations, or key distribution at scale |
+
+### Bastion vs Jump Box (Manual Approach)
+
+| Feature | Azure Bastion | Self-managed Jump Box VM |
+|---|---|---|
+| Managed by | Azure (PaaS) | You |
+| Public IP on jump VM | Not needed | Yes (security risk) |
+| Patching / maintenance | Azure handles it | You handle it |
+| Audit logs | Built-in | Must configure manually |
+| RBAC | Native integration | Manual setup |
+
+---
