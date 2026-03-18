@@ -1,0 +1,222 @@
+#  Azure DevOps: Introduction & Overview
+
+## 1. What is Azure DevOps?
+
+**Azure DevOps** is a platform developed by Microsoft that provides a **collection of services** for DevOps engineers to improve and automate the software development life cycle (SDLC).
+
+- It is not a single tool — it is a **suite of integrated services**, each targeting a specific phase of the SDLC.
+- The goal is to reduce the time and effort required to ship new features, bug fixes, and application versions to customers.
+- All services are available under one platform, eliminating the need to integrate and maintain multiple separate tools.
+
+---
+
+## 2. The Software Development Life Cycle (SDLC)
+
+Every software project — regardless of organisation or technology — goes through a set of standard phases before a feature or fix reaches end users.
+
+```
+1. Planning      → Define requirements, scope, timelines
+2. Design        → HLD, LLD, architecture decisions
+3. Development   → Write the actual code / feature
+4. Testing       → Validate correctness, performance, security
+5. Deployment    → Release the application to users
+6. Monitoring    → Track health, performance, errors in production
+```
+
+**Without automation:** Each of these phases is performed manually. Developers write code, testers manually run tests, operations teams manually deploy — resulting in slow release cycles (e.g., 3 months per feature).
+
+**With DevOps + automation:** Manual bottlenecks are eliminated, continuous integration and deployment pipelines are in place, and the same release cycle can be reduced to weeks or even days.
+
+---
+
+## 3. How DevOps Improves the SDLC
+
+DevOps engineers participate across **all phases** of the SDLC and introduce automation wherever manual effort exists.
+
+| SDLC Phase | Manual pain point | DevOps automation |
+|---|---|---|
+| Planning | Scattered requirements, no tracking | Agile boards (Jira / Azure Boards) |
+| Development | Code changes not tracked or versioned | Version Control System (Git / Azure Repos) |
+| Testing | Tests run manually after every change | Automated test suites triggered by CI pipelines |
+| Deployment | Manual, error-prone server deployments | CD pipelines with automated rollout |
+| Infrastructure | Manually provisioned servers | IaC with Terraform / ARM Templates |
+| Monitoring | Reactive, manual log checks | Automated alerting and dashboards |
+
+---
+
+## 4. Azure DevOps — The Platform
+
+**URL:** [https://dev.azure.com](https://dev.azure.com)
+
+### Getting started
+
+1. Go to [dev.azure.com](https://dev.azure.com).
+2. Click **Start free with GitHub** (recommended — keeps Azure and Azure DevOps under the same account).
+3. Create an **Organisation** and then a **Project**.
+
+### Project settings
+
+| Setting | Recommendation |
+|---|---|
+| **Visibility** | Private (for organisation projects) |
+| **Version control** | Git |
+| **Work item process** | Agile or Scrum |
+
+Once the project is created, the left sidebar shows all five Azure DevOps services.
+
+---
+
+## 5. Azure DevOps Services
+
+### Overview
+
+| Service | Icon | SDLC Phase | Purpose |
+|---|---|---|---|
+| **Boards** | 📋 | Planning & Design | Work item tracking, sprint planning, backlog management |
+| **Repos** | 📁 | Development | Git-based version control for source code |
+| **Pipelines** | ⚙️ | Testing & Deployment | CI/CD automation — build, test, and deploy |
+| **Test Plans** | 🧪 | Testing | Test case management, manual and automated testing |
+| **Artifacts** | 📦 | Post-deployment | Store build outputs — JAR, WAR, Docker images, npm packages |
+
+---
+
+### Boards
+
+- Equivalent to **Jira** in functionality.
+- Used by product owners, scrum masters, developers, and QA engineers for **planning and tracking work**.
+- Supports **Epics → Features → User Stories → Tasks** hierarchy.
+- Work items can be organised into **Sprints** and **Backlogs**.
+- Tracks progress visually through Kanban boards and sprint burn-down charts.
+
+**Who uses it:** Product Owner, Business Analyst, Development Team, QA Team, Managers.
+
+---
+
+### Repos
+
+- A **Git-based version control system** hosted on Azure DevOps.
+- Developers push source code here; DevOps engineers store Terraform scripts, Kubernetes manifests, Ansible playbooks, and pipeline definitions.
+- Supports **branching strategies** (feature branches, GitFlow, trunk-based development).
+- Also supports connecting to **external repositories** (GitHub, Bitbucket).
+
+**Who uses it:** Developers, DevOps Engineers.
+
+---
+
+### Pipelines
+
+- The **CI/CD engine** of Azure DevOps.
+- Automatically triggered when code is pushed to Repos (or GitHub).
+- A pipeline consists of multiple **stages**:
+
+```
+Developer pushes code to Repos
+        │
+        ▼
+[Pipeline triggers automatically]
+        │
+        ├── Stage 1: Build        → Compile code, run unit tests
+        ├── Stage 2: Test         → Run automated integration/QA tests
+        ├── Stage 3: Package      → Create artefact (JAR, Docker image)
+        └── Stage 4: Deploy       → Push to staging / production environment
+```
+
+- Pipelines are defined as **YAML files** stored in the repository (pipeline-as-code).
+- Supports deployment to Azure VMs, AKS, App Service, and more.
+
+**Who uses it:** DevOps Engineers, Developers.
+
+---
+
+### Test Plans
+
+- Used by **QA / Test Engineers** to manage the testing process.
+- Provides tools for:
+- Creating and organising **test cases** and **test suites**.
+- Planning test coverage for each feature.
+- Running **manual tests** directly from the browser.
+- Linking automated tests from Pipelines to test plans for traceability.
+- Replaces external tools like HP ALM or Microsoft Test Manager.
+
+**Who uses it:** QA Engineers, Test Leads.
+
+---
+
+### Artifacts
+
+- A **package and artefact repository** built into Azure DevOps.
+- Stores the **outputs of CI/CD pipeline runs**:
+- Java: `.jar` / `.war` files
+- .NET: NuGet packages
+- Node.js: npm packages
+- Docker: container images (via Azure Container Registry integration)
+- Can be used as a **private package feed** — teams publish internal libraries here and consume them in builds.
+- Replaces external tools like JFrog Artifactory or Sonatype Nexus for basic use cases.
+
+**Who uses it:** DevOps Engineers, Developers.
+
+---
+
+## 6. How Each Service Maps to the SDLC
+
+```
+SDLC Phase          Azure DevOps Service
+──────────          ────────────────────
+Planning        →   Boards (Epics, Stories, Sprints, Backlog)
+Design          →   Boards (tasks, design work items)
+Development     →   Repos (source code version control)
+Testing         →   Pipelines (automated test stage) + Test Plans
+Deployment      →   Pipelines (CD stage → Azure VM, AKS, App Service)
+Post-release    →   Artifacts (store build outputs) + Monitoring (external)
+```
+
+---
+
+## 7. Azure DevOps vs Traditional Toolchains
+
+Many organisations achieve the same outcome using a combination of open-source and third-party tools. Azure DevOps consolidates these into a single platform.
+
+| Capability | Traditional (open-source / third-party) | Azure DevOps |
+|---|---|---|
+| Planning | Jira | Azure Boards |
+| Version control | GitHub, GitLab, Bitbucket | Azure Repos |
+| CI/CD | Jenkins, GitLab CI, GitHub Actions, Argo CD | Azure Pipelines |
+| Test management | HP ALM, Zephyr | Azure Test Plans |
+| Artefact storage | JFrog Artifactory, Nexus | Azure Artifacts |
+
+**Advantage of Azure DevOps:** Everything is integrated in one place — no need to configure webhooks between Jira → Jenkins → Nexus → Argo CD and maintain each tool separately.
+
+**When to still use the traditional stack:** When the organisation is multi-cloud or already has a mature Jenkins/GitHub Actions setup, or when open-source flexibility is a priority.
+
+---
+
+## 8. Getting Started
+
+1. Visit [https://dev.azure.com](https://dev.azure.com) → Sign in with a Microsoft or GitHub account.
+2. Create an **Organisation**.
+3. Create a **Project** (e.g., `nike-sales`) → set to **Private**.
+4. Explore the left sidebar:
+- **Boards** → create a work item and a sprint.
+- **Repos** → clone the default Git repo and push some code.
+- **Pipelines** → create a starter pipeline YAML.
+- **Test Plans** → create a test suite.
+- **Artifacts** → create a feed.
+
+> Follow-up sessions will cover each service in depth with hands-on CI/CD pipeline implementations and project-based examples.
+
+---
+
+## 9. Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| Azure DevOps | Microsoft's all-in-one platform for implementing DevOps practices across the SDLC |
+| SDLC | Plan → Design → Develop → Test → Deploy → Monitor |
+| DevOps goal | Automate manual stages to reduce release cycle time |
+| Boards | Agile planning and work item tracking (equivalent to Jira) |
+| Repos | Git-based source code and infrastructure-as-code storage |
+| Pipelines | CI/CD automation — triggered on code push, runs build/test/deploy stages |
+| Test Plans | Test case management and manual/automated test execution |
+| Artifacts | Stores build outputs (JARs, images, packages) from pipeline runs |
+
+---
