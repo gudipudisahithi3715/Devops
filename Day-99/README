@@ -1,0 +1,430 @@
+# Deploying a Three-Tier E-Commerce App on AKS
+
+## 1. Project Overview — Stan's Robot Shop
+
+The project used in this demo is **Stan's Robot Shop** — an open-source microservices demo application originally created by IBM/Instana. It simulates a real e-commerce website that sells robots.
+
+**Repository:** [github.com/iamveeramalla/three-tier-architecture-demo](https://github.com/iamveeramalla/three-tier-architecture-demo) *(forked with AKS-specific fixes)*
+
+### Run locally
+
+```bash
+git clone <repo-url>
+cd three-tier-architecture-demo
+docker compose up
+```
+
+Access at `http://localhost` to explore the full user workflow before deploying to Kubernetes.
+
+---
+
+## 2. Application Architecture & Microservices
+
+### User workflow
+
+1. Register an account → login
+2. Browse product categories (AI / Robots)
+3. Select a product → view rating → add to cart
+4. Proceed to checkout → shipping cost calculated by location
+5. Confirm order
+
+### Microservices
+
+| Service | Language | Role |
+|---|---|---|
+| **web** | HTML/Angular | Frontend — serves the UI via a web server (Nginx/httpd) |
+| **user** | Node.js | User registration, authentication, session management |
+| **catalogue** | Node.js | Product listing, categories, descriptions, images |
+| **cart** | Node.js | Shopping cart — persists items between sessions |
+| **shipping** | Java | Calculates shipping cost based on user location |
+| **payment** | Python | Handles payment processing workflow |
+| **dispatch** | Go | Order dispatch confirmation after successful payment |
+| **ratings** | PHP | Product ratings — reads/writes to Redis |
+
+### Databases and data stores
+
+| Component | Type | Used by |
+|---|---|---|
+| **MongoDB** | Document DB (NoSQL) | `user` service — stores user accounts and credentials |
+| **MySQL** | Relational DB | `catalogue` service — stores product data and images |
+| **Redis** | In-memory data store | `ratings` service — stores and retrieves product ratings |
+
+> Redis is created as a **StatefulSet** with a **PersistentVolume** — this ensures ratings data survives pod restarts.
+
+### Architecture diagram
+
+```
+Browser
+   │
+   ▼
+[web] ──────────────────────────────────────────┐
+   │                                             │
+   ├──► [user] ──► MongoDB                       │
+   ├──► [catalogue] ──► MySQL                    │
+   ├──► [cart] ──► Redis                         │
+   ├──► [ratings] ──► Redis (StatefulSet + PV)   │
+   ├──► [shipping]                               │
+   ├──► [payment]                                │
+   └──► [dispatch]                               │
+                                                 │
+[Ingress (App Gateway)] ◄───────────────────────┘
+```
+
+---
+
+## 3. Why Different Databases?
+
+**MongoDB for users:** User registration data (username, password, profile) is structured with relationships — MongoDB's document model suits this well.
+
+**MySQL for catalogue:** Product data including images, descriptions, and pricing fits a relational model.
+
+**Redis for ratings:** Ratings are read very frequently and updated in real-time by many users simultaneously. In-memory stores like Redis are significantly faster for this pattern than disk-based databases.
+
+> Additionally, using multiple database types in one project gives DevOps engineers hands-on experience with containerising and managing different database workloads — a common real-world scenario.
+
+---
+
+## 4. Understanding the Dockerfiles
+
+Each microservice has its own Dockerfile. The structure follows the same pattern regardless of language — only the base image and dependency commands differ.
+
+### General Dockerfile pattern
+
+```
+1. FROM <language-base-image>
+2. EXPOSE <port>
+3. WORKDIR /app
+4. COPY <dependency-file> .       (package.json / requirements.txt / go.mod / pom.xml)
+5. RUN <install-dependencies>     (npm install / pip install / go mod download / mvn install)
+6. COPY <source-code> .
+7. CMD / ENTRYPOINT <start-command>
+```
+
+### Language-specific examples
+
+| Language | Dependency file | Install command | Start command |
+|---|---|---|---|
+| **Node.js** | `package.json` | `npm install` | `node server.js` |
+| **Python** | `requirements.txt` | `pip install -r requirements.txt` | `python app.py` |
+| **Go** | `go.mod` | `go mod download` | run compiled binary |
+| **Java** | `pom.xml` | `mvn package` | `java -jar app.jar` |
+| **PHP** | `composer.json` | `composer install` | via web server |
+
+### Multi-stage build (Java — shipping service)
+
+The Java service uses a **multi-stage Dockerfile** to keep the final image small:
+
+```dockerfile
+# Stage 1: Build — heavyweight image with Maven
+FROM debian AS build
+RUN apt-get install -y maven
+COPY pom.xml .
+COPY src ./src
+RUN mvn package -DskipTests
+
+# Stage 2: Runtime — lightweight image, only the JAR
+FROM openjdk:11-jre
+WORKDIR /opt/shipping
+COPY --from=build /target/shipping.jar .
+CMD ["java", "-jar", "shipping.jar"]
+```
+
+**Why multi-stage?** The build stage includes Maven and all its dependencies (~hundreds of MB). The runtime stage only needs the compiled JAR (~MBs). The final image is dramatically smaller.
+
+---
+
+## 5. Helm Charts — Why and How
+
+### Problem with plain YAML manifests
+
+8 microservices + 2 databases + Redis = ~24+ YAML manifest files.
+
+Across 3 environments (dev, staging, prod), this becomes 72+ files — many nearly identical except for a few values (image tag, resource limits, replica count).
+
+### Helm solution
+
+Helm uses three components:
+
+| File / Folder | Purpose |
+|---|---|
+| `Chart.yaml` | Metadata — chart name, version, description |
+| `templates/` | All Kubernetes YAML manifests with **Jinja-style placeholders** for dynamic values |
+| `values.yaml` | Default values that populate the placeholders in templates |
+
+### How dynamic values work
+
+In `templates/payments-deployment.yaml`:
+
+```yaml
+image: {{ .Values.image.repo }}/payments:{{ .Values.image.version }}
+```
+
+In `values.yaml`:
+
+```yaml
+image:
+  repo: robotshop
+  version: latest
+```
+
+At deploy time, Helm replaces `{{ .Values.image.repo }}` with `robotshop` and `{{ .Values.image.version }}` with `latest`.
+
+To override for production:
+
+```bash
+helm install roboshop ./helm --set image.version=2.0.1 --namespace robot-shop
+```
+
+This changes the image tag across all manifests in one command — no editing of 24 files.
+
+---
+
+## 6. Setting Up the AKS Cluster
+
+1. Azure Portal → **Kubernetes Service** → **Create**.
+2. Settings:
+- **Resource Group:** `e-commerce-demo`
+- **Cluster preset:** Dev/Test
+- **Cluster name:** `three-tier`
+- **Region:** West US 2 (or nearest with available quota)
+- **Availability zone:** Zone 1
+3. Click **Review + Create** → **Create** (takes 10–15 minutes).
+
+### Connect kubectl to the cluster
+
+```bash
+az aks get-credentials \
+  --resource-group e-commerce-demo \
+  --name three-tier \
+  --overwrite-existing
+```
+
+Verify:
+
+```bash
+kubectl config current-context
+# Expected: three-tier
+```
+
+---
+
+## 7. Deploying the Application with Helm
+
+### Step 1 — Clone the repository
+
+```bash
+git clone <repo-url>
+cd three-tier-architecture-demo
+```
+
+### Step 2 — Create the namespace
+
+```bash
+kubectl create namespace robot-shop
+```
+
+### Step 3 — Navigate to the AKS Helm folder
+
+```bash
+cd AKS/helm
+```
+
+### Step 4 — Install the Helm chart
+
+```bash
+helm install robot-shop . \
+  --namespace robot-shop
+```
+
+### Step 5 — Verify all pods are running
+
+```bash
+kubectl get pods -n robot-shop
+```
+
+Expected: All pods in `Running` state across all 8 microservices + databases.
+
+### Step 6 — Check services
+
+```bash
+kubectl get svc -n robot-shop
+```
+
+Note the `web` service port (typically `8080`) — needed for the Ingress configuration.
+
+---
+
+## 8. Persistent Volumes and Storage Classes on AKS
+
+Redis is deployed as a **StatefulSet** with a **PersistentVolumeClaim (PVC)** to ensure data survives pod restarts.
+
+### Why StatefulSet for Redis?
+
+- Redis pods are ephemeral by nature — if the pod restarts, all in-memory data is lost.
+- A PVC attaches persistent storage to the pod. When the new pod starts, it reconnects to the same volume and recovers all data.
+
+### AKS Storage Classes
+
+```bash
+kubectl get storageclass
+```
+
+| Storage Class | Underlying Azure service | Use case |
+|---|---|---|
+| `default` (managed-csi) | Azure Managed Disk | Single pod access (ReadWriteOnce) |
+| `azurefile` | Azure Files | Multiple pods / nodes sharing the same volume (ReadWriteMany) |
+| `managed-premium` | Azure Premium SSD | High IOPS workloads |
+
+### When to use each
+
+| Scenario | Choose |
+|---|---|
+| One pod reads/writes to the volume (e.g., Redis, MySQL) | `default` (Azure Disk) |
+| Multiple pods across different nodes share a volume (e.g., shared config files) | `azurefile` (Azure Files) |
+| High-performance database workloads | `managed-premium` |
+
+### Checking the PVC for Redis
+
+```bash
+kubectl get pvc -n robot-shop
+```
+
+The Redis PVC requests `1Gi` with storage class `default` — AKS automatically provisions an Azure Managed Disk.
+
+```bash
+kubectl get pvc -n robot-shop
+# NAME           STATUS   VOLUME      CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+# data-redis-0   Bound    pvc-xxx     1Gi        RWO            default        5m
+```
+
+---
+
+## 9. Ingress Controller — Azure Application Gateway
+
+An Ingress controller provides:
+- Path-based routing (`/cart` → cart service, `/payment` → payment service)
+- Host-based routing
+- TLS/SSL termination
+- Web Application Firewall (WAF) capabilities
+- Single external IP for all services
+
+### Enable the Application Gateway Ingress Controller on AKS
+
+1. Azure Portal → AKS cluster → **Networking** tab.
+2. Find **Enable Ingress controller** → ✅ Check the box.
+3. Click **Apply** (takes 5–10 minutes).
+
+> This is significantly simpler than AWS EKS, where the Ingress controller must be installed manually via Helm and the AWS Load Balancer Controller must be configured separately.
+
+### Verify the Ingress controller pods are running
+
+```bash
+kubectl get pods -n kube-system | grep ingress
+```
+
+Look for pods named `ingress-appgw-*` — status should be `Running`.
+
+---
+
+## 10. Writing the Ingress Resource
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: robot-shop-ingress
+  namespace: robot-shop
+spec:
+  ingressClassName: azure-application-gateway
+  rules:
+- http:
+        paths:
+- path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8080
+```
+
+### Why specify `ingressClassName`?
+
+A Kubernetes cluster can have **multiple Ingress controllers** (e.g., NGINX for one team, Azure App Gateway for another). The `ingressClassName` tells each Ingress resource which controller should handle it.
+
+- If omitted, no controller picks it up (or the wrong one does).
+- `azure-application-gateway` is the class name used by the AKS-managed App Gateway Ingress controller.
+
+### Apply the Ingress
+
+```bash
+kubectl apply -f ingress.yaml -n robot-shop
+```
+
+### Check the Ingress address
+
+```bash
+kubectl get ingress -n robot-shop
+```
+
+Once the external IP is assigned (may take 2–5 minutes), access the application at:
+
+```
+http://<INGRESS-EXTERNAL-IP>
+```
+
+---
+
+## 11. Troubleshooting Notes
+
+| Issue | Cause | Fix |
+|---|---|---|
+| Pods stuck in `Pending` | Resource quota exceeded in the selected region | Change to a different Azure region with available quota |
+| `ImagePullBackOff` | Image not accessible (private registry) | Add an image pull secret (see Day 15) |
+| Ingress address not assigned | Ingress controller still initialising | Wait 5 minutes; delete the Ingress controller pod to force restart |
+| `failed to list V1beta1 ApplicationGatewayRewrite` | Intermittent Ingress controller issue | Delete the `ingress-appgw` pod — it will restart automatically with a clean state |
+| PVC stuck in `Pending` | No available storage class | Confirm `kubectl get storageclass` shows `default` as available |
+| Redis pod crash-loops | PVC not bound | Check `kubectl describe pvc -n robot-shop` for provisioning errors |
+
+---
+
+## 12. Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| Microservices | Each service is independently deployable; language choice per service is optional but common in demo projects |
+| Helm Chart | Parameterised Kubernetes deployment — `templates/` + `values.yaml` = reusable, environment-aware manifests |
+| StatefulSet | Used for stateful workloads like Redis; guarantees stable pod identity and persistent storage across restarts |
+| PVC + StorageClass | PVC requests storage; StorageClass defines the backend (Azure Disk, Azure Files) |
+| Azure Disk (`default`) | Single-pod storage — ReadWriteOnce |
+| Azure Files (`azurefile`) | Shared storage across pods/nodes — ReadWriteMany |
+| Ingress | Routes external HTTP traffic to internal services; replaces NodePort/LoadBalancer per service |
+| `ingressClassName` | Binds an Ingress resource to a specific controller — essential in multi-controller clusters |
+| AKS App Gateway Ingress | Enabled via one checkbox in the AKS portal; no manual Helm install needed |
+
+### Deployment commands reference
+
+```bash
+# Connect to AKS
+az aks get-credentials --resource-group e-commerce-demo --name three-tier --overwrite-existing
+
+# Create namespace
+kubectl create namespace robot-shop
+
+# Deploy with Helm
+helm install robot-shop ./AKS/helm --namespace robot-shop
+
+# Verify
+kubectl get pods -n robot-shop
+kubectl get svc -n robot-shop
+kubectl get pvc -n robot-shop
+kubectl get ingress -n robot-shop
+
+# Apply Ingress
+kubectl apply -f ingress.yaml -n robot-shop
+
+# Check storage classes
+kubectl get storageclass
+```
+
+---
