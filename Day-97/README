@@ -1,0 +1,480 @@
+# Azure DevOps: CD Pipeline with GitOps & Argo CD
+
+## 1. End-to-End CI/CD Architecture
+
+```
+Developer commits to Azure Repos (vote/app.py)
+        │
+        ▼
+[Azure Pipeline — CI]
+  ├── Stage 1: Build    → Docker image created
+  ├── Stage 2: Push     → Image pushed to ACR (tag = Build ID)
+  └── Stage 3: Update   → Shell script updates k8s/vote-deployment.yaml
+                          with new image tag in Azure Repos
+        │
+        ▼
+[Azure Repos — k8s Manifest] ← Argo CD watches this
+        │
+        ▼
+[Argo CD — GitOps CD]
+  └── Detects change in repo → Deploys new image to AKS cluster
+        │
+        ▼
+[AKS Cluster — Running Application]
+  └── Users see updated application
+```
+
+**Key principle:** CI and CD are decoupled. The Azure Repos manifest folder is the bridge between them — CI writes to it, Argo CD reads from it.
+
+---
+
+## 2. Why GitOps?
+
+GitOps uses **Git as the single source of truth** for the desired state of the Kubernetes cluster.
+
+### Core advantages
+
+| Advantage | Explanation |
+|---|---|
+| **Continuous reconciliation** | Argo CD constantly watches the Git repo and applies any new changes to the cluster automatically |
+| **Drift detection & correction** | If someone manually changes something on the cluster (e.g., wrong image tag), Argo CD detects the drift and reverts it to match Git |
+| **Audit trail** | Every change to the cluster is traceable through Git commit history |
+| **Security** | No one needs direct `kubectl` access to deploy — changes go through Git |
+| **Disaster recovery** | Entire cluster state is in Git — re-apply the repo to recreate the cluster |
+
+### Why a shell script instead of Argo Image Updater?
+
+Argo Image Updater automates the image tag update step but is not yet Generally Available (GA). The shell script approach is stable, portable, and achieves the same result.
+
+---
+
+## 3. GitOps vs Traditional CD
+
+| Aspect | Traditional CD (scripts/Ansible) | GitOps (Argo CD) |
+|---|---|---|
+| Deployment trigger | Pipeline pushes directly to cluster | Git repo change → Argo CD pulls and deploys |
+| Cluster state source of truth | Pipeline scripts | Git repository |
+| Drift detection | None | Automatic — reverts unauthorised changes |
+| Manual cluster changes | Persist until next deployment | Overridden within seconds |
+| Rollback | Re-run old pipeline | Revert Git commit |
+
+---
+
+## 4. Step 1 — Create an AKS Cluster
+
+1. Azure Portal → search **Kubernetes Service** → **Create** → **Kubernetes cluster**.
+2. Fill in:
+- **Resource Group:** `azure-cicd`
+- **Cluster preset:** Dev/Test (for demos and PoC)
+- **Cluster name:** `azure-devops-cluster`
+- **Region:** Choose the region with available quota (e.g., West US 2)
+- **Availability zones:** Select one zone
+3. Go to **Node pools** tab → edit the default node pool:
+- **Scale method:** Autoscale
+- **Min node count:** 1
+- **Max node count:** 2
+- **Max pods per node:** 30
+- ✅ Enable public IP per node
+4. Click **Review + Create** → **Create**.
+
+> AKS takes 10–15 minutes to provision. The node pool uses VM Scale Sets under the hood — nodes scale automatically based on workload demand.
+
+---
+
+## 5. Step 2 — Connect kubectl to AKS
+
+Once the cluster is ready, configure the local terminal (or agent VM) to talk to it:
+
+```bash
+az aks get-credentials \
+  --name azure-devops-cluster \
+  --resource-group azure-cicd \
+  --overwrite-existing
+```
+
+Verify the connection:
+
+```bash
+kubectl get pods
+```
+
+> No pods should be listed yet. A clean empty output confirms the connection is working.
+
+---
+
+## 6. Step 3 — Install Argo CD on AKS
+
+```bash
+# Create the argocd namespace
+kubectl create namespace argocd
+
+# Install Argo CD components
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+```
+
+Wait for all pods to be running:
+
+```bash
+kubectl get pods -n argocd
+```
+
+Expected output (all pods in `Running` state):
+
+```
+argocd-application-controller-...   Running
+argocd-dex-server-...               Running
+argocd-redis-...                    Running
+argocd-repo-server-...              Running
+argocd-server-...                   Running
+```
+
+---
+
+## 7. Step 4 — Expose and Access the Argo CD UI
+
+### Get the initial admin password
+
+```bash
+# Retrieve the base64-encoded password
+kubectl get secret argocd-initial-admin-secret -n argocd -o yaml
+
+# Decode it
+echo "<base64-encoded-password>" | base64 --decode
+```
+
+Copy the decoded password (ignore the trailing `%`).
+
+### Expose Argo CD as NodePort
+
+```bash
+kubectl edit svc argocd-server -n argocd
+```
+
+Change `type: ClusterIP` to `type: NodePort` and save.
+
+Get the assigned NodePort:
+
+```bash
+kubectl get svc -n argocd
+```
+
+Note the HTTP NodePort (e.g., `30461`).
+
+### Open the NodePort in the Azure NSG
+
+1. Azure Portal → search **VMSS** (Virtual Machine Scale Sets).
+2. Click on the AKS node pool → **Instances** → select the instance → **Networking**.
+3. **Add inbound port rule**:
+- Source: Any (`*`)
+- Destination port: `30461` (the NodePort)
+- Protocol: Any
+- Action: Allow
+4. Click **Add**.
+
+### Get the node's external IP
+
+```bash
+kubectl get nodes -o wide
+```
+
+Copy the `EXTERNAL-IP` value.
+
+### Access Argo CD in the browser
+
+```
+http://<NODE-EXTERNAL-IP>:<NODEPORT>
+```
+
+Login: **Username:** `admin` | **Password:** *(decoded above)*
+
+---
+
+## 8. Step 5 — Connect Argo CD to Azure Repos
+
+Since the Azure Repos repository is private, Argo CD needs credentials to access it.
+
+### Create a Personal Access Token (PAT) in Azure DevOps
+
+1. Azure DevOps → User settings (top right) → **Personal access tokens**.
+2. **New Token** → Name: `argocd-token` → Expiry: 30 days → Scope: **Code (Read)**.
+3. Copy the token immediately.
+
+### Add the repository in Argo CD
+
+1. Argo CD UI → **Settings** → **Repositories** → **Connect Repo**.
+2. Fill in:
+- **Connection method:** HTTPS
+- **Repository URL:** *(copy from Azure Repos → Clone → HTTPS URL)*
+- Modify the URL to embed the PAT:
+     ```
+     https://<PAT>@dev.azure.com/<org>/<project>/_git/<repo>
+     ```
+- Replace `<org>` in the URL with the PAT token.
+3. Click **Connect**.
+
+> **Connection successful** status confirms Argo CD can read the repository.
+
+---
+
+## 9. Step 6 — Create an Argo CD Application
+
+1. Argo CD UI → **Applications** → **New App**.
+2. Fill in:
+
+| Field | Value |
+|---|---|
+| **Application name** | `vote-app` |
+| **Project** | `default` |
+| **Sync policy** | Automatic |
+| **Repository URL** | *(same as connected repo)* |
+| **Path** | `k8s-specifications` *(folder containing Kubernetes manifests)* |
+| **Cluster URL** | `https://kubernetes.default.svc` *(same cluster)* |
+| **Namespace** | `default` |
+
+3. Click **Create**.
+
+Argo CD will immediately begin deploying all manifests found in the `k8s-specifications` folder.
+
+---
+
+## 10. Step 7 — Write the Update Stage Shell Script
+
+This script is the bridge between CI and CD. It updates the Kubernetes deployment manifest in the repository with the new Docker image tag after each build.
+
+**File:** `scripts/update-k8s-manifest.sh`
+
+```bash
+#!/bin/bash
+set -x
+
+# Arguments:
+# $1 = microservice name (e.g., vote, result, worker)
+# $2 = ACR image repository name (e.g., vote-app)
+# $3 = new image tag (Build ID)
+
+REPO_URL="https://<PAT>@dev.azure.com/<org>/<project>/_git/<repo>"
+CONTAINER_REGISTRY="<registry-name>.azurecr.io"
+
+# Clone the repository
+git clone "$REPO_URL" /tmp/repo
+cd /tmp/repo
+
+# Update the image tag in the deployment manifest
+sed -i "s|image:.*|image: ${CONTAINER_REGISTRY}/$2:$3|g" k8s-specifications/$1-deployment.yaml
+
+# Commit and push the change
+git config user.email "cicd@pipeline.com"
+git config user.name "CI Pipeline"
+git add k8s-specifications/$1-deployment.yaml
+git commit -m "Update $1 image to tag $3 [skip ci]"
+git push
+```
+
+> **Security note:** In production, store the PAT as a pipeline secret variable and pass it as an argument (`$4`) rather than hardcoding it in the script.
+
+**Store this script in the Azure Repos:**
+
+1. Azure Repos → **New** → **Folder**: `scripts` → **File**: `update-k8s-manifest.sh`
+2. Paste the script → **Commit**.
+
+---
+
+## 11. Step 8 — Add the Update Stage to Azure Pipeline
+
+Add a third stage to `azure-pipelines-vote.yml` after the push stage:
+
+```yaml
+- stage: Update
+  displayName: Update Manifest
+  jobs:
+- job: Update
+      displayName: Update K8s Manifest
+      pool:
+        name: azure-agent
+      steps:
+- task: ShellScript@2
+          inputs:
+            scriptPath: 'scripts/update-k8s-manifest.sh'
+            args: 'vote $(imageRepository) $(tag)'
+```
+
+**What the three arguments mean:**
+
+| Argument | Value | Purpose |
+|---|---|---|
+| `$1` | `vote` | Selects `vote-deployment.yaml` in the manifests folder |
+| `$2` | `$(imageRepository)` → `vote-app` | ACR repository name |
+| `$3` | `$(tag)` → `$(Build.BuildId)` | Build number used as image tag |
+
+After saving, the pipeline has three stages:
+
+```
+Build → Push → Update
+```
+
+---
+
+## 12. Step 9 — Create an Image Pull Secret for ACR
+
+Kubernetes needs credentials to pull images from the private ACR registry.
+
+### Get ACR credentials
+
+1. Azure Portal → ACR → **Access keys**.
+2. Enable **Admin user**.
+3. Note the **username** and **password**.
+
+### Create the Kubernetes secret
+
+```bash
+kubectl create secret docker-registry acr-secret \
+  --namespace default \
+  --docker-server=<registry-name>.azurecr.io \
+  --docker-username=<acr-username> \
+  --docker-password=<acr-password>
+```
+
+Verify:
+
+```bash
+kubectl get secret acr-secret -n default
+```
+
+> ⚠️ Common mistake: Creating the secret in the wrong namespace. The secret must be in the **same namespace** as the pods that will use it (`default` in this case, not `argocd`).
+
+---
+
+## 13. Step 10 — Add imagePullSecrets to the Deployment Manifest
+
+Edit `k8s-specifications/vote-deployment.yaml` in Azure Repos:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vote
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vote
+  template:
+    metadata:
+      labels:
+        app: vote
+    spec:
+      imagePullSecrets:           # ← add this block
+- name: acr-secret        # ← must match the secret name created above
+      containers:
+- name: vote
+          image: <registry>.azurecr.io/vote-app:latest
+          ports:
+- containerPort: 80
+```
+
+Commit this change. Argo CD will detect it and redeploy with the correct pull credentials.
+
+---
+
+## 14. Step 11 — Tune Argo CD Reconciliation Interval
+
+By default, Argo CD polls for changes every **180 seconds (3 minutes)**. For demos and faster feedback, reduce this to 10 seconds:
+
+```bash
+kubectl edit cm argocd-cm -n argocd
+```
+
+Add under `data:`:
+
+```yaml
+data:
+  timeout.reconciliation: 10s
+```
+
+Save and exit. Changes take effect immediately.
+
+> For production environments, keep a reasonable interval (e.g., 60s–180s) — very short intervals with many microservices can strain the Argo CD repo server.
+
+---
+
+## 15. Validating the Full Pipeline
+
+### Test procedure
+
+1. Go to **Azure Repos** → `vote/app.py`.
+2. Change the voting options (e.g., `"Docker Swarm"` and `"Kubernetes"`).
+3. Commit directly to `main`.
+4. Observe:
+
+| Step | What to check |
+|---|---|
+| Azure Pipelines | Three stages (Build / Push / Update) all pass ✅ |
+| ACR | New image tag appears in the `vote-app` repository |
+| Azure Repos | `k8s-specifications/vote-deployment.yaml` image tag updated |
+| Argo CD | App syncs automatically and shows "Healthy" |
+| Application URL | New voting options appear in the browser |
+
+### Access the vote application
+
+```bash
+# Get the NodePort
+kubectl get svc vote
+
+# Get the node external IP
+kubectl get nodes -o wide
+```
+
+Open the NSG and add an inbound rule for the NodePort (e.g., `31000`), then navigate to:
+
+```
+http://<NODE-EXTERNAL-IP>:<NODEPORT>
+```
+
+---
+
+## 16. Troubleshooting Notes
+
+| Issue | Root Cause | Fix |
+|---|---|---|
+| `ImagePullBackOff` | ACR secret missing or in wrong namespace | Create secret in `default` namespace: `--namespace default` |
+| Image URL incorrect in manifest | Shell script missing `.azurecr.io` suffix | Update script: `image: <name>.azurecr.io/<repo>:<tag>` |
+| Argo CD not syncing | Reconciliation interval too long | Edit `argocd-cm`: set `timeout.reconciliation: 10s` |
+| Pipeline variables not expanded in script args | YAML indentation or quoting issue | Use `$(variableName)` format in the `args` field |
+| Argo CD `invalid username or password` | Wrong PAT or PAT embedded incorrectly in URL | Regenerate PAT, re-embed in repo URL |
+| App not accessible in browser | NodePort not open in NSG | Add inbound NSG rule for the specific NodePort |
+| `kubectl` commands fail | Wrong cluster context | Re-run `az aks get-credentials` with `--overwrite-existing` |
+
+---
+
+## 17. Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| GitOps | Git is the single source of truth; Argo CD continuously syncs cluster state to match Git |
+| Argo CD | Kubernetes-native CD tool; watches a Git repo and deploys changes automatically |
+| Update stage | Shell script run by Azure Pipelines that updates the K8s manifest with the new image tag |
+| Image Pull Secret | Kubernetes secret containing ACR credentials — required to pull images from private registries |
+| Reconciliation | Argo CD detects and corrects any drift between cluster state and Git repo |
+| AKS NodePort | Used to expose services externally during development; requires NSG rule to be opened |
+
+### Full pipeline recap
+
+```
+1. Developer commits → Azure Repos
+2. Azure Pipelines triggers:
+   a. Build stage  → Docker image created
+   b. Push stage   → Image pushed to ACR (tag = Build ID)
+   c. Update stage → k8s manifest updated with new image tag in Repos
+3. Argo CD detects manifest change → deploys to AKS
+4. Users see updated application
+```
+
+### Kubernetes resources deployed
+
+- `vote` — Python voting frontend (custom)
+- `redis` — In-memory queue (public image)
+- `worker` — .NET vote processor (custom)
+- `db` — PostgreSQL (public image)
+- `result` — Node.js results frontend (custom)
+
+---
