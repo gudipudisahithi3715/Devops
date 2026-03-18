@@ -1,0 +1,217 @@
+#  Azure Networking Basics
+
+## 1. Why Virtual Networks Exist
+
+**The Problem — without VNets:**
+
+- Azure hosts millions of customers. When two different organizations (e.g., Nike and Puma) both request VMs in the same region and availability zone, their VMs could land on the same physical server.
+- If one organization's VM is compromised, the attacker could potentially pivot to other VMs on the same physical server.
+- This is a **critical multi-tenant security risk** in any public cloud.
+
+**The Solution — Virtual Networks:**
+
+- Cloud providers solve this with logical network isolation.
+- AWS calls it **VPC (Virtual Private Cloud)**
+- Azure calls it **VNet (Virtual Network)**
+- Each organization gets its own isolated virtual network within the shared physical infrastructure.
+- Resources inside one VNet are completely isolated from resources in another VNet by default.
+
+> **Key concept:** A VNet is a *logical isolation* of a network within Azure's physical network.
+
+---
+
+## 2. Virtual Network (VNet)
+
+- I can create **any number of VNets** under my Azure subscription, depending on the project or organizational requirement.
+- Each VNet is scoped to a **region** and can span multiple **availability zones** within that region.
+- The **size** of a VNet is defined using **CIDR notation**, which determines how many IP addresses (and therefore resources) the VNet can hold.
+
+### CIDR — Quick Reference
+
+| CIDR | Number of IP Addresses |
+|---|---|
+| `/16` | 65,536 |
+| `/24` | 256 |
+| `/28` | 16 |
+
+> The most common choice for a VNet is `/16` (65,536 IPs), which gives enough room for multiple subnets.  
+> *(Deep dive into CIDR is a separate topic — understand it independently before moving forward.)*
+
+### Example Setup
+
+```
+Organization: Nike
+Azure Region: East US
+VNet CIDR: 10.0.0.0/16  →  65,536 IP addresses available
+```
+
+- Puma's resources **cannot** be placed inside Nike's VNet — they get their own isolated VNet.
+
+---
+
+## 3. Subnets
+
+Once I have a VNet, I divide it into **subnets** — smaller, logical segments of the network.
+
+### Why Subnet?
+
+Different application tiers have different security requirements:
+
+| Tier | Accessibility |
+|---|---|
+| **Web Applications** | Accessible from the internet |
+| **Business Logic / App Layer** | Not directly from the internet; only from the web layer |
+| **Databases** | Never from the internet; only from the app layer |
+
+By placing each tier in its own subnet, I can apply **different security rules per subnet**.
+
+### Example VNet Layout
+
+```
+VNet: 10.0.0.0/16
+│
+├── Subnet-Web:  10.0.1.0/24   → Web application servers
+├── Subnet-App:  10.0.2.0/24   → Business logic / backend servers
+└── Subnet-DB:   10.0.3.0/24   → Databases (most restricted)
+```
+
+- The size of each subnet is also defined using CIDR (e.g., `/24` = 256 IPs).
+- Security rules applied to a subnet automatically apply to **all resources** within it.
+
+> **Note:** Azure creates a default VNet and default subnets for quick onboarding. In a real organization, I always create custom VNets and subnets tailored to the project's architecture.
+
+---
+
+## 4. Network Security Groups (NSG)
+
+An **NSG** is a set of security rules that controls **inbound and outbound traffic** to resources.
+
+- Can be applied at the **subnet level** → rules apply to all resources in the subnet.
+- Can also be applied at the **individual VM (NIC) level** → rules apply to one specific instance.
+- Subnet-level NSGs are preferred for consistency and easier management.
+
+### How NSG Rules Work
+
+Each rule defines:
+
+| Field | Description |
+|---|---|
+| **Source** | Where traffic originates (IP range, internet, specific subnet CIDR) |
+| **Destination** | Where traffic is going (IP range, subnet, any) |
+| **Port** | Specific port or port range |
+| **Protocol** | TCP, UDP, or Any |
+| **Action** | Allow or Deny |
+| **Priority** | Lower number = evaluated first |
+
+### Practical Example
+
+**Requirement:** Databases in `Subnet-DB` should only be accessible from `Subnet-App`, and never from the internet.
+
+```
+NSG Rule on Subnet-DB:
+  Inbound Rule 1:
+    Source:      10.0.2.0/24  (Subnet-App CIDR)
+    Destination: Any
+    Port:        5432 (PostgreSQL) or 27017 (MongoDB)
+    Action:      Allow
+    Priority:    100
+
+  Inbound Rule 2:
+    Source:      Internet
+    Destination: Any
+    Port:        Any
+    Action:      Deny
+    Priority:    200
+```
+
+> We already used NSGs in Day 04 — when we opened port 8080 for the Jenkins VM, we were creating an NSG inbound rule on that specific VM.
+
+---
+
+## 5. Application Security Groups (ASG)
+
+An **ASG** extends NSG capabilities by allowing me to **group virtual machines by role or function** and then reference that group in NSG rules — instead of using raw IP addresses or CIDR blocks.
+
+### The Problem ASG Solves
+
+Imagine `Subnet-App` contains:
+- 10 web servers
+- 5 business logic (backend) servers
+
+Using NSG alone, I can only say: *"everything in `10.0.2.0/24` can access the DB."*
+
+But the requirement is: *"only the 5 backend servers (not the 10 web servers) should access the DB."*
+
+An NSG rule based on a CIDR block cannot distinguish between the two groups within the same subnet.
+
+### How ASG Works
+
+1. Create an ASG called `ASG-BackendServers`.
+2. Assign the 5 backend VM NICs to `ASG-BackendServers`.
+3. In the NSG rule on `Subnet-DB`, set the **source** as `ASG-BackendServers`.
+
+```
+NSG Rule on Subnet-DB (using ASG):
+  Inbound Rule:
+    Source:      ASG-BackendServers   ← references the group, not a CIDR
+    Destination: Any
+    Port:        DB port
+    Action:      Allow
+    Priority:    100
+```
+
+Now only those 5 backend VMs can reach the DB — the 10 web servers in the same subnet cannot.
+
+> **Key benefit:** When new backend VMs are added, I just assign them to the ASG — no NSG rule changes needed.
+
+---
+
+## 6. NSG + ASG Together
+
+The recommended real-world pattern is to use **NSG and ASG in combination**:
+
+```
+NSG  →  defines the security rules (what traffic is allowed/denied)
+ASG  →  defines the target groups (which instances the rules apply to)
+```
+
+| Tool | Scope | Best For |
+|---|---|---|
+| NSG only | Subnet or NIC | Broad rules using CIDR ranges |
+| NSG + ASG | Logical groups within a subnet | Fine-grained, role-based access control |
+
+---
+
+## 7. Route Tables & User-Defined Routes
+
+- A **Route Table** defines how network traffic is routed **within or between subnets** inside a VNet.
+- Think of it as giving direction signs inside a network — when a packet arrives, the route table tells it where to go next.
+- **User-Defined Routes (UDR)** allow me to override Azure's default routing behavior and control the traffic path manually.
+
+**Common use case:** Force all outbound traffic from a subnet to pass through a firewall or network virtual appliance (NVA) before reaching the internet.
+
+> Route tables and UDRs will be covered in full detail during the hands-on demonstration session.
+
+---
+
+## 8. Summary
+
+| Concept | What It Does | Analogy |
+|---|---|---|
+| **VNet** | Logically isolates an organization's network in Azure | A private gated community within a city |
+| **Subnet** | Divides a VNet into segments by tier or function | Separate streets/zones within the community |
+| **NSG** | Defines inbound/outbound traffic rules for a subnet or VM | Security guard checking who can enter/exit |
+| **ASG** | Groups VMs by role; used as a source/destination in NSG rules | A named team badge the guard checks instead of checking each person's ID |
+| **Route Table** | Controls how traffic flows between subnets and to the internet | Road signage and traffic direction within the community |
+
+### Architecture Recap
+
+```
+Azure Region (East US)
+└── VNet: 10.0.0.0/16
+    ├── Subnet-Web:  10.0.1.0/24   [NSG: allow internet → port 80/443]
+    ├── Subnet-App:  10.0.2.0/24   [NSG: allow only from Subnet-Web]
+    └── Subnet-DB:   10.0.3.0/24   [NSG: allow only ASG-BackendServers]
+```
+
+---
