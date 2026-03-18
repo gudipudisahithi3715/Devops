@@ -1,0 +1,352 @@
+# Azure Networking: Hands-On Lab
+
+## 1. Lab Overview & Architecture
+
+**Goal:** Deploy a private VM running Nginx behind an Azure Firewall, and access it securely through a DNAT rule — without ever exposing the VM's public IP address.
+
+```
+Internet (My Laptop)
+        │
+        ▼
+[Azure Firewall] ── public IP + port 4000
+        │  DNAT rule: port 4000 → VM private IP:80
+        ▼
+[Web Application Subnet] ── NSG
+        └── VM: Nginx (port 80) — NO public IP
+                │
+         [Azure Bastion] ── used only for SSH/admin access
+```
+
+**Resources created in this lab:**
+
+- Resource Group
+- Virtual Network (with 4 subnets: default/web, firewall, firewall-management, Bastion)
+- Azure Firewall + Firewall Policy
+- Azure Bastion
+- Virtual Machine (private IP only)
+- Nginx web server with a static HTML page
+- DNAT firewall rule to route traffic to the VM
+
+---
+
+## 2. Step 1 — Create a Resource Group
+
+1. Search for **Resource Groups** in the Azure portal.
+2. Click **Create**.
+3. Provide a name (e.g., `my-rg`) and select your region.
+4. Click **Review + Create** → **Create**.
+
+> Every resource in this lab will be placed in this Resource Group. At the end of the lab, deleting the Resource Group deletes all resources inside it automatically.
+
+---
+
+## 3. Step 2 — Create a Virtual Network
+
+1. Search for **Virtual Network** → **Create**.
+2. Fill in:
+- **Subscription:** Free Trial
+- **Resource Group:** *(the one created above)*
+- **Name:** e.g., `my-vnet`
+- **Region:** Same as the Resource Group
+
+3. On the **Security** tab, enable:
+- ✅ **Azure Bastion** → Create a new public IP (Standard tier)
+- ✅ **Azure Firewall** → Select tier: Standard → Create a new Firewall Policy (e.g., `my-firewall-policy`)
+
+4. On the **IP Addresses** tab:
+- Keep the default CIDR: `10.0.0.0/16` (65,536 IPs)
+- Azure auto-creates the following subnets:
+
+| Subnet Name | Purpose |
+|---|---|
+| `default` | Web application VMs |
+| `AzureBastionSubnet` | Bastion host (auto-named, mandatory) |
+| `AzureFirewallSubnet` | Firewall (auto-named, mandatory) |
+| `AzureFirewallManagementSubnet` | Firewall management |
+
+5. Click **Review + Create** → **Create**.
+
+> The deployment creates the VNet, Bastion, Firewall, and public IP addresses all at once. Monitor the deployment to understand the resource creation order.
+
+---
+
+## 4. Step 3 — Create the Virtual Machine (Private)
+
+1. Search for **Virtual Machines** → **Create** → **Azure Virtual Machine**.
+2. Fill in:
+- **Resource Group:** Same as above
+- **Name:** e.g., `nginx-web-vm`
+- **Region:** Same region
+- **Availability Zone:** Zone 1
+- **Image:** Ubuntu 22.04 LTS — Free Services Eligible
+- **Size:** Free-tier eligible (e.g., B1s)
+- **Authentication:** SSH public key → Generate new key pair
+
+3. On the **Networking** tab:
+- **Virtual Network:** Select the VNet created above
+- **Subnet:** `default` (web application subnet)
+- **Public IP:** **None** ← critical; VM stays private
+- **NIC NSG:** Basic → Allow SSH (port 22)
+- ✅ Delete NIC when VM is deleted
+
+4. Click **Review + Create** → **Create**.
+5. When prompted, **download the `.pem` private key file**.
+
+> The VM will have **no public IP address** — it is only reachable through Bastion (for admin) and the Firewall (for application traffic).
+
+---
+
+## 5. Step 4 — Connect to the VM via Bastion
+
+Bastion acts as a **secure proxy** between the administrator and the private VM. It eliminates the need for a public IP on the VM.
+
+**Advantages of Bastion:**
+- Centralised access control — restrict which users can SSH through Bastion using IAM/RBAC policies.
+- Full audit trail of all sessions.
+- No public IP required on individual VMs.
+- One Bastion instance serves all VMs in the VNet.
+
+**Steps to connect:**
+
+1. Go to the VM in the Azure portal.
+2. In the left menu, click **Connect** → **Bastion**.
+3. Set:
+- **Authentication Type:** SSH Private Key from Local File
+- **Username:** `azureuser`
+- **Local File:** Upload the `.pem` key downloaded during VM creation
+4. Click **Connect** — a browser-based terminal opens.
+
+---
+
+## 6. Step 5 — Install Nginx & Deploy HTML Page
+
+Run the following commands inside the Bastion terminal:
+
+**Switch to root user:**
+
+```bash
+sudo su
+```
+
+**Update package repositories:**
+
+```bash
+apt-get update
+```
+
+**Install Nginx:**
+
+```bash
+apt-get install nginx -y
+```
+
+**Navigate to the web root and create an HTML page:**
+
+```bash
+cd /var/www/html
+```
+
+```bash
+vi index.html
+```
+
+Add the following content:
+
+```html
+<html>
+  <h1>I learned Azure Networking Today</h1>
+</html>
+```
+
+Save and exit (`:wq` in vi).
+
+**Restart Nginx:**
+
+```bash
+systemctl restart nginx
+```
+
+**Verify Nginx is serving the page locally:**
+
+```bash
+curl localhost:80
+```
+
+Expected output:
+
+```
+<html>
+  <h1>I learned Azure Networking Today</h1>
+</html>
+```
+
+> If `curl localhost:80` returns the HTML above, Nginx is running correctly on port 80. The app is now live inside the private VM — the next step is to expose it through the firewall.
+
+---
+
+## 7. Step 6 — Configure Azure Firewall DNAT Rule
+
+**DNAT (Destination Network Address Translation)** translates an incoming request from `Firewall Public IP:4000` and forwards it to `VM Private IP:80`.
+
+### Get Required IP Addresses
+
+**Firewall Public IP:**
+1. Search for **Firewall** in the portal.
+2. Open the firewall → copy the **Public IP address** (e.g., `20.x.x.x`).
+
+**VM Private IP:**
+1. Go to the VM → **Networking** tab.
+2. Copy the **Private IP address** (e.g., `10.0.0.5`).
+
+**My Laptop's Public IP:**
+
+```
+Search "my ip" in any browser → copy the displayed IP
+```
+
+### Create the DNAT Rule
+
+1. Search for **Firewall Policies** → open the policy created with the VNet.
+2. In the left menu, click **DNAT Rules** → **Add Rule Collection**.
+3. Fill in:
+
+| Field | Value |
+|---|---|
+| **Name** | `nginx-dnat-collection` |
+| **Rule Collection Type** | DNAT |
+| **Priority** | `100` |
+
+4. Under **Rules**, click **Add a rule**:
+
+| Field | Value |
+|---|---|
+| **Name** | `nginx-rule` |
+| **Source Type** | IP Address |
+| **Source** | `<My Laptop's Public IP>` |
+| **Protocol** | TCP |
+| **Destination Ports** | `4000` |
+| **Destination** | `<Firewall Public IP>` |
+| **Translated Address** | `<VM Private IP>` (e.g., `10.0.0.5`) |
+| **Translated Port** | `80` |
+
+5. Click **Save**.
+
+> **Priority explained:** Rules are evaluated from lowest number (highest priority) to highest number. If two rules conflict, the one with the lower priority number wins. Range: 100–65535.
+
+> **Why DNAT?** The VM has no public IP. The only public entry point is the firewall. DNAT lets the firewall accept traffic on a specific port and forward (translate) it to the VM's private IP and port — without exposing the VM directly.
+
+---
+
+## 8. Step 7 — Access the Application via Firewall
+
+Once the DNAT rule is saved, open a browser and navigate to:
+
+```
+http://<Firewall-Public-IP>:4000
+```
+
+**Expected result:**
+
+```
+I learned Azure Networking Today
+```
+
+**What happened under the hood:**
+
+```
+Browser → Firewall Public IP:4000
+               ↓ (DNAT rule matches: source = my IP, dest port = 4000)
+        Translated to VM Private IP:80
+               ↓ (NSG allows port 80 inbound)
+        Nginx returns the HTML page
+               ↓
+        Response travels back through Firewall → Browser
+```
+
+> If the request comes from any IP address other than the one specified in the source rule, the Firewall blocks it — the application will not load.
+
+---
+
+## 9. Key Concepts Explained
+
+### Azure Bastion vs Direct SSH
+
+| Feature | Direct SSH (Public IP) | Azure Bastion |
+|---|---|---|
+| Requires public IP on VM | Yes | No |
+| Access control (IAM/RBAC) | Manual key management | Centralized |
+| Audit logs | Not built-in | Built-in |
+| Recommended for production | No | Yes |
+
+### Custom Data vs User Data
+
+| Feature | Custom Data | User Data |
+|---|---|---|
+| When executed | At VM creation time (once) | Not auto-executed |
+| Use case | Bootstrap scripts (install software, start services) | Pass files/configs to VM that persist across restarts |
+| Common scenario | Auto-install Nginx on new VMs during autoscaling | Store config files that the app reads at runtime |
+
+### DNAT Rule Fields
+
+| Field | Meaning |
+|---|---|
+| **Source** | IP(s) allowed to initiate the request (my laptop, team subnet, etc.) |
+| **Destination** | Firewall's public IP — where the request lands first |
+| **Destination Port** | Port on the firewall (e.g., 4000) — each app can use a different port |
+| **Translated Address** | VM's private IP — where the firewall forwards the request |
+| **Translated Port** | Port on the VM where the application listens (e.g., 80 for Nginx) |
+
+---
+
+## 10. Assignments to Practice
+
+1. **Test firewall restriction:** Change the DNAT rule source from your IP to a different IP. Try to access the app — the firewall should block it.
+2. **Allow all sources:** Change source to `*` (any). Confirm the app is accessible from any browser. Then revert and restrict it again.
+3. **Play with NSG rules:**
+- Add an NSG inbound rule to **deny HTTP (port 80)**. Observe what happens when you try to access the app.
+- Remove the **SSH (port 22)** allow rule from the NSG. Try connecting via Bastion — observe the behaviour.
+4. **Add a second app:** Deploy a second VM with a different web page, create a second DNAT rule on port `5000`, and verify both apps are independently accessible through the same firewall.
+
+---
+
+## 11. Cleanup
+
+To avoid unnecessary charges, delete all resources by deleting the Resource Group:
+
+1. Go to **Resource Groups** in the Azure portal.
+2. Select the Resource Group created for this lab.
+3. Click **Delete Resource Group**.
+4. Type the Resource Group name to confirm → **Delete**.
+
+> Deleting the Resource Group removes all resources inside it — VNet, VM, Firewall, Bastion, public IPs, NSGs, and disks.
+
+---
+
+## 12. Architecture Summary
+
+```
+Internet
+   │
+   │  Request: http://<Firewall-IP>:4000
+   ▼
+┌─────────────────────────────────────────┐
+│           Azure Virtual Network          │
+│                                         │
+│  [AzureFirewallSubnet]                  │
+│   └── Azure Firewall (Public IP)        │
+│        └── DNAT Rule:                   │
+│            src=MyIP, dst-port=4000      │
+│            → translate to VM:80         │
+│                   │                     │
+│  [default / Web Subnet]  ── NSG         │
+│   └── nginx-web-vm                      │
+│        ├── Private IP only              │
+│        └── Nginx on port 80             │
+│             └── index.html              │
+│                                         │
+│  [AzureBastionSubnet]                   │
+│   └── Azure Bastion (admin SSH proxy)   │
+└─────────────────────────────────────────┘
+```
+
+---
