@@ -1,0 +1,289 @@
+#  Azure Storage Services
+
+## 1. Why Use Azure Storage?
+
+Using Azure Storage instead of maintaining on-premises storage comes with several key advantages:
+
+| Advantage | Description |
+|---|---|
+| **Durability** | Up to 11 nines (99.999999999%) — data loss probability is effectively zero; Azure maintains multiple copies automatically |
+| **High Performance** | High-throughput storage options for fast read/write operations |
+| **Security** | Native integration with Microsoft Entra ID (Azure AD) for IAM-based access control |
+| **Lifecycle Management** | Automated policies to move or delete data based on age or access patterns |
+| **No maintenance overhead** | No hardware to manage, patch, or replace |
+
+---
+
+## 2. The Four Azure Storage Services
+
+| Service | Use Case | AWS Equivalent |
+|---|---|---|
+| **Blob Storage** | Large unstructured data — files, images, videos, code | S3 |
+| **File Storage** | Shared file system for multiple VMs or Kubernetes pods | EFS |
+| **Queue Storage** | Message queuing for async request processing | SQS |
+| **Table Storage** | Semi-structured NoSQL key-value data | DynamoDB *(partial)* |
+
+> Azure Table Storage has no exact AWS equivalent — DynamoDB offers similar functionality but with additional features not present in Tables.
+
+---
+
+## 3. Storage Account — The Central Hub
+
+Before using any storage service, I must create a **Storage Account**. It acts as the single management layer for all storage resources within a project or team.
+
+**What a Storage Account provides:**
+
+- A namespace that groups all storage resources (blobs, files, queues, tables) together.
+- Centralized access control — grant or restrict permissions at the account level; they propagate to all resources inside.
+- Centralized billing — track storage costs per project/environment.
+- Encryption, networking, data protection, and lifecycle settings — all configurable at the account level.
+
+**Naming convention (recommended):**
+
+```
+<organisation><team><environment>
+
+Examples:
+  pumawebdev
+  nikesalesprod
+  myorgstagingdata
+```
+
+> Storage account names must be globally unique, lowercase, 3–24 characters, and contain only letters and numbers.
+
+---
+
+## 4. Creating a Storage Account
+
+1. Search for **Storage Accounts** in the Azure portal → **Create**.
+2. Fill in the mandatory fields:
+
+| Field | Value |
+|---|---|
+| **Subscription** | Free Trial (or active subscription) |
+| **Resource Group** | Select existing or create new |
+| **Storage Account Name** | Unique name (e.g., `pumawebdev`) |
+| **Region** | Nearest region |
+| **Performance** | Standard (default) |
+| **Redundancy** | LRS / GRS (default for now) |
+
+3. Leave Networking, Data Protection, and Encryption at defaults for now.
+4. Click **Review + Create** → **Create**.
+5. Once deployed, click **Go to Resource** to open the storage account dashboard.
+
+> When the deployment runs, observe the resources being created in order — this hierarchy understanding is valuable when working with Terraform or ARM templates later.
+
+---
+
+## 5. Blob Storage
+
+### What it is
+
+Blob (Binary Large Object) storage is used for storing **large amounts of unstructured data** of any type.
+
+**Examples of data to store in Blob:**
+- Images, videos, audio files
+- HTML, CSS, JavaScript files
+- Application logs
+- Python/Java source code archives
+- Database backups
+- Any binary or text file
+
+### Create a Blob Container
+
+1. In the storage account, click **Containers** → **+ Container**.
+2. Provide a name (e.g., `test-blob-storage`).
+3. Click **Create**.
+
+### Upload a File
+
+1. Click on the container name.
+2. Click **Upload** → select a file from the local machine (e.g., `index.html`).
+3. The file is now stored and accessible via a URL.
+
+### Key Characteristics
+
+- Very cost-effective for large-scale storage.
+- Supports hot, cool, and archive access tiers for cost optimisation.
+- Can be made publicly accessible or kept private.
+- Supports lifecycle management policies (e.g., auto-delete files older than 30 days).
+
+---
+
+## 6. File Storage
+
+### What it is
+
+Azure File Storage provides a **managed shared file system** accessible by multiple VMs or Kubernetes pods simultaneously over the **SMB (Server Message Block)** or **NFS** protocol.
+
+### When to use it
+
+- Multiple VMs need to read/write from a common directory.
+- Kubernetes pods in an AKS cluster need a shared persistent volume.
+- Organizational files need to be accessed from multiple machines.
+
+### Create a File Share
+
+1. In the storage account, click **File Shares** → **+ File Share**.
+2. Provide a name (e.g., `test-file-share`).
+3. Configure a backup policy (recommended — choose daily or weekly).
+4. Click **Review + Create** → **Create**.
+
+### Connect a VM to the File Share
+
+1. Open the file share → click **Connect**.
+2. Select the OS type (Windows / Linux / macOS).
+3. Copy the generated script and run it on the target machine.
+
+**macOS example (shown in portal):**
+
+```bash
+# The portal generates a script similar to:
+mount_smbfs //<storage-account-name>:<key>@<storage-account-name>.file.core.windows.net/<share-name> /mnt/<local-dir>
+```
+
+**Windows (PowerShell — generated by portal):**
+
+```powershell
+$connectTestResult = Test-NetConnection -ComputerName <storage-account>.file.core.windows.net -Port 445
+if ($connectTestResult.TcpTestSucceeded) {
+    net use Z: \\<storage-account>.file.core.windows.net\<share-name> /user:Azure\<storage-account> <key>
+}
+```
+
+> Once connected, the file share behaves like a local drive or mount point on the VM.
+
+### DevOps Use Case — Kubernetes Shared Volume
+
+```
+AKS Pod 1 ──┐
+AKS Pod 2 ──┼──► Azure File Share (common persistent volume)
+AKS Pod 3 ──┘
+```
+
+When multiple pods need to read or write to shared storage, use Azure File Storage as the backing persistent volume claim (PVC).
+
+---
+
+## 7. Queue Storage
+
+### What it is
+
+Azure Queue Storage is a **message queuing service** for storing and processing large numbers of messages asynchronously.
+
+### When to use it
+
+- An application receives bursts of requests that cannot all be processed simultaneously.
+- Decoupling producers (apps generating work) from consumers (apps processing work).
+- Building event-driven or serverless architectures.
+
+### How it works
+
+```
+Application (producer)
+     │
+     ▼
+[Queue Storage] ← stores messages in order
+     │
+     ▼
+Worker / Consumer app (processes one message at a time)
+```
+
+### Create a Queue
+
+1. In the storage account, click **Queues** → **+ Queue**.
+2. Provide a name (e.g., `puma-sales`).
+3. Click **OK**.
+4. Open the queue → **Add Message** to manually add a test message.
+
+> In production, messages are added and consumed programmatically by application code using the Azure SDK.
+
+---
+
+## 8. Table Storage
+
+### What it is
+
+Azure Table Storage is a **NoSQL key-value store** for semi-structured data. It is schema-flexible and suited for storing entity data where full relational database features are not required.
+
+### When to use it
+
+- Store user profile data, product metadata, or event logs.
+- Applications that need a simple, scalable key-value or property-bag store.
+- Scenarios where a full relational database (SQL) is too heavy.
+
+### Create a Table and Add Data
+
+1. In the storage account, click **Tables** → **+ Table**.
+2. Provide a name (e.g., `test1234table`) → **OK**.
+3. Open the table → click **Add Entity**.
+4. Add properties as key-value pairs:
+
+```
+PartitionKey:  "users"
+RowKey:        "001"
+Name (String): "Abhishek"
+```
+
+5. Click **Insert**.
+
+> Each entity in a Table requires a `PartitionKey` and `RowKey` — these together form the unique identifier for the record.
+
+---
+
+## 9. Storage Browser
+
+The **Storage Browser** is a built-in portal tool that provides a unified view of all storage resources inside an account — without navigating to each service individually.
+
+**Access:** Storage Account → **Storage Browser** (left menu)
+
+From the Storage Browser I can:
+- Browse all Blob containers and their files.
+- View, upload, and delete files in File Shares.
+- Read and write Queue messages.
+- Add, edit, and delete Table entities.
+
+This is particularly useful when managing multiple resource types in one place during development or debugging.
+
+---
+
+## 10. Static Website Hosting
+
+Azure Storage Accounts support hosting static websites directly — similar to S3 static website hosting on AWS.
+
+### Steps
+
+1. In the storage account, scroll down to **Static Website** → click **Enabled**.
+2. Set **Index document name** to `index.html`.
+3. Click **Save** — Azure automatically creates a `$web` container.
+4. Open the `$web` container → **Upload** → select the `index.html` file.
+5. Copy the **Primary Endpoint** URL from the Static Website settings.
+6. Paste it in a browser — the static page loads.
+
+**Use case:** Host frontend SPAs (React, Vue, Angular), documentation sites, or simple HTML pages without needing a VM or web server.
+
+---
+
+## 11. Storage Services — Quick Reference
+
+| Service | Azure Name | Portal Location | AWS Equivalent | Primary Use Case |
+|---|---|---|---|---|
+| Object/Blob storage | Blob Storage | Containers | S3 | Images, videos, files, backups, any unstructured data |
+| Shared file system | File Storage | File Shares | EFS | Shared storage across multiple VMs or Kubernetes pods |
+| Message queue | Queue Storage | Queues | SQS | Async message processing, decoupled architectures |
+| NoSQL key-value store | Table Storage | Tables | DynamoDB *(partial)* | Semi-structured entity data, user records, logs |
+
+### Storage Account — What to Configure Later
+
+As projects grow, the following storage account settings become important:
+
+| Setting | Purpose |
+|---|---|
+| **Access Control (IAM)** | Integrate with Microsoft Entra ID for role-based access |
+| **Encryption** | Enable customer-managed keys for sensitive data |
+| **Data Protection** | Soft delete, versioning, point-in-time restore for blobs |
+| **Networking** | Restrict access to specific VNets, subnets, or IP ranges |
+| **Lifecycle Management** | Auto-tier or delete blobs based on age/access frequency |
+| **Backup** | Configure backup policies for File Shares |
+
+---
