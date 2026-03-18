@@ -1,0 +1,467 @@
+# Azure DevOps: CI Pipeline for a Microservices Application
+
+## 1. Project Overview — Example Voting App
+
+The application used in this project is a **multi-microservice voting app** (originally from Docker samples). It lets users vote between two options and view real-time results.
+
+**Repository:** Clone or import `dockersamples/example-voting-app` from GitHub.
+
+### Run Locally
+
+```bash
+docker compose up
+```
+
+- Vote app: `http://localhost:5000`
+- Results app: `http://localhost:5001`
+
+---
+
+## 2. What is Continuous Integration?
+
+**Continuous Integration (CI)** is the practice of automatically validating every code change as soon as it is pushed to a version control system.
+
+### Typical CI pipeline stages
+
+```
+Developer pushes code
+        │
+        ▼
+[CI Pipeline triggers automatically]
+        │
+        ├── Unit Testing         → catch logic errors early
+        ├── Static Code Analysis → enforce code quality standards
+        ├── Build                → compile / package the application
+        ├── Docker Image Build   → containerise the application
+        └── Push to Registry     → store the image in ACR / Docker Hub
+```
+
+### Why CI matters
+
+- Removes the need for manual validation after every commit.
+- Gives reviewers confidence before merging a pull request.
+- Catches bugs early — before they reach staging or production.
+- CI runs on both **pull requests** (pre-merge validation) and **commits** (post-merge full pipeline).
+
+---
+
+## 3. Understanding the Application Architecture
+
+| Microservice | Language | Role |
+|---|---|---|
+| **vote** | Python | Frontend — accepts user votes, writes to Redis |
+| **redis** | — | In-memory data store — queues votes between vote and worker |
+| **worker** | .NET | Reads votes from Redis, persists them to PostgreSQL |
+| **db** | PostgreSQL | Persistent database storing vote counts |
+| **result** | Node.js | Frontend — reads from PostgreSQL, displays results |
+
+**CI is needed only for custom code:**
+
+- ✅ `vote` (Python) — needs CI
+- ✅ `worker` (.NET) — needs CI
+- ✅ `result` (Node.js) — needs CI
+- ❌ `redis` — uses a public Docker image, no custom code
+- ❌ `db` — uses a public Docker image, no custom code
+
+**One independent CI pipeline per microservice** — each can be deployed independently without affecting others. This is a core microservices principle.
+
+---
+
+## 4. Writing Dockerfiles for Each Microservice
+
+### Result Service (Node.js)
+
+```dockerfile
+FROM node:18-alpine
+
+WORKDIR /usr/local/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends tini curl
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "server.js"]
+```
+
+### Vote Service (Python)
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+### Worker Service (.NET)
+
+```dockerfile
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG BUILDPLATFORM
+
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+
+WORKDIR /source
+COPY *.csproj .
+RUN dotnet restore -a $TARGETARCH
+
+COPY . .
+RUN dotnet publish -c Release -o /app -a $TARGETARCH --no-restore
+
+FROM mcr.microsoft.com/dotnet/runtime:7.0
+WORKDIR /app
+COPY --from=build /app .
+ENTRYPOINT ["dotnet", "Worker.dll"]
+```
+
+> **Key principle:** Choose the base image to match the application's runtime. Use the dependency file (`requirements.txt`, `package.json`, `.csproj`) to install dependencies inside the image. The entry point command starts the application — confirm this with the development team.
+
+---
+
+## 5. Setting Up Azure DevOps Project and Repos
+
+### Create a new project
+
+1. Go to [dev.azure.com](https://dev.azure.com) → Create project.
+2. Name: `example-voting-app` → **Private** → Create.
+
+### Import the GitHub repository into Azure Repos
+
+1. Go to **Repos** → **Import repository**.
+2. Source type: **Git**
+3. Clone URL: `https://github.com/dockersamples/example-voting-app`
+4. No authentication required (public repo).
+5. Click **Import**.
+
+### Fix the default branch
+
+Azure Repos may set an incorrect default branch alphabetically. Fix it:
+
+1. Go to **Repos** → **Branches**.
+2. Find `main` → click the three-dot menu → **Set as default branch**.
+
+---
+
+## 6. Creating an Azure Container Registry (ACR)
+
+The CI pipeline pushes Docker images to ACR after building them.
+
+1. Azure Portal → search **Container Registry** → **Create**.
+2. Fill in:
+- **Resource Group:** `azure-cicd` (create new)
+- **Registry name:** e.g., `myaciregistry` *(must be globally unique)*
+- **SKU:** Standard
+3. Click **Review + Create** → **Create**.
+
+> The ACR registry name becomes part of the image URL: `<registry-name>.azurecr.io/<image-name>:<tag>`
+
+---
+
+## 7. Azure Pipeline YAML Structure
+
+Every Azure Pipeline YAML file follows this structure:
+
+```yaml
+trigger:           # When should this pipeline run?
+  paths:
+    include:
+- result     # Only trigger when files in /result change
+
+variables:         # Reusable values (registry connection, image names)
+  dockerRegistryServiceConnection: '<service-connection-id>'
+  imageRepository: 'result-app'
+  containerRegistry: '<registry>.azurecr.io'
+  dockerfilePath: 'result/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+stages:            # High-level groupings of work
+- stage: Build
+    jobs:          # Units of work within a stage
+- job: BuildImage
+        pool:
+          name: azure-agent   # Agent pool to run this job on
+        steps:     # Individual commands / tasks within a job
+- task: Docker@2
+            inputs:
+              command: build
+              ...
+```
+
+### Key sections
+
+| Section | Purpose |
+|---|---|
+| `trigger` | Defines when the pipeline runs (on push, PR, schedule, path change) |
+| `variables` | Reusable values — registry name, image name, file paths |
+| `stages` | High-level phases — Build, Test, Push, Deploy |
+| `jobs` | Work units within a stage; can run in parallel on different agents |
+| `steps` | Individual tasks/commands within a job |
+| `pool` | Specifies which agent (Microsoft-hosted or self-hosted) runs the job |
+
+---
+
+## 8. Setting Up a Self-Hosted Agent (Linux VM)
+
+Microsoft-hosted agents are not available on free trial accounts. A self-hosted agent (a VM running on Azure) is used instead.
+
+### Step 1 — Create a VM
+
+- Azure Portal → **Virtual Machines** → **Create**
+- Resource Group: `azure-cicd`
+- Name: `azure-agent`
+- Image: Ubuntu 22.04 LTS
+- Authentication: SSH key (download `.pem`)
+
+### Step 2 — Create an Agent Pool in Azure DevOps
+
+1. Azure DevOps → **Organisation Settings** (bottom left) → **Agent pools**.
+2. Click **Add pool** → **Self-hosted** → Name: `azure-agent`.
+3. ✅ Grant access permission to all pipelines → **Create**.
+
+### Step 3 — Create a Personal Access Token (PAT)
+
+1. Azure DevOps → top-right user icon → **Personal access tokens**.
+2. **New Token** → Name: `azure-agent-token` → Expiry: 30 days → Scope: **Full access**.
+3. **Copy the token immediately** — it won't be shown again.
+
+### Step 4 — Configure the agent on the VM
+
+SSH into the VM:
+
+```bash
+chmod 600 ~/Downloads/azure-agent.pem
+ssh -i ~/Downloads/azure-agent.pem azureuser@<VM-PUBLIC-IP>
+```
+
+Run the following commands inside the VM:
+
+```bash
+# Update repositories
+sudo apt update
+
+# Download the agent binary
+mkdir myagent && cd myagent
+wget https://vstsagentpackage.azureedge.net/agent/<version>/vsts-agent-linux-x64-<version>.tar.gz
+tar zxvf vsts-agent-linux-x64-<version>.tar.gz
+
+# Configure the agent
+./config.sh
+```
+
+When prompted:
+
+| Prompt | Value |
+|---|---|
+| Server URL | `https://dev.azure.com/<your-organisation>` |
+| Authentication type | PAT |
+| Personal Access Token | *(paste the token copied above)* |
+| Agent pool | `azure-agent` |
+| Agent name | `azure-agent` |
+| Work folder | *(press Enter for default)* |
+
+### Step 5 — Install Docker on the agent VM
+
+```bash
+sudo apt install docker.io -y
+
+# Grant azureuser permission to run Docker without sudo
+sudo usermod -aG docker azureuser
+
+# Restart Docker
+sudo systemctl restart docker
+
+# Verify Docker works as azureuser
+docker pull hello-world
+```
+
+### Step 6 — Start the agent
+
+```bash
+cd myagent
+./run.sh
+```
+
+**Verify:** Azure DevOps → Agent pools → `azure-agent` → **Agents** tab → status should show **Online**.
+
+> Keep `./run.sh` running in the terminal during pipeline execution. For production, configure the agent as a system service using `./svc.sh install && ./svc.sh start`.
+
+---
+
+## 9. Writing the CI Pipeline — Results Service
+
+**File:** `azure-pipelines-result.yml`
+
+```yaml
+trigger:
+  paths:
+    include:
+- result
+
+variables:
+  dockerRegistryServiceConnection: '<your-service-connection-id>'
+  imageRepository: 'result-app'
+  containerRegistry: '<your-registry>.azurecr.io'
+  dockerfilePath: 'result/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: Build
+    displayName: Build Image
+    jobs:
+- job: Build
+        displayName: Build
+        pool:
+          name: azure-agent
+        steps:
+- task: Docker@2
+            displayName: Build the Docker image
+            inputs:
+              command: build
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+
+- stage: Push
+    displayName: Push Image
+    jobs:
+- job: Push
+        displayName: Push
+        pool:
+          name: azure-agent
+        steps:
+- task: Docker@2
+            displayName: Push the Docker image
+            inputs:
+              command: push
+              repository: $(imageRepository)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+```
+
+---
+
+## 10. Writing the CI Pipeline — Vote Service
+
+**File:** `azure-pipelines-vote.yml`
+
+The structure is identical to the result pipeline. Change only:
+
+```yaml
+trigger:
+  paths:
+    include:
+- vote          # ← changed
+
+variables:
+  imageRepository: 'vote-app'       # ← changed
+  dockerfilePath: 'vote/Dockerfile' # ← changed
+  # all other variables remain the same
+```
+
+---
+
+## 11. Writing the CI Pipeline — Worker Service
+
+**File:** `azure-pipelines-worker.yml`
+
+```yaml
+trigger:
+  paths:
+    include:
+- worker         # ← changed
+
+variables:
+  imageRepository: 'worker-app'        # ← changed
+  dockerfilePath: 'worker/Dockerfile'  # ← changed
+  # all other variables remain the same
+
+stages:
+- stage: Build
+    displayName: Build Image
+    jobs:
+- job: Build
+        pool:
+          name: azure-agent
+        steps:
+- task: Docker@2
+            displayName: Build Worker Image
+            inputs:
+              command: build
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+              # Note: If the Dockerfile uses ARG TARGETPLATFORM / TARGETARCH,
+              # pass build args or simplify the Dockerfile for single-arch builds.
+```
+
+> **Worker Dockerfile note:** The worker Dockerfile uses `ARG TARGETPLATFORM`, `ARG TARGETARCH`, and `ARG BUILDPLATFORM` for multi-architecture builds. If building for a single architecture (Linux), either pass the build args via `--build-arg` or simplify the Dockerfile to target `linux/amd64` directly to avoid build failures.
+
+---
+
+## 12. Validating Path-Based Triggers
+
+Path-based triggers ensure that only the relevant pipeline runs when code in a specific folder changes.
+
+### Test: Change in `worker/` folder — only `worker` pipeline should trigger
+
+1. Go to **Repos** → `worker/Dockerfile`.
+2. Make a minor edit (e.g., add a blank line) → **Commit**.
+3. Go to **Pipelines** — only `worker-service` pipeline should trigger.
+4. `result-service` and `vote-service` pipelines should **not** trigger.
+
+### Test: Change in `result/` folder — only `result` pipeline should trigger
+
+1. Go to **Repos** → `result/server.js`.
+2. Make a minor edit → **Commit**.
+3. Go to **Pipelines** — only `result-service` pipeline should trigger.
+
+---
+
+## 13. Troubleshooting Notes
+
+| Issue | Cause | Fix |
+|---|---|---|
+| `permission denied while connecting to Docker daemon` | `azureuser` not in `docker` group yet | Run `sudo usermod -aG docker azureuser`, restart Docker, log out and log back in |
+| `cannot find a pool with name azure-agent` | Agent pool not created or agent offline | Create the pool in Org Settings, start `./run.sh` on the VM |
+| `cannot configure agent: already configured` | Running `./config.sh` twice | Skip config, just run `./run.sh` directly |
+| Worker build fails: `invalid platform specifier` | Missing `TARGETPLATFORM` build arg | Set `TARGETPLATFORM=linux` in the Docker task or simplify the Dockerfile |
+| Agent offline after Docker install | Permissions applied but session not refreshed | Log out and SSH back into the VM, then restart `./run.sh` |
+
+---
+
+## 14. Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| CI pipeline | Automated validation — build, test, containerise, and push on every code change |
+| Path-based trigger | Only triggers the relevant microservice pipeline when files in that folder change |
+| Self-hosted agent | A VM registered with Azure DevOps to run pipeline jobs (required on free tier) |
+| Azure Container Registry | Private Docker registry on Azure where built images are pushed |
+| One pipeline per microservice | Each service is independently built and deployed — core microservices principle |
+| Pipeline YAML sections | `trigger` → `variables` → `stages` → `jobs` → `steps` |
+
+### What was achieved
+
+- ✅ Migrated source code from GitHub to Azure Repos.
+- ✅ Created Azure Container Registry for storing Docker images.
+- ✅ Set up a self-hosted Linux agent on an Azure VM.
+- ✅ Wrote CI pipelines for all three microservices (result, vote, worker).
+- ✅ Implemented path-based triggers so only the changed microservice pipeline runs.
+- ✅ Successfully built and pushed Docker images to ACR.
+
+---
