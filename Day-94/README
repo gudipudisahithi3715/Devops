@@ -1,0 +1,288 @@
+# Azure Identity and Access Management (IAM)
+
+## 1. The Real-World Analogy
+
+Think of an office building with three areas: **Lobby**, **Cafeteria**, and a **Secure Data Centre**.
+
+| Person | Valid ID? | Lobby | Cafeteria | Data Centre |
+|---|---|---|---|---|
+| Outsider / Hacker | ❌ No | ❌ Blocked at entrance | ❌ | ❌ |
+| DevOps Engineer | ✅ Yes | ✅ Allowed | ✅ Allowed | ❌ Not authorised |
+| Network Engineer | ✅ Yes | ✅ Allowed | ✅ Allowed | ✅ Authorised |
+
+Two distinct concepts are at play:
+- **Authentication** — verifying that the person has a valid ID to enter the building.
+- **Authorisation** — deciding which areas that person is permitted to access once inside.
+
+---
+
+## 2. Authentication vs Authorisation
+
+| Concept | Question it answers | Azure implementation |
+|---|---|---|
+| **Authentication (AuthN)** | *Who are you?* — Is this a valid identity? | Creating a user / service principal in Microsoft Entra ID |
+| **Authorisation (AuthZ)** | *What can you do?* — What actions are permitted? | Assigning roles via RBAC |
+
+**Why this matters in a real org:**
+
+Giving every person in the organisation admin access is dangerous — a single mistake (accidental deletion, misconfiguration) can affect everything. IAM ensures:
+- Every person is authenticated (given a user identity).
+- Each person is only authorised to do what their role requires.
+
+---
+
+## 3. Microsoft Entra ID (formerly Azure AD)
+
+**Microsoft Entra ID** is the Azure service that manages identity and access. It was previously called:
+- **Active Directory (AD)**
+- **Azure Active Directory (AAD)**
+
+It is now called **Microsoft Entra ID**.
+
+**Navigation:** Azure Portal → search **Microsoft Entra ID**
+
+Key sections in the left menu:
+
+| Section | Purpose |
+|---|---|
+| **Users** | Create and manage individual user identities |
+| **Groups** | Organise users into logical collections |
+| **Roles and Administrators** | View and assign built-in roles; create custom roles (requires Entra ID Premium P1/P2) |
+| **App Registrations** | Register applications that need access to Azure resources |
+
+---
+
+## 4. Users and Groups
+
+### Creating a User
+
+1. Microsoft Entra ID → **Users** → **New User** → **Create new user**.
+2. Fill in:
+- **User principal name** (e.g., `adar@mydomain.onmicrosoft.com`)
+- **Display name** (e.g., `Adar`)
+- **Password** — auto-generate and copy it (the user must change it on first login).
+3. Click **Review + Create** → **Create**.
+
+> A newly created user has **no permissions** by default. They are authenticated (can sign in) but not authorised to do anything. Attempting to create a Resource Group or VM will fail with a permissions error.
+
+### Groups
+
+As an organisation grows, managing roles for individual users becomes unscalable.
+
+**Problem:** 100 developers each have a developer role. A new role needs to be added to all of them — updating 100 users individually is error-prone and time-consuming.
+
+**Solution:** Create a group (e.g., `Developers`), add all developer users to it, and assign the role to the **group**. Adding or removing a role from the group instantly applies to all members.
+
+```
+Without groups:
+  User1 → assign role   User2 → assign role   ... User100 → assign role
+
+With groups:
+  Group: Developers → assign role
+    ├── User1
+    ├── User2
+    └── ... User100
+```
+
+---
+
+## 5. Roles and RBAC
+
+**RBAC (Role-Based Access Control)** is the authorisation system in Azure. Roles define what actions an identity (user, group, or resource) is allowed to perform.
+
+### Built-in roles (examples)
+
+| Role | Permissions |
+|---|---|
+| **Owner** | Full access — create, read, update, delete, and manage access |
+| **Contributor** | Create, read, update, delete resources — but cannot manage access |
+| **Reader** | Read-only access — view resources but cannot modify anything |
+| **Storage Blob Data Owner** | Full access to blob storage containers and data |
+| **Storage Blob Data Reader** | Read-only access to blob storage data |
+
+### Assigning a role to a user
+
+1. Microsoft Entra ID → **Users** → select the user.
+2. Click **Assigned Roles** → **Add assignments**.
+3. Select the appropriate role → **Add**.
+
+> Custom roles (tailored to specific organisational needs) require **Microsoft Entra ID Premium P1 or P2**.
+
+---
+
+## 6. Identities — Users vs Resources
+
+IAM in Azure covers two distinct types of identities:
+
+| Identity Type | Examples | Authorisation mechanism |
+|---|---|---|
+| **Human identities** | Developers, QA engineers, managers, DevOps engineers | Users → Groups → Roles (RBAC) |
+| **Resource identities** | Virtual machines, AKS pods, CI/CD pipelines, Terraform | Service Principal / Managed Identity |
+
+**Common resource-to-resource scenarios:**
+
+- A VM needs to read a file from Blob Storage.
+- An AKS pod needs to access Azure File Storage.
+- A CI/CD pipeline (Azure DevOps) needs to write artefacts to Blob Storage.
+- Terraform needs to store its state file in Blob Storage.
+
+For all of these, the Azure resource needs its own **identity** so it can be granted a role — just like a human user would be.
+
+---
+
+## 7. Service Principal vs Managed Identity
+
+Both are used to give Azure resources an identity for authenticating to other Azure services. Underneath, Azure creates a **Service Principal** in both cases.
+
+| Feature | Service Principal | Managed Identity |
+|---|---|---|
+| Created by | Developer / DevOps engineer manually | Azure automatically |
+| Credential rotation | Must be manually managed (rotate keys on schedule) | Azure rotates automatically |
+| Security maintenance | Developer's responsibility | Azure's responsibility |
+| Best for | Third-party tools or cross-tenant access where Managed Identity isn't supported | Azure-to-Azure resource communication |
+| Recommended? | Only when Managed Identity is not an option | ✅ Preferred for most Azure use cases |
+
+### Two types of Managed Identity
+
+| Type | Description |
+|---|---|
+| **System-assigned** | Created and tied to a single specific resource. Deleted automatically when the resource is deleted. |
+| **User-assigned** | Created independently and can be assigned to multiple resources. |
+
+> For most use cases, **system-assigned managed identity** is the simpler and recommended starting point.
+
+---
+
+## 8. Hands-On Demo — VM Accessing Blob Storage via Managed Identity
+
+### Architecture
+
+```
+[Virtual Machine]
+      │ (system-assigned managed identity)
+      │ assigned role: Storage Blob Data Owner
+      ▼
+[Storage Account]
+  └── [Container: test-container]
+          └── index.html  ← VM reads this file via shell script
+```
+
+### Step 1 — Create a Resource Group
+
+```bash
+# Portal: search "Resource Groups" → Create
+Name: managed-identity-poc
+Region: East US
+```
+
+### Step 2 — Create a Storage Account and Upload a File
+
+1. Search **Storage Accounts** → **Create**.
+- Name: `managedpocstorage` *(must be globally unique)*
+- Resource Group: `managed-identity-poc`
+- Region: `East US`
+2. Go to the storage account → **Containers** → **+ Container**.
+- Name: `test-container`
+3. Open `test-container` → **Upload** → select any file (e.g., `index.html`).
+
+### Step 3 — Create a Virtual Machine
+
+1. Search **Virtual Machines** → **Create** → **Azure Virtual Machine**.
+2. Key settings:
+- Name: `managed-demo-vm`
+- Region: `East US` *(must match the storage account region)*
+- Image: Ubuntu 22.04 LTS (Free Services Eligible)
+- Authentication: Password — `azureuser` / `<your-password>`
+3. Click **Review + Create** → **Create**.
+
+### Step 4 — Enable System-Assigned Managed Identity on the VM
+
+1. Go to the VM → scroll down to **Identity** in the left menu.
+2. Under **System assigned** tab, toggle **Status** to **On**.
+3. Click **Save**.
+
+> Azure automatically creates a Service Principal and links it to this VM.
+
+### Step 5 — Assign a Role to the Managed Identity
+
+1. Go to the **Storage Account** → **Access Control (IAM)**.
+2. Click **Add** → **Add role assignment**.
+3. Select role: **Storage Blob Data Owner**.
+4. Click **Next** → **Assign access to: Managed identity**.
+5. Click **Select members** → filter by **Virtual machine** → select `managed-demo-vm`.
+6. Click **Review + assign**.
+
+**Verify:** Go back to the VM → **Identity** → **Azure role assignments** — the `Storage Blob Data Owner` role on the storage account should be listed.
+
+### Step 6 — SSH into the VM
+
+```bash
+ssh azureuser@<VM-PUBLIC-IP>
+```
+
+### Step 7 — Install jq (JSON parser)
+
+```bash
+sudo apt update
+sudo apt install jq -y
+```
+
+### Step 8 — Fetch the Managed Identity Access Token
+
+```bash
+ACCESS_TOKEN=$(curl -s \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://storage.azure.com/" \
+  -H "Metadata: true" | jq -r '.access_token')
+
+echo $ACCESS_TOKEN
+```
+
+> The URL `169.254.169.254` is the Azure Instance Metadata Service endpoint — available only from within an Azure VM. It returns credentials for the managed identity assigned to the VM.
+
+### Step 9 — Read the File from Blob Storage
+
+```bash
+STORAGE_ACCOUNT="managedpocstorage"
+CONTAINER_NAME="test-container"
+BLOB_NAME="index.html"
+
+curl -s \
+  "https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/${BLOB_NAME}" \
+  -H "x-ms-version: 2020-04-08" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+**Expected output:** The contents of `index.html` printed in the terminal — confirming that the VM successfully accessed the Blob Storage using its managed identity without any hardcoded credentials.
+
+### Step 10 — Cleanup
+
+```bash
+# In the portal: Resource Groups → managed-identity-poc → Delete resource group
+```
+
+---
+
+## 9. Summary
+
+| Concept | Description |
+|---|---|
+| **Authentication** | Verifying identity — *who are you?* |
+| **Authorisation** | Granting permissions — *what can you do?* |
+| **Microsoft Entra ID** | Azure's IAM service (formerly Azure AD / AAD) |
+| **User** | Individual human identity in Entra ID |
+| **Group** | Collection of users; assign roles at group level for easier management |
+| **Role (RBAC)** | Defines what actions an identity can perform on Azure resources |
+| **Service Principal** | Application/resource identity managed manually; requires key rotation |
+| **Managed Identity** | Azure-managed identity for resources; automatic credential rotation |
+| **System-assigned MI** | Tied to one resource; auto-deleted when the resource is deleted |
+| **User-assigned MI** | Created independently; can be shared across multiple resources |
+
+### IAM Decision Flow
+
+```
+Is the identity a human?
+  YES → Create User in Entra ID → Add to Group → Assign Role
+  NO  → Is it an Azure resource (VM, AKS, pipeline)?
+          YES → Enable Managed Identity → Assign Role on target resource
+          NO  → Use Service Principal (e.g., third-party tool, cross-tenant)
+```
