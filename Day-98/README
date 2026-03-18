@@ -1,0 +1,218 @@
+# AKS vs Self-Managed Kubernetes: Interview Guide
+
+## 1. Three Ways to Create a Kubernetes Cluster
+
+As a DevOps engineer working on Azure, there are three distinct approaches to running Kubernetes:
+
+```
+Option 1: On-Premises
+  Private data center / OpenStack
+  └── Virtual Machines (manual)
+        ├── 3 VMs → Control Plane (master nodes)
+        └── 2 VMs → Data Plane (worker nodes)
+
+Option 2: Azure VMs (Self-Managed on Cloud)
+  Azure Virtual Machine Service
+  └── Virtual Machines (requested from Azure)
+        ├── 3 VMs → Control Plane (manual setup)
+        └── 2 VMs → Data Plane (manual setup)
+
+Option 3: Azure Kubernetes Service (AKS)
+  Azure AKS Service
+  └── Managed Control Plane (Azure handles this)
+  └── Node Pool (VM Scale Sets) → Data Plane
+```
+
+**Options 1 and 2 are both self-managed Kubernetes clusters** — the DevOps team is responsible for all setup, upgrades, and maintenance.
+
+**Option 3 (AKS) is an Azure-managed Kubernetes cluster** — Azure manages the control plane; the team only manages the node pools.
+
+### Why 3 nodes for the control plane?
+
+Three control plane nodes is the minimum recommended configuration for **high availability**. This ensures that if one master node fails, the cluster continues to operate.
+
+---
+
+## 2. Comparison Parameters
+
+### 2.1 Maintenance
+
+**Kubernetes version upgrades** happen regularly. Kubernetes typically releases 3 minor versions per year. Staying on an unsupported version introduces security vulnerabilities.
+
+**Version notation:**
+
+```
+1   .   27   .   4
+│       │        └── Z-stream (patch) — e.g., security fix
+│       └────────── Y-stream (minor)  — new features
+└────────────────── X-stream (major)  — breaking changes
+```
+
+| Option | Upgrade responsibility |
+|---|---|
+| **On-Premises** | Fully manual — team must upgrade Kubernetes AND the underlying OS on every node |
+| **Azure VMs (self-managed)** | Kubernetes upgrades are manual; Azure may help with some OS-level patches but Kubernetes itself is the team's responsibility |
+| **AKS** | Azure manages Z-stream (patch) upgrades automatically when configured; team controls Y-stream (minor) upgrades with scheduling |
+
+> **Summary:** AKS offers significantly less maintenance overhead, especially for patch-level upgrades.
+
+---
+
+### 2.2 Cost
+
+| Option | Cost profile |
+|---|---|
+| **On-Premises** | Low if existing infrastructure is being reused; very high if buying hardware, setting up a data center, and hiring system admins from scratch |
+| **Azure VMs (self-managed)** | Moderate — pay for VMs, storage, and networking; costs depend heavily on right-sizing and autoscaling configuration |
+| **AKS** | Control plane is cost-effective (managed by Azure); node pool (VM Scale Sets) cost depends on usage; autoscaling helps reduce waste |
+
+> AKS charges only for the worker node VMs (node pool). The control plane is provided at no additional cost in standard AKS.
+
+---
+
+### 2.3 Scalability and Availability
+
+| Option | Scaling approach |
+|---|---|
+| **On-Premises** | Manual or requires additional tooling; no built-in autoscaling out of the box |
+| **Azure VMs (self-managed)** | Possible with manual autoscaling configuration; more complex to set up correctly |
+| **AKS** | Built-in **cluster autoscaler** using VM Scale Sets; nodes scale in and out automatically based on pod demand |
+
+**AKS node pool autoscaling configuration (from Day 15):**
+
+- Min node count: `1`
+- Max node count: `2` (or higher based on workload)
+- Scale method: **Autoscale**
+
+> Setting max node count too high can expose the cluster to cost spikes if a DDoS attack occurs — autoscaling keeps the application alive but Azure will bill for every node spun up.
+
+---
+
+### 2.4 Integrations
+
+As Kubernetes has matured, it integrates with many external systems:
+
+- **Ingress controllers** (e.g., NGINX, Azure Application Gateway)
+- **CSI drivers** for persistent storage
+- **Secret management** solutions (e.g., Azure Key Vault)
+- **Microsoft Entra ID** (Azure AD) for RBAC
+- **Load balancer services** (requires cloud controller manager)
+
+| Option | Integration difficulty |
+|---|---|
+| **On-Premises** | High — load balancer type Services don't work out of the box (no cloud controller manager); projects like MetalLB exist but aren't fully production-ready for all scenarios |
+| **Azure VMs (self-managed)** | Moderate — possible but requires manual configuration for each integration |
+| **AKS** | Low — native integrations with Azure services (ACR, Key Vault, Entra ID, Application Gateway) are well-documented and straightforward to enable |
+
+---
+
+### 2.5 Security and Flexibility
+
+This is where **on-premises and self-managed** have an advantage over AKS:
+
+| Factor | On-Premises / Self-Managed | AKS |
+|---|---|---|
+| **Control over control plane** | Full — can customise API server flags, admission controllers, etcd configuration | Limited — control plane is managed by Azure |
+| **Data residency** | Data stays entirely within own infrastructure | Data on public cloud (Azure handles compliance, but some organisations prefer on-prem for sensitive data) |
+| **Firewall control** | Complete control over network perimeter | Managed within Azure VNet; less direct control |
+| **Customisation** | Unlimited — install any CNI (Calico, Flannel, Cilium), custom admission webhooks, etc. | Some CNI choices and control plane customisations are restricted |
+
+> Many organisations run application workloads on AKS but keep databases or sensitive data on-premises, bridging the two with VPN Gateway or VNet peering.
+
+---
+
+## 3. AKS — Automatic Upgrade Feature
+
+When creating an AKS cluster, the **Automatic Upgrade** option can be configured:
+
+| Setting | Behaviour |
+|---|---|
+| **Disabled** | No automatic upgrades — team manages all upgrades manually |
+| **Patch** | AKS automatically applies Z-stream (patch) upgrades within the current minor version (e.g., 1.27.4 → 1.27.8) |
+| **Stable** | AKS upgrades to the latest stable minor version |
+| **Rapid** | AKS upgrades to the latest available version as soon as it is available |
+
+**Upgrade schedule** can also be configured — for example, apply patches every Sunday night when traffic is lowest.
+
+```
+AKS Portal → Create Cluster → Cluster Details → Automatic upgrade
+```
+
+> Timely upgrades are critical. Running an unsupported version means known CVEs (vulnerabilities) are unpatched. AKS makes Z-stream upgrades largely hands-off.
+
+---
+
+## 4. Full Comparison Table
+
+| Parameter | On-Premises | Azure VMs (Self-Managed) | AKS |
+|---|---|---|---|
+| **Control plane management** | Team | Team | Azure |
+| **K8s version upgrades** | Fully manual | Fully manual | Automated (patch); scheduled (minor) |
+| **OS/node patching** | Fully manual | Partially Azure-assisted | Azure-managed |
+| **Cost** | Low (if infra exists); High (if building from scratch) | Moderate | Moderate; control plane free |
+| **Autoscaling** | Manual setup required | Manual setup required | Built-in via VM Scale Sets |
+| **Cloud integrations** | Limited / complex | Moderate | Native and straightforward |
+| **Load balancer Services** | Not available out of the box | Available | Available |
+| **Control plane customisation** | Full | Full | Limited |
+| **Data residency control** | Full | Moderate | Depends on Azure region and compliance |
+| **Recommended for beginners** | ❌ | ❌ | ✅ |
+| **Recommended for startups** | ❌ | ❌ | ✅ |
+| **Recommended for large enterprises (existing setup)** | ✅ (if on-prem exists) | ✅ | ✅ |
+
+---
+
+## 5. Which Option to Talk About in Interviews
+
+### Talk about AKS if:
+
+- I am a **beginner or intermediate** in Kubernetes.
+- I work at a **startup** or an organization with a small DevOps team.
+- My organization is **cloud-native** and the JD doesn't mention on-premises.
+- I want to focus on learning Kubernetes concepts (deployments, services, Ingress, RBAC) without getting into cluster administration.
+
+### Talk about self-managed Kubernetes (Azure VMs) if:
+
+- I have **hands-on experience** with Kubernetes cluster upgrades, scaling, and configuration.
+- I have worked with **Terraform or ARM templates** to provision clusters.
+- I can speak to **cost optimisation** techniques for virtual machines.
+- The job description mentions cluster administration, kubeadm, or self-hosted Kubernetes.
+
+### Talk about on-premises Kubernetes only if:
+
+- I have **genuine on-premises experience**.
+- The **job description explicitly mentions** on-premises or hybrid cloud.
+- My organization runs a **private cloud** (e.g., OpenStack, VMware).
+
+> Most organisations today are on public cloud. Unless the JD specifies otherwise, it is safer to focus on AKS for Azure-focused roles.
+
+---
+
+## 6. Summary
+
+```
+Three Kubernetes approaches on Azure:
+
+On-Premises          Azure VMs (Self-Managed)     AKS
+──────────           ────────────────────────     ───
+Full control         Full control                 Limited control plane control
+High maintenance     High maintenance             Low maintenance
+Cost: variable       Cost: moderate               Cost: moderate (free control plane)
+No built-in scaling  Manual scaling               Built-in autoscaling
+Complex integrations Moderate integrations        Native Azure integrations
+Best for: orgs       Best for: experienced        Best for: beginners, startups,
+with existing        teams, large enterprises     cloud-native teams
+on-prem infra        with VM K8s history
+```
+
+**Key terms to remember:**
+
+| Term | Meaning |
+|---|---|
+| Control plane | Master nodes — API server, etcd, scheduler, controller manager |
+| Data plane | Worker nodes — where application pods actually run |
+| Node pool | A group of VMs (VM Scale Sets) that form the worker nodes in AKS |
+| Z-stream upgrade | Patch-level upgrade (e.g., 1.27.4 → 1.27.8) — bug fixes and CVEs |
+| Y-stream upgrade | Minor version upgrade (e.g., 1.27 → 1.28) — new features |
+| Cluster autoscaler | AKS feature that adds/removes nodes based on pod resource demand |
+
+---
