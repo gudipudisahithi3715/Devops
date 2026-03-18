@@ -1,0 +1,224 @@
+# Azure Virtual Machines, Deployment & Scale Sets
+
+## 1. Virtualization — Quick Recap
+
+- Physical servers come with huge compute (e.g., thousands of CPUs, hundreds of TB RAM). Assigning one full server to a single person wastes resources.
+- **Virtualization** solves this by installing a **hypervisor** on the physical server. The hypervisor logically divides the physical machine into multiple smaller virtual machines (VMs).
+- Multiple users can share the same physical hardware without interfering with each other.
+
+**How Azure uses virtualization:**
+
+1. Azure purchases physical servers and places them inside data centers (Zones).
+2. A hypervisor is installed on each physical server.
+3. When I request a VM (e.g., 1 CPU, 2 GB RAM in East US Zone 1), the request goes to the **Azure Resource Manager**.
+4. Azure locates available resources in the requested zone and the hypervisor provisions the VM — either statically (pre-allocated) or dynamically (on-demand).
+
+---
+
+## 2. Creating a Virtual Machine on Azure
+
+**Navigation path:**  
+`Azure Portal → Search "Virtual Machines" → Create → Azure Virtual Machine`
+
+### Key Parameters
+
+| Parameter | Notes |
+|---|---|
+| **Subscription** | Auto-filled (e.g., Free Trial) |
+| **Resource Group** | Logical grouping of resources — create one if it doesn't exist |
+| **VM Name** | Any descriptive name (e.g., `first-VM`) |
+| **Region** | Pick the region nearest to me |
+| **Availability Zone** | Zone 1 / 2 / 3 — represents different data centers in a region |
+| **Image** | Use **Free Services Eligible** images for free-tier usage |
+| **Architecture** | `x86-64` is the standard default |
+| **Authentication Type** | **SSH public key** is the recommended and secure method |
+
+> **Billing Note:** For the first 30 days on a free trial, Azure deducts usage from free credits. After 30 days, I must explicitly consent to "Pay As You Go" — Azure will not charge automatically.
+
+---
+
+### VM Sizes & Series
+
+Each VM series is optimized for a different workload. I select the series based on the application's requirements:
+
+| Series | Use Case | Examples |
+|---|---|---|
+| **A Series** | Dev/test only — retiring, can be ignored | — |
+| **B Series** | Burstable, economical — proof of concept, learning | Free tier (`B1s`) |
+| **D Series** | General purpose — standard production workloads | Most common |
+| **E Series** | Memory optimized — memory-intensive apps | Redis, in-memory caches |
+| **F Series** | Compute optimized — CPU-intensive workloads | Batch jobs, gaming, multi-threaded apps |
+| **H Series** | High performance computing (HPC) | Scientific simulations |
+| **L Series** | Storage optimized — high IOPS needed | MongoDB, Cassandra, NoSQL DBs |
+| **N Series** | GPU-enabled — ML/AI workloads | Large language models, ML training |
+
+> **Rule of thumb:** If no specific requirement is given → use **D Series** (general purpose).
+
+---
+
+### Azure Spot Discount
+
+- Azure has unused capacity in its data centers. It offers these resources at a significant discount via **Spot Instances**.
+- **Caveat:** Azure can reclaim Spot VMs at any time. These are **not suitable for production workloads**.
+- Best used for: proof of concept, development, and non-critical testing.
+
+---
+
+## 3. Connecting to the VM via SSH
+
+When creating the VM, I download the private key (`.pem` file) that Azure generates. This file is required to authenticate via SSH.
+
+**Recommended terminal:**
+- **Mac/Linux:** iTerm2 or the default terminal
+- **Windows:** Git Bash (installs SSH natively)
+
+### Steps to Connect
+
+**1. Fix the private key file permissions (Linux/Mac/Git Bash):**
+
+```bash
+chmod 600 ~/Downloads/first-VM_key.pem
+```
+
+> This is required because SSH rejects key files that are world-readable.
+
+**2. Connect using SSH:**
+
+```bash
+ssh -i ~/Downloads/first-VM_key.pem azureuser@<PUBLIC_IP_ADDRESS>
+```
+
+- `-i` → identity file (path to the `.pem` key)
+- `azureuser` → default username set during VM creation
+- `<PUBLIC_IP_ADDRESS>` → found on the VM's overview page in the Azure Portal
+
+Type `yes` when prompted to accept the host fingerprint.
+
+---
+
+## 4. Deploying Jenkins on the VM
+
+Jenkins is a popular DevOps CI/CD tool. Deploying it on a VM is a common real-world task.
+
+**Prerequisite:** Java must be installed before Jenkins.
+
+### Step 1 — Update package repositories
+
+```bash
+sudo apt update
+```
+
+> Always run this first on a freshly created Ubuntu VM to sync the package manager's repository list.
+
+### Step 2 — Install Java (OpenJDK)
+
+```bash
+sudo apt install openjdk-17-jre -y
+```
+
+Verify the installation:
+
+```bash
+java -version
+```
+
+### Step 3 — Install Jenkins
+
+Follow the official Jenkins commands for Ubuntu/Debian (available in the Jenkins documentation or the course GitHub repository):
+
+```bash
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee \
+  /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+sudo apt update
+sudo apt install jenkins -y
+```
+
+### Step 4 — Verify Jenkins is running
+
+```bash
+ps -ef | grep jenkins
+```
+
+Jenkins runs on **port 8080** by default. I can confirm this from the process output.
+
+### Step 5 — Access Jenkins in a browser
+
+```
+http://<PUBLIC_IP_ADDRESS>:8080
+```
+
+> **Note:** This will initially fail because Azure blocks all inbound ports by default. See the next section to fix this.
+
+---
+
+## 5. Opening a Port in Azure Network Settings
+
+Azure blocks all inbound ports by default for security. I need to explicitly allow port 8080.
+
+**Navigation path:**  
+`Azure Portal → Virtual Machines → first-VM → Network Settings → Inbound Port Rules → Add Inbound Rule`
+
+### Inbound Rule Configuration
+
+| Field | Value |
+|---|---|
+| **Source** | Any (open to the internet) |
+| **Destination** | Any |
+| **Service** | Custom |
+| **Destination Port** | `8080` |
+| **Protocol** | Any |
+| **Action** | Allow |
+| **Priority** | `400` (lower number = higher priority) |
+| **Name** | e.g., `Allow-Jenkins-8080` |
+
+After saving the rule, refreshing the browser at `http://<PUBLIC_IP>:8080` will load the Jenkins setup page.
+
+> **Key concept:** Port 22 (SSH) is open by default. Every other port must be opened manually. Inbound = traffic coming *into* the VM; Outbound = traffic leaving the VM.
+
+---
+
+## 6. Virtual Machine Scale Sets (VMSS)
+
+A single VM has a fixed capacity. If traffic spikes unexpectedly (e.g., 10,000 concurrent users), the VM gets overwhelmed.
+
+**VM Scale Sets (VMSS)** solve this with **autoscaling:**
+
+- Automatically adds more VM instances when load increases (**scale out**).
+- Automatically removes VM instances when load decreases (**scale in**).
+- A **load balancer** distributes incoming traffic across all active instances.
+
+### When to use VMSS
+
+- Applications with unpredictable or fluctuating traffic (e.g., e-commerce during sale season, CI/CD pipelines during release cycles).
+- Any workload where availability and elasticity are required.
+
+### VMSS vs Static VM
+
+| Feature | Static VM (today's setup) | VM Scale Set |
+|---|---|---|
+| Scaling | Manual | Automatic |
+| Traffic handling | Fixed capacity | Elastic |
+| Use case | Dev/test, fixed workloads | Production, variable traffic |
+| AWS equivalent | EC2 Instance | Auto Scaling Group |
+
+> Deep dive into VMSS configuration, scaling policies, and load balancing will be covered in a dedicated session.
+
+---
+
+## Summary
+
+| Topic | Key Takeaway |
+|---|---|
+| Virtualization | Hypervisor logically divides physical servers → multiple VMs share one machine |
+| VM Creation | Select series based on workload; B1s is free-tier eligible |
+| SSH Connection | Use `chmod 600` on the `.pem` file before connecting |
+| Deploying Apps | Update apt → install Java → install Jenkins |
+| Network Security | Ports are blocked by default; open only what's needed |
+| VMSS | Enables autoscaling; ideal for dynamic production workloads |
+
+---
