@@ -1,0 +1,286 @@
+# Azure Networking Deep Dive
+
+## 1. The Housing Society Analogy
+
+To make Azure networking concepts stick, I map them to a **Secure Housing Society** built by a real estate developer (John):
+
+| Housing Society Element | Description |
+|---|---|
+| Private land | The bounded, secured property John purchases |
+| Blocks (Block 1, 2, 3) | Separate sections within the land, each with its own purpose and size |
+| Houses within each block | Individual units that residents occupy |
+| Compound wall + main gate + guard | Perimeter security — controls who enters the entire property |
+| Block-level guard | Each block has its own guard; validates that visitors are authorized for *that* block |
+| Individual house security | Optional extra guard hired by a specific homeowner |
+| Paths + signboards inside blocks | Internal directions that help guests navigate to the right house |
+| Property maintenance charges | The ongoing cost John bills residents for using the land and facilities |
+
+---
+
+## 2. Mapping the Analogy to Azure Networking
+
+| Housing Society | Azure Equivalent |
+|---|---|
+| Private land | **Virtual Network (VNet)** |
+| Blocks | **Subnets** |
+| Houses / units | **VM Instances** |
+| Compound wall + main gate + guard | **Azure Firewall** |
+| Block-level guard | **Network Security Group (NSG)** |
+| Individual house guard | **NSG applied at NIC/VM level** |
+| Paths + signboards inside block | **Route Table + System Routes** |
+| Domain name / address of property | **Azure DNS** |
+| Delivery person routing traffic to correct block | **Load Balancer (App Gateway / Azure LB)** |
+| Maintenance charges | **Azure Billing** |
+
+---
+
+## 3. Three-Tier Application Architecture on Azure
+
+A typical enterprise application has three tiers, each placed in its own subnet:
+
+```
+VNet: 10.0.0.0/16
+│
+├── App Gateway Subnet  →  Load Balancer (public-facing)
+├── Subnet-Web          →  Frontend / Web Application instances
+├── Subnet-App          →  Backend / Business Logic instances
+└── Subnet-DB           →  Database instances (most restricted)
+```
+
+- **Web subnet** — hosts frontend applications (login page, transaction page, logout page, etc.)
+- **App subnet** — hosts backend services, one-to-one mapped with frontend apps
+- **DB subnet** — hosts databases; never directly accessible from the internet
+
+---
+
+## 4. Availability Zones & High Availability
+
+- A VNet requested in a region (e.g., East US) is automatically available across **Zone 1, Zone 2, and Zone 3** of that region.
+- If a single availability zone goes down, the entire application in that zone becomes unavailable.
+
+**Best practice — deploy at least two copies of every critical instance:**
+
+```
+Subnet-Web
+├── Login App — Copy 1  (Availability Zone 1)
+└── Login App — Copy 2  (Availability Zone 2)
+```
+
+- This ensures that if one zone fails, the other copy continues to serve traffic.
+- The **load balancer** decides which copy receives each incoming request.
+
+---
+
+## 5. Azure Firewall
+
+- Acts as the **perimeter security** for the entire VNet — equivalent to the compound wall, main gate, and head guard in the housing analogy.
+- Sits at the boundary between the public internet and the VNet.
+- Inspects all incoming traffic and blocks unauthorized or malicious requests before they reach any subnet or instance.
+- Every request from the internet must pass through Azure Firewall first.
+
+---
+
+## 6. Load Balancers — App Gateway vs Azure Load Balancer
+
+Azure has two main load balancers, used at different layers of the architecture.
+
+### App Gateway (L7 — Application Layer Load Balancer)
+
+- Placed in the **App Gateway Subnet**, in front of the web application subnet.
+- Operates at **Layer 7 (HTTP/HTTPS)** — it can read the URL path and hostname.
+- Makes routing decisions based on the **URL path**:
+
+```
+User hits: abhishek.com/login     → routed to Login App pool
+User hits: abhishek.com/logout    → routed to Logout App pool
+User hits: abhishek.com/payment   → routed to Payment App pool
+```
+
+- Within each pool it also balances load between Copy 1 and Copy 2 of that app.
+- **Use when:** traffic is HTTP/HTTPS and routing needs to be path-based or host-based.
+
+### Azure Load Balancer (L4 — Transport Layer Load Balancer)
+
+- Placed in front of the **backend / app subnet**.
+- Operates at **Layer 4 (TCP/UDP)** — does not inspect HTTP paths; makes routing decisions purely based on IP and port.
+- Used for internal traffic flowing **from the web tier to the app tier**.
+- Since the L7 load balancer has already determined which backend service to target, the L4 load balancer just needs to distribute load between the two copies of that backend service — fast and efficient.
+- **Use when:** internal service-to-service traffic where HTTP-level routing is not needed.
+
+### Summary
+
+| Feature | App Gateway | Azure Load Balancer |
+|---|---|---|
+| OSI Layer | L7 (Application) | L4 (Transport) |
+| Routing basis | URL path, hostname | IP address, port |
+| Position | In front of web subnet | In front of app subnet |
+| Traffic type | Public HTTP/HTTPS | Internal TCP/UDP |
+| Use case | Path-based routing for web apps | Internal load distribution |
+
+---
+
+## 7. Azure DNS
+
+- When a load balancer is created, Azure assigns it an **IP address** (e.g., `3.4.5.6`).
+- Users never access websites by IP address — they use a **domain name** (e.g., `abhishek.com`).
+- **Azure DNS** is the service where I purchase and manage domain names and map them to IP addresses via **DNS records**.
+
+**How name resolution works:**
+
+```
+User types: abhishek.com
+     ↓
+Browser → Home Router → ISP DNS Server
+     ↓
+ISP DNS queries Azure DNS
+     ↓
+Azure DNS returns Load Balancer IP: 3.4.5.6
+     ↓
+Request sent to 3.4.5.6 (the Load Balancer)
+```
+
+- This is identical to searching for a property name on Google Maps — the name gets resolved to GPS coordinates (IP address) that guide you to the destination.
+
+---
+
+## 8. How a Full Request Flows
+
+```
+User: abhishek.com/login
+         │
+         ▼
+  [ISP DNS] ──resolves──► [Azure DNS] ──returns IP──► 3.4.5.6
+         │
+         ▼
+  [Azure Firewall]  ←── perimeter security check
+         │ (allowed)
+         ▼
+  [App Gateway / L7 LB]  ←── routes based on /login path
+         │
+         ▼
+  [Subnet-Web NSG]  ←── subnet-level security check
+         │ (allowed)
+         ▼
+  [Login Web App — Copy 1 or Copy 2]
+         │
+         ▼
+  [Azure Load Balancer / L4 LB]  ←── forwards to backend
+         │
+         ▼
+  [Subnet-App NSG]  ←── subnet-level security check
+         │ (allowed)
+         ▼
+  [Login Backend App — Copy 1 or Copy 2]
+         │
+         ▼
+  [Subnet-DB NSG]  ←── only app subnet allowed
+         │ (allowed)
+         ▼
+  [Database]
+```
+
+---
+
+## 9. VNet Peering
+
+- By default, two separate VNets **cannot communicate** with each other — they are fully isolated.
+- **VNet Peering** allows two VNets to communicate by explicitly linking them.
+
+**When is it needed?**
+
+> Example: The `Nike-Sales` VNet needs to access a storage resource inside the `Nike-Billing` VNet.
+
+**How it works:**
+
+- I must have **Owner/Admin access** on both VNets.
+- Modify the **route tables** of both VNets to add routing paths that allow traffic between them.
+- Once peered, resources in one VNet can communicate with resources in the other as if they were on the same network.
+
+> There are constraints around overlapping CIDR ranges — two VNets cannot be peered if their IP ranges overlap.
+
+---
+
+## 10. VNet Gateway
+
+- **VNet Gateway** is an alternative to VNet Peering for connecting two virtual networks.
+- Both VNet Peering and VNet Gateway achieve the same goal: enabling communication between two VNets.
+- The choice between them depends on factors like latency, cost, and cross-region requirements — this will be covered in detail during hands-on sessions.
+
+| Feature | VNet Peering | VNet Gateway |
+|---|---|---|
+| Latency | Low (direct link) | Slightly higher |
+| Cost | Lower | Higher |
+| Cross-region | Supported (Global Peering) | Supported |
+| Typical use | Same-region VNet communication | Complex routing / transit scenarios |
+
+---
+
+## 11. VPN Gateway
+
+- Used to connect an **on-premises / organizational network** to an **Azure VNet**.
+- Relevant in **hybrid cloud** scenarios where some resources remain on-premises (e.g., a private data center) and others are in Azure.
+- Establishes an encrypted tunnel between the on-premises network and the Azure VNet so both can communicate securely.
+
+**Use case:**
+
+```
+Organization's On-Premises Data Center
+          │
+     [VPN Gateway]
+          │  (encrypted tunnel)
+     [Azure VNet]
+          │
+   Azure resources
+```
+
+---
+
+## 12. Full Architecture Summary
+
+```
+Internet
+   │
+[Azure DNS] — resolves domain name to Load Balancer IP
+   │
+[Azure Firewall] — perimeter security
+   │
+[App Gateway Subnet]
+   └── App Gateway (L7 LB) — path-based routing
+          │
+[Subnet-Web] ── NSG ── Route Table
+   ├── Login App (Zone 1) + (Zone 2)
+   ├── Logout App (Zone 1) + (Zone 2)
+   └── Payment App (Zone 1) + (Zone 2)
+          │
+[Azure Load Balancer (L4 LB)] — internal load balancing
+          │
+[Subnet-App] ── NSG ── Route Table
+   ├── Login Backend (Zone 1) + (Zone 2)
+   └── Payment Backend (Zone 1) + (Zone 2)
+          │
+[Subnet-DB] ── NSG (only Subnet-App allowed)
+   ├── Primary Database (Active)
+   └── Replica Database (Passive)
+```
+
+---
+
+## 13. Analogy Cheat Sheet
+
+| Concept | Housing Society | Azure |
+|---|---|---|
+| Secured boundary | Private land | VNet |
+| Sections within land | Blocks | Subnets |
+| Individual units | Houses | VM Instances |
+| Perimeter security | Compound wall + main gate + head guard | Azure Firewall |
+| Section-level guard | Block guard | NSG (subnet level) |
+| Individual unit guard | Personal guard | NSG (NIC/VM level) |
+| Internal navigation | Paths + signboards | Route Table + System Routes |
+| Property address lookup | Google Maps search | Azure DNS |
+| Traffic director to correct block | Reception / concierge | App Gateway (L7) |
+| Internal block-to-block routing | Internal courier | Azure Load Balancer (L4) |
+| Connecting two societies | Inter-society gate agreement | VNet Peering / VNet Gateway |
+| Office connected to society | Private road to office | VPN Gateway |
+| Maintenance bill | Monthly charges | Azure Billing |
+
+---
