@@ -1,0 +1,371 @@
+# Azure Resource Manager (ARM) Templates
+
+## 1. What is Azure Resource Manager (ARM)?
+
+Every method used to create resources on Azure — portal, CLI, ARM templates, Bicep, SDK — ultimately sends its request to **Azure Resource Manager (ARM)**. ARM is the backend layer responsible for actually creating, updating, and deleting resources on the Azure platform.
+
+```
+Azure Portal  ──┐
+Azure CLI     ──┤
+ARM Templates ──┼──► Azure Resource Manager ──► Creates resources on Azure
+Bicep         ──┤
+SDK           ──┘
+```
+
+ARM exposes a set of APIs. All services communicate with these APIs, and ARM handles the actual provisioning.
+
+---
+
+## 2. Why ARM Exists — Standardisation
+
+Without a centralised resource manager, each service (portal, CLI, SDK) could define its own validation rules independently — leading to inconsistent behaviour for users.
+
+**Example problem without ARM:**
+
+| Service | Storage account name validation |
+|---|---|
+| Portal | 1–6 characters |
+| CLI | 1–10 characters |
+| SDK | 10–15 characters |
+
+This would be a terrible user experience. ARM solves this by enforcing a **single standard** for all services. Each service can accept inputs in its own format (UI form, JSON, DSL, code), but validation and resource creation rules are owned centrally by ARM.
+
+---
+
+## 3. What are ARM Templates?
+
+ARM Templates are **JSON files** that describe the resources I want to create on Azure. I write the JSON, submit it to ARM (via CLI or portal), and ARM provisions the resources.
+
+- ARM Templates are one of several ways to create resources programmatically.
+- They are the native Azure infrastructure-as-code format.
+- The same fields required in the portal UI are represented as JSON keys in the template.
+
+---
+
+## 4. Setting Up VS Code for ARM Templates
+
+Writing ARM templates by hand from scratch is overwhelming. The **ARM Tools extension for VS Code** provides intelligent autocomplete, snippets, and hover documentation that makes writing templates fast and easy.
+
+### Steps
+
+1. Download and install [Visual Studio Code](https://code.visualstudio.com/download).
+2. Open VS Code → click the **Extensions** icon (left sidebar).
+3. Search for `Azure Resource Manager (ARM) Tools`.
+4. Select the extension with the Microsoft blue tick and the highest download count.
+5. Click **Install**.
+6. After installation, wait a couple of minutes for the ARM schema to load in the background.
+
+> Once the schema loads, hovering over any field in a `.json` file will show its definition and description.
+
+---
+
+## 5. ARM Template Structure
+
+Every ARM template follows this top-level structure:
+
+```json
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "functions": [],
+  "variables": {},
+  "resources": [],
+  "outputs": {}
+}
+```
+
+### Field Explanations
+
+| Field | Purpose |
+|---|---|
+| `$schema` | URL pointing to the JSON schema that validates the template. Ensures fields and values are correct before deployment. |
+| `contentVersion` | Version string for the template (e.g., `"1.0.0.0"`). Used for version tracking as templates evolve. |
+| `parameters` | Input values that can be passed at deployment time. Avoids hardcoding — allows the same template to be reused across environments. |
+| `functions` | Custom user-defined functions for generating dynamic values (e.g., concatenated names, timestamps). |
+| `variables` | Values used multiple times in the template. Define once, reference everywhere — reduces repetition and makes updates easier. |
+| `resources` | The actual Azure resources to create (storage accounts, VMs, VNets, NSGs, etc.). This is the core section. |
+| `outputs` | Values returned after deployment (e.g., public IP of a created VM, storage account URL). |
+
+> **Quickstart:** In a new `.json` file in VS Code, type `arm!` and press Enter to auto-generate the full template skeleton.
+
+---
+
+## 6. Create a Storage Account — Step by Step
+
+### Create the file
+
+1. Create a new file: `storage-account.json`
+2. Type `arm!` → select **Resource Group template** → skeleton is generated.
+3. Inside the `resources` array, press Enter and type `arm-storage`.
+4. Select the storage account snippet from the dropdown.
+
+The extension generates:
+
+```json
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "functions": [],
+  "variables": {},
+  "resources": [
+    {
+      "name": "storageaccount1",
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "tags": {
+        "displayName": "storageaccount1"
+      },
+      "location": "[resourceGroup().location]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Premium_LRS",
+        "tier": "Premium"
+      }
+    }
+  ],
+  "outputs": {}
+}
+```
+
+### Modify the name
+
+Storage account names must be globally unique, lowercase, 3–24 characters, letters and numbers only.
+
+```json
+"name": "myuniquestorage9901",
+```
+
+### Key fields explained
+
+| Field | Description |
+|---|---|
+| `type` | The ARM resource type (e.g., `Microsoft.Storage/storageAccounts`) |
+| `apiVersion` | The ARM API version to use — required by ARM to process the request correctly |
+| `location` | `[resourceGroup().location]` reads the region from the Resource Group automatically |
+| `kind` | `StorageV2` is the recommended modern storage account type |
+| `sku.name` | Storage tier — `Standard_LRS`, `Standard_GRS`, `Premium_LRS`, etc. |
+
+---
+
+## 7. Deploy an ARM Template using Azure CLI
+
+### Step 1 — Create a Resource Group
+
+```bash
+az group create \
+  --name vscode-rg \
+  --location eastus
+```
+
+### Step 2 — Deploy the template
+
+```bash
+az deployment group create \
+  --resource-group vscode-rg \
+  --template-file storage-account.json
+```
+
+**Verify:** Go to Azure Portal → Resource Groups → `vscode-rg` — the storage account should appear.
+
+### Cleanup after practice
+
+```bash
+az group delete --name vscode-rg --yes --no-wait
+```
+
+---
+
+## 8. Using Parameters
+
+Hardcoding values like `"Premium_LRS"` means I need a separate template for every variation. **Parameters** allow users to pass values at deployment time, making one template reusable across teams and environments.
+
+### Define a parameter
+
+Inside the `parameters` block, type `new-parameter` in VS Code to trigger the snippet:
+
+```json
+"parameters": {
+  "storageTier": {
+    "type": "string",
+    "defaultValue": "Standard_LRS",
+    "allowedValues": [
+      "Standard_LRS",
+      "Premium_LRS"
+    ],
+    "metadata": {
+      "description": "Tier of the storage account"
+    }
+  }
+}
+```
+
+### Reference the parameter in resources
+
+Replace the hardcoded SKU name with a parameter reference:
+
+```json
+"sku": {
+  "name": "[parameters('storageTier')]"
+}
+```
+
+### Pass a value at deployment
+
+```bash
+az deployment group create \
+  --resource-group vscode-rg \
+  --template-file storage-account.json \
+  --parameters storageTier="Standard_LRS"
+```
+
+If `--parameters` is not provided, the `defaultValue` is used.
+
+| Concept | Parameters | Variables |
+|---|---|---|
+| Set by | User at deployment time | Author inside the template |
+| Purpose | Allow user input / customisation | Avoid repeating the same value |
+| Example use | Choose SKU, region, VM size | Shared resource name used in 3+ places |
+
+---
+
+## 9. Using Variables
+
+Variables store values that are reused in multiple places in the template. Changing the value in one place updates it everywhere.
+
+### Define a variable
+
+Inside the `variables` block, type `new-variable` in VS Code:
+
+```json
+"variables": {
+  "resourceName": "myproject-storage-001"
+}
+```
+
+### Reference the variable
+
+```json
+"name": "[variables('resourceName')]"
+```
+
+**Why this matters:** If the storage account name appears in 3 places (the resource name, a tag, and a VM reference), I only need to update `variables.resourceName` once instead of finding and editing every occurrence.
+
+---
+
+## 10. Create a Virtual Machine with ARM Template
+
+### Create the file
+
+1. Create a new file: `create-vm.json`
+2. Type `arm!` → skeleton generated.
+3. Inside `resources`, type `arm-vm` → select the Ubuntu VM snippet.
+
+The extension generates a ~170-line template that automatically includes all VM dependencies:
+
+```
+Resources created by the VM template:
+├── Storage Account      (boot diagnostics)
+├── Public IP Address
+├── Network Security Group (NSG)
+├── Virtual Network + Subnet
+├── Network Interface (NIC)
+└── Virtual Machine
+```
+
+This mirrors exactly what was created manually in Day 07 — ARM templates simply codify that same process.
+
+### Modify required fields
+
+```json
+{
+  "name": "my-demo-vm",
+  ...
+  "osProfile": {
+    "computerName": "my-demo-vm",
+    "adminUsername": "azureuser",
+    "adminPassword": "AzureUser@123"
+  }
+}
+```
+
+> If the storage account name in the template is hardcoded, make sure it is globally unique **and** update all references to it within the same template (the VM resource often references the storage account in its `diagnosticsProfile`).
+
+### Deploy
+
+```bash
+az deployment group create \
+  --resource-group vscode-rg \
+  --template-file create-vm.json
+```
+
+---
+
+## 11. ARM vs Bicep vs Terraform vs CLI
+
+### Comparison Table
+
+| Tool | Language | Scope | Best For |
+|---|---|---|---|
+| **ARM Templates** | JSON | Azure only | Azure-native IaC; widely used in existing enterprise setups |
+| **Bicep** | DSL (Bicep) | Azure only | Modern Azure IaC; cleaner syntax than JSON; compiles to ARM |
+| **Terraform** | HCL | Multi-cloud | Cloud-agnostic IaC; ideal when working across AWS, Azure, GCP |
+| **Azure CLI** | Bash / PowerShell | Azure only | Quick actions, scripting, deploying templates |
+
+### When to use which
+
+**ARM Templates:**
+- The organization is Azure-only.
+- The job description or team already uses ARM templates.
+- Interview preparation for Azure-focused roles (still widely asked as of 2024).
+
+**Bicep:**
+- Starting a new Azure project with no legacy ARM templates.
+- Bicep compiles down to ARM JSON, so ARM is not being replaced — Bicep is a cleaner way to write ARM.
+- Recommended to learn **after** understanding ARM template basics.
+
+**Terraform:**
+- The organization uses multiple cloud providers.
+- The job description explicitly mentions Terraform.
+- Universal option — learning Terraform also transfers across cloud providers.
+
+**Azure CLI:**
+- Quick actions: checking resources, triggering deployments, deleting resource groups.
+- Part of everyday Azure work — not a dedicated IaC tool, but used alongside all of the above.
+- Grows naturally with Azure experience (similar to how `kubectl` grows with Kubernetes experience).
+
+### Learning priority recommendation
+
+```
+Start here:
+  ARM Templates (understand the JSON structure and fields)
+        │
+        ▼
+  Azure CLI (use alongside ARM for deployments and quick tasks)
+        │
+        ▼
+  Terraform (if multi-cloud or job requires it)
+        │
+        ▼
+  Bicep (once ARM basics are solid — cleaner syntax, same outcome)
+```
+
+---
+
+## 12. Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| Azure Resource Manager | Central layer that all Azure provisioning tools talk to; enforces standardisation |
+| ARM Templates | JSON files describing resources to deploy; native Azure IaC format |
+| `$schema` | Validates the JSON structure of the template |
+| `parameters` | User-supplied inputs at deploy time; enables template reuse |
+| `variables` | Reusable values defined once inside the template |
+| `resources` | Core block — defines what Azure resources to create |
+| `outputs` | Values returned after deployment (e.g., IP addresses) |
+| `functions` | Custom logic for generating dynamic values (advanced) |
+| VS Code Extension | `Azure Resource Manager (ARM) Tools` — provides snippets and autocomplete |
+| Deploy command | `az deployment group create --resource-group <rg> --template-file <file>.json` |
+
+---
