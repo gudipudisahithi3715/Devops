@@ -1,0 +1,303 @@
+#  Azure CLI (Command Line Interface)
+
+## 1. Why Use Azure CLI?
+
+The Azure portal is great for learning and one-off tasks, but Azure CLI becomes essential for real-world DevOps work.
+
+### When CLI beats the portal
+
+| Scenario | Portal | CLI |
+|---|---|---|
+| Create one VM | ✅ Fine | ✅ Fine |
+| Create 10 VMs with identical config | ❌ Slow, error-prone | ✅ One script, reusable |
+| Quick audit — how many VMs in a project? | ❌ Navigate multiple pages | ✅ One command |
+| Share resource creation steps with team | ❌ Screenshots/docs | ✅ Commit script to Git |
+| Onboard a new team member | ❌ Manual walkthrough | ✅ Clone repo, run script |
+| Reduce configuration errors | ❌ Manual = human error | ✅ Script is consistent every time |
+
+### Core advantages
+
+- **Quick actions** — query, create, or delete resources in seconds without navigating the UI.
+- **Automation** — script repetitive tasks; store in Git and share across the team.
+- **Reduced errors** — a tested script produces the same result every time, eliminating manual mistakes like selecting the wrong image or missing a required field.
+- **Team collaboration** — scripts in a Git repository serve as living documentation of how infrastructure is provisioned.
+
+> **Other automation options:** ARM Templates, Bicep, Terraform — these are covered in later sessions. Azure CLI is the starting point before moving to full infrastructure-as-code.
+
+---
+
+## 2. Installing Azure CLI
+
+### Windows
+
+1. Go to the [Azure CLI documentation](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-windows).
+2. Download the **64-bit MSI installer** (recommended over PowerShell method for compatibility).
+3. Run the `.msi` file → accept the license → click **Next** through the wizard.
+4. Verify installation in PowerShell:
+
+```powershell
+az version
+```
+
+> On Windows, use **PowerShell** (not Git Bash) for Azure CLI — Microsoft provides excellent PowerShell support for Azure.
+
+### macOS
+
+```bash
+brew update && brew install azure-cli
+```
+
+Verify:
+
+```bash
+az version
+```
+
+### Linux (Ubuntu / Debian)
+
+```bash
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+```
+
+Verify:
+
+```bash
+az version
+```
+
+**Expected output (example):**
+
+```json
+{
+  "azure-cli": "2.x.x",
+  "azure-cli-core": "2.x.x",
+  "azure-cli-telemetry": "1.x.x",
+  "extensions": {}
+}
+```
+
+> If `az version` returns this output, Azure CLI is correctly installed.
+
+---
+
+## 3. Configuring Azure CLI
+
+After installation, link the CLI to my Azure account:
+
+```bash
+az login
+```
+
+- A browser window opens automatically.
+- Sign in with my Azure account credentials.
+- On success, the terminal displays a confirmation and the active subscription details.
+
+> The CLI automatically picks up my subscription after login. All subsequent commands run against this subscription — no need to specify it separately each time.
+
+---
+
+## 4. CLI Command Reference — Where to Find Commands
+
+Azure CLI documentation provides an **A–Z article list** covering every resource type.
+
+**URL:** [https://docs.microsoft.com/en-us/cli/azure/reference-index](https://docs.microsoft.com/en-us/cli/azure/reference-index)
+
+**How to find a command:**
+1. Open the A–Z article list.
+2. Press `Ctrl+F` / `Cmd+F` and search for the resource (e.g., `az vm`, `az group`, `az storage`).
+3. Click the relevant article for the full command syntax and examples.
+
+> ⚠️ **Learn the portal first.** Azure CLI automation only makes sense when I understand the resource dependencies (e.g., a VM requires a Resource Group and VNet to already exist). Jumping to CLI without portal knowledge leads to confusing errors.
+
+---
+
+## 5. Create a Resource Group
+
+Resource Group must be created before any other resource.
+
+```bash
+az group create \
+  --name learn-azure-cli \
+  --location eastus
+```
+
+**Verify in the portal:** Navigate to **Resource Groups** — `learn-azure-cli` should appear.
+
+**Common parameters:**
+
+| Parameter | Description |
+|---|---|
+| `--name` | Name of the Resource Group |
+| `--location` | Azure region (e.g., `eastus`, `centralindia`, `westeurope`) |
+
+---
+
+## 6. Create a Virtual Network and Virtual Machine
+
+The following command creates a VM **and** its VNet, subnet, public IP, and NSG in a single step:
+
+```bash
+az vm create \
+  --resource-group learn-azure-cli \
+  --name test-cli-vm \
+  --image Ubuntu2204 \
+  --vnet-name test-cli-vnet \
+  --subnet example-subnet \
+  --generate-ssh-keys
+```
+
+**What `--generate-ssh-keys` does:**
+- If SSH keys already exist on the machine (at `~/.ssh/id_rsa`), it reuses them.
+- If no keys exist (common on Windows), it generates a new key pair and saves them.
+- The VM is configured with the public key; the private key is used to SSH in.
+
+**Resources automatically created by this command:**
+
+| Resource | Name |
+|---|---|
+| Virtual Network | `test-cli-vnet` |
+| Subnet | `example-subnet` |
+| Public IP | auto-named |
+| NSG | auto-named |
+| Virtual Machine | `test-cli-vm` |
+
+**Verify in the portal:** Go to **Resource Groups** → `learn-azure-cli` — all resources should be listed.
+
+---
+
+## 7. Create a Storage Account
+
+```bash
+# If the Resource Group was deleted, recreate it first:
+az group create \
+  --name learn-azure-cli \
+  --location eastus
+
+# Create the storage account:
+az storage account create \
+  --name <unique-storage-account-name> \
+  --resource-group learn-azure-cli \
+  --location eastus \
+  --sku Standard_LRS
+```
+
+> Storage account names must be **globally unique**, lowercase, 3–24 characters, letters and numbers only.
+
+**Common `--sku` options:**
+
+| SKU | Description |
+|---|---|
+| `Standard_LRS` | Locally Redundant Storage (cheapest, good for dev) |
+| `Standard_GRS` | Geo-Redundant Storage (replicates to secondary region) |
+| `Premium_LRS` | Premium performance (SSDs) |
+
+---
+
+## 8. Delete Resources
+
+### Delete all resources by deleting the Resource Group
+
+```bash
+az group delete \
+  --name learn-azure-cli
+```
+
+The CLI prompts for confirmation. Type `y` and press Enter.
+
+### Delete without waiting for confirmation (non-interactive / scripted use)
+
+```bash
+az group delete \
+  --name learn-azure-cli \
+  --yes \
+  --no-wait
+```
+
+| Flag | Behaviour |
+|---|---|
+| `--yes` | Skips the confirmation prompt |
+| `--no-wait` | Returns control to the terminal immediately; deletion continues in the background |
+
+> Deleting a Resource Group removes **all resources inside it** — VMs, VNets, NSGs, storage accounts, public IPs, etc. Always confirm the correct Resource Group name before deleting.
+
+---
+
+## 9. DevOps Best Practices with Azure CLI
+
+### Store scripts in a Git repository
+
+```
+repo/
+└── azure-cli/
+    ├── create-vm.sh
+    ├── create-storage.sh
+    └── delete-resources.sh
+```
+
+- Scripts in version control serve as both automation tools and documentation.
+- Team members clone the repo, update names/regions as needed, and run the script.
+- New joiners can provision environments without reading lengthy setup docs.
+
+### Script structure recommendation
+
+```bash
+#!/bin/bash
+
+# Variables — change these per project/environment
+RESOURCE_GROUP="nike-sales-dev"
+LOCATION="eastus"
+VM_NAME="web-server-01"
+VNET_NAME="nike-sales-vnet"
+SUBNET_NAME="web-subnet"
+STORAGE_ACCOUNT="nikesalesdevstorage"
+
+# Step 1: Create Resource Group
+az group create \
+  --name $RESOURCE_GROUP \
+  --location $LOCATION
+
+# Step 2: Create VM + VNet
+az vm create \
+  --resource-group $RESOURCE_GROUP \
+  --name $VM_NAME \
+  --image Ubuntu2204 \
+  --vnet-name $VNET_NAME \
+  --subnet $SUBNET_NAME \
+  --generate-ssh-keys
+
+# Step 3: Create Storage Account
+az storage account create \
+  --name $STORAGE_ACCOUNT \
+  --resource-group $RESOURCE_GROUP \
+  --location $LOCATION \
+  --sku Standard_LRS
+```
+
+> Parameterising scripts (using variables at the top) means the same script works for dev, staging, and production — just change the variable values.
+
+---
+
+## 10. Summary
+
+| Task | Command |
+|---|---|
+| Check CLI version | `az version` |
+| Login to Azure | `az login` |
+| Create Resource Group | `az group create --name <name> --location <region>` |
+| Create VM + VNet | `az vm create --resource-group <rg> --name <vm> --image Ubuntu2204 --vnet-name <vnet> --subnet <subnet> --generate-ssh-keys` |
+| Create Storage Account | `az storage account create --name <name> --resource-group <rg> --location <region> --sku Standard_LRS` |
+| Delete Resource Group | `az group delete --name <name> --yes --no-wait` |
+
+**Dependency order when creating resources:**
+
+```
+Subscription (auto from az login)
+    └── Resource Group
+            ├── Virtual Network + Subnet
+            │       └── Virtual Machine
+            └── Storage Account
+```
+
+> Always create resources in dependency order. A VM cannot be created without a Resource Group, and it needs a VNet/Subnet available (or created at the same time with `az vm create`).
+
+---
